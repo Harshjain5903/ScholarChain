@@ -17,7 +17,8 @@
     "Stop": [
       {
         "hook": ".claude/hooks/verify-tests-ran.sh",
-        "description": "Requires sbt check to have run after source changes before stopping"
+        "description": "Requires sbt check to have run after source changes before stopping",
+        "matcher": "Stop"
       }
     ]
   },
