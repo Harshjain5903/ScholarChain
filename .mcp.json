@@ -1,0 +1,37 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "gh",
+      "args": ["mcp"],
+      "description": "GitHub repository browsing, issue and pull-request inspection. Read-only by default; PR creation scoped to this repository only.",
+      "trustBoundary": "Authenticated via gh CLI login (GITHUB_TOKEN env var or gh auth). Scoped to the scholarchain repository. No cross-repo write authority.",
+      "env": {
+        "GITHUB_TOKEN": "$GITHUB_TOKEN"
+      }
+    },
+    "aws-inspect": {
+      "command": "aws-mcp",
+      "args": ["--read-only"],
+      "description": "AWS API read-only inspection for S3, Neptune, DynamoDB, EMR, ECS, ECR, KMS, CloudWatch. No write, delete, or mutating operations.",
+      "trustBoundary": "Read-only AWS API access. Credentials from environment or AWS CLI profile. No create, update, or delete permissions. Mutating commands are blocked by hooks and permission rules.",
+      "env": {
+        "AWS_PROFILE": "$AWS_PROFILE",
+        "AWS_REGION": "$AWS_REGION"
+      }
+    },
+    "terraform-docs": {
+      "command": "terraform-mcp",
+      "args": ["--docs-only"],
+      "description": "Terraform provider and resource documentation lookup. No plan, apply, or state access.",
+      "trustBoundary": "Documentation-only access to Terraform provider schemas and resource documentation. No access to state files, plans, or cloud credentials.",
+      "env": {}
+    },
+    "aws-docs": {
+      "command": "aws-docs-mcp",
+      "args": [],
+      "description": "AWS documentation lookup for service limits, API references, and best practices.",
+      "trustBoundary": "Read-only documentation access. No AWS credentials or API access required.",
+      "env": {}
+    }
+  }
+}

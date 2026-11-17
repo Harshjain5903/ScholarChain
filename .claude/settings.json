@@ -1,0 +1,91 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hook": ".claude/hooks/guard-dangerous.sh",
+        "description": "Blocks destructive AWS, Terraform, Git, and secret-reading commands"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hook": ".claude/hooks/format-scala.sh",
+        "description": "Formats Scala files after writes or edits"
+      }
+    ],
+    "Stop": [
+      {
+        "hook": ".claude/hooks/verify-tests-ran.sh",
+        "description": "Requires sbt check to have run after source changes before stopping"
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git show*)",
+      "Bash(sbt *)",
+      "Bash(scalafmt *)",
+      "Bash(terraform fmt*)",
+      "Bash(terraform validate*)",
+      "Bash(terraform plan*)",
+      "Bash(aws s3 ls*)",
+      "Bash(aws s3api list*)",
+      "Bash(aws s3api get*)",
+      "Bash(aws s3api head*)",
+      "Bash(aws ecs describe*)",
+      "Bash(aws ecs list*)",
+      "Bash(aws emr describe*)",
+      "Bash(aws emr list*)",
+      "Bash(aws neptune describe*)",
+      "Bash(aws dynamodb describe*)",
+      "Bash(aws dynamodb list*)",
+      "Bash(aws ecr describe*)",
+      "Bash(aws ecr list*)",
+      "Bash(aws kms describe*)",
+      "Bash(aws kms list*)",
+      "Bash(bash -n *)",
+      "Bash(python3 -m json.tool*)",
+      "Bash(jq *)",
+      "Bash(chmod +x *)"
+    ],
+    "deny": [
+      "Bash(terraform apply*)",
+      "Bash(terraform destroy*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(cat *.env*)",
+      "Bash(cat */.env*)",
+      "Bash(cat *.pem)",
+      "Bash(cat *id_rsa*)",
+      "Bash(cat *id_ed25519*)",
+      "Bash(cat *credentials.json*)",
+      "Bash(cat *.aws/credentials*)",
+      "Bash(less *.env*)",
+      "Bash(more *.env*)",
+      "Bash(head *.env*)",
+      "Bash(tail *.env*)",
+      "Bash(source *.env*)",
+      "Bash(aws s3 rb *)",
+      "Bash(aws s3 rm *--recursive*)",
+      "Bash(aws s3api delete-bucket*)",
+      "Bash(aws dynamodb delete-table*)",
+      "Bash(aws neptune delete-db-cluster*)",
+      "Bash(aws neptune delete-db-instance*)",
+      "Bash(aws s3vectors delete-vector-bucket*)",
+      "Bash(aws s3vectors delete-vector-index*)",
+      "Bash(aws ecr delete-repository*)",
+      "Bash(aws kms schedule-key-deletion*)",
+      "Bash(aws kms disable-key*)",
+      "Bash(aws emr terminate-clusters*)",
+      "Bash(aws emr modify-instance-groups*)"
+    ]
+  }
+}
