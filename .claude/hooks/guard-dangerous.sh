@@ -33,7 +33,7 @@ if [ -z "$COMMAND" ]; then
 fi
 
 # --- Terraform apply/destroy ---
-if printf '%s' "$COMMAND" | grep -qE '(^|[;&|])\s*terraform\s+(apply|destroy)'; then
+if printf '%s' "$COMMAND" | grep -qE 'terraform\s+(apply|destroy)'; then
   echo "BLOCKED: terraform apply/destroy is forbidden. Use terraform plan and get human approval." >&2
   exit 2
 fi
