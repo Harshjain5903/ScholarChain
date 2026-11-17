@@ -3,22 +3,37 @@
     "PreToolUse": [
       {
         "matcher": "Bash",
-        "hook": ".claude/hooks/guard-dangerous.sh",
-        "description": "Blocks destructive AWS, Terraform, Git, and secret-reading commands"
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/guard-dangerous.sh",
+            "statusMessage": "Checking for dangerous commands..."
+          }
+        ]
       }
     ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",
-        "hook": ".claude/hooks/format-scala.sh",
-        "description": "Formats Scala files after writes or edits"
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/format-scala.sh",
+            "statusMessage": "Formatting Scala file..."
+          }
+        ]
       }
     ],
     "Stop": [
       {
-        "hook": ".claude/hooks/verify-tests-ran.sh",
-        "description": "Requires sbt check to have run after source changes before stopping",
-        "matcher": "Stop"
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/verify-tests-ran.sh",
+            "statusMessage": "Verifying tests ran..."
+          }
+        ]
       }
     ]
   },
