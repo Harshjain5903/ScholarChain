@@ -1,0 +1,3 @@
+# Phase 02 Work Order
+
+Use the build-engineer agent to create the ScholarChain sbt multi-project build and repository skeleton from scratch. Required projects: core, hadoop, entityResolution, sparkAnalytics, storage, rag, services. Scala 3 everywhere, pin every dependency version in a single ledger, use uPickle for JSON, use ScalaTest for tests, keep Hadoop and Spark dependencies Provided, use scalafmt with Scala 3 dialect, create markTestRun task, define aliases fmt/check/packageJobs/dockerLocal, create build.sbt/project files/.scalafmt.conf/.gitignore/empty module source roots/empty top-level directories. Verify with sbt Test/compile and sbt check.
