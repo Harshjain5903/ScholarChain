@@ -1,1 +1,51 @@
+# macOS
 .DS_Store
+
+# IDE
+.idea/
+.vscode/
+.bsp/
+metals.sbt
+.metals/
+.bloop/
+
+# sbt
+target/
+project/target/
+project/project/
+
+# Scala
+*.class
+*.tasty
+
+# Environment / secrets — never commit
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+
+# Claude local settings (not constitutional)
+.claude/settings.local.json
+
+# Test marker (generated build output)
+.claude/.last-test-run
+
+# Terraform state (managed by infra-engineer)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Logs
+*.log
+
+# Docker compose overrides (local only)
+docker-compose.override.yml
+
+# Packaging artifacts
+*.jar
+!lib/*.jar
+
+# Node (if any tooling)
+node_modules/
