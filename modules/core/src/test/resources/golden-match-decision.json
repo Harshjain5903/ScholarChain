@@ -1,0 +1,17 @@
+{
+  "sourceId": "mention:openalex:A100:W123456",
+  "targetId": "mention:dblp:auth-smith:conf/icml/2023",
+  "features": {
+    "nameJaroWinkler": 0.95,
+    "affiliationOverlap": 0.8,
+    "yearProximity": 1
+  },
+  "decision": "Accepted",
+  "confidence": 0.92,
+  "reasonCodes": [
+    "HIGH_NAME_SIM",
+    "SAME_VENUE"
+  ],
+  "policyVersion": "v1",
+  "runId": "run:test-001"
+}

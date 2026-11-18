@@ -1,0 +1,55 @@
+{
+  "workId": "work:openalex:W123456",
+  "source": "OpenAlex",
+  "sourceRecordId": "W123456",
+  "title": "Deep Learning for Graph Analytics",
+  "normalizedTitle": "deep learning for graph analytics",
+  "year": 2023,
+  "venueId": "venue:openalex:V789",
+  "doi": "10.1234/example.2023",
+  "arxivId": null,
+  "authors": [
+    {
+      "mentionId": "mention:openalex:A100:W123456",
+      "rawName": "Jane A. Smith",
+      "normalizedName": "jane a smith",
+      "position": 0,
+      "orcid": "0000-0001-2345-6789",
+      "openAlexId": "A100",
+      "affiliationRaw": "MIT",
+      "sourceRecordId": "W123456",
+      "provenance": {
+        "sourceDataset": "openalex",
+        "sourceRecordId": "W123456",
+        "pipelineRunId": "run:test-001",
+        "schemaVersion": "1.0.0",
+        "timestamp": "2024-01-15T10:30:00Z"
+      }
+    },
+    {
+      "mentionId": "mention:openalex:A200:W123456",
+      "rawName": "Bob Chen",
+      "normalizedName": "bob chen",
+      "position": 1,
+      "orcid": null,
+      "openAlexId": "A200",
+      "affiliationRaw": "Stanford University",
+      "sourceRecordId": "W123456",
+      "provenance": {
+        "sourceDataset": "openalex",
+        "sourceRecordId": "W123456",
+        "pipelineRunId": "run:test-001",
+        "schemaVersion": "1.0.0",
+        "timestamp": "2024-01-15T10:30:00Z"
+      }
+    }
+  ],
+  "abstractTextRef": null,
+  "provenance": {
+    "sourceDataset": "openalex",
+    "sourceRecordId": "W123456",
+    "pipelineRunId": "run:test-001",
+    "schemaVersion": "1.0.0",
+    "timestamp": "2024-01-15T10:30:00Z"
+  }
+}

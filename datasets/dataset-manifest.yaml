@@ -1,0 +1,204 @@
+# ScholarChain Dataset Manifest
+# Owner: dataset-engineer
+# Schema version: 1.0.0
+# Last updated: 2026-11-17
+#
+# This manifest is the authoritative registry of all datasets used by ScholarChain.
+# Every dataset must have a complete entry here before it can be used in any pipeline.
+# Provenance: maintained by dataset-engineer per docs/agents.md.
+
+schema_version: "1.0.0"
+
+datasets:
+
+  - name: dblp
+    purpose: >-
+      Seed publication graph -- titles, authors, venues, years.
+      DBLP is the primary bibliographic seed for ScholarChain's publication records.
+    source_url: "https://dblp.org/xml/dblp.xml.gz"
+    documentation_url: "https://dblp.org/faq/"
+    license: "ODC-BY 1.0"
+    reuse_terms: >-
+      Attribution required. Must cite DBLP when redistributing or publishing
+      derived datasets. See https://dblp.org/faq/How+can+I+use+the+dblp+data.html
+    snapshot_date: "YYYY-MM-DD"
+    retrieval_command: "datasets/scripts/download-dblp-sample.sh --output-dir datasets/samples/"
+    format: "XML (gzip-compressed)"
+    expected_size_estimate: "~4 GB compressed, ~30 GB uncompressed"
+    s3_raw_prefix: "s3://scholarchain-raw/dblp/snapshot_date=YYYY-MM-DD/"
+    sha256_checksum: "pending"
+    selected_subset_rule: >-
+      For bounded testing: first 10000 XML records (article and inproceedings
+      elements only). Use download-dblp-sample.sh to fetch a 1 MB head slice.
+    incremental_update_strategy: >-
+      DBLP publishes monthly XML dumps. Download the latest full dump and
+      compare record keys against the prior snapshot. New and updated records
+      are identified by their dblp-key attribute.
+    linkage_fields:
+      - title
+      - author
+      - year
+      - venue
+      - DOI
+    personal_data_notes: >-
+      Contains author names and affiliations as published in public
+      bibliographic records. No private contact information.
+    privacy_notes: >-
+      All data is derived from publicly available bibliographic metadata.
+      No login-gated or restricted-access content is used.
+    known_limitations:
+      - "DOI coverage is partial (~60-70% of records)"
+      - "Author names are not disambiguated (no unique author IDs)"
+      - "Affiliation data is sparse and inconsistently formatted"
+      - "Venue names have variant spellings across years"
+    validation_commands:
+      - "bash -n datasets/scripts/download-dblp-sample.sh"
+      - "file datasets/samples/dblp-sample.json"
+      - "python3 -c \"import json; json.load(open('datasets/samples/dblp-sample.json'))\""
+    owning_agent: "dataset-engineer"
+
+  - name: openalex
+    purpose: >-
+      Enrich publications with DOIs, citation graphs, concepts, and
+      institution affiliations. OpenAlex provides the broadest coverage of
+      scholarly metadata and is used as the primary enrichment source.
+    source_url: "https://help.openalex.org/tutorials/download-the-snapshot/"
+    documentation_url: "https://docs.openalex.org/"
+    license: "CC0"
+    reuse_terms: >-
+      Public domain. No attribution legally required, but citation of OpenAlex
+      is encouraged. See https://docs.openalex.org/additional-help/faq
+    snapshot_date: "YYYY-MM-DD"
+    retrieval_command: "datasets/scripts/download-openalex-sample.sh --output-dir datasets/samples/"
+    format: "JSON Lines (gzip-compressed, partitioned by entity type)"
+    expected_size_estimate: "~300 GB full snapshot across all entity types"
+    s3_raw_prefix: "s3://scholarchain-raw/openalex/snapshot_date=YYYY-MM-DD/"
+    sha256_checksum: "pending"
+    selected_subset_rule: >-
+      For bounded testing: download the works manifest and fetch the first
+      single partition file (~50 MB compressed). Limit to 10000 work records.
+    incremental_update_strategy: >-
+      OpenAlex publishes dated snapshots on AWS S3. Use the manifest to
+      identify new or updated partitions since the last ingested snapshot.
+      Merge-on-read by OpenAlex ID.
+    linkage_fields:
+      - DOI
+      - title
+      - author
+      - year
+      - venue
+      - OpenAlex ID
+    personal_data_notes: >-
+      Contains author names, institution affiliations, and ORCID identifiers
+      as published in open scholarly metadata. No private contact information.
+    privacy_notes: >-
+      All data is CC0 public domain metadata aggregated from open sources.
+    known_limitations:
+      - "Author disambiguation relies on OpenAlex's internal algorithm; quality varies"
+      - "Some records lack DOIs (preprints, older publications)"
+      - "Concept tagging uses an automated classifier with known error rates"
+      - "Institution parsing can misattribute multi-affiliation authors"
+    validation_commands:
+      - "bash -n datasets/scripts/download-openalex-sample.sh"
+      - "file datasets/samples/openalex-sample.json"
+      - "python3 -c \"import json; json.load(open('datasets/samples/openalex-sample.json'))\""
+    owning_agent: "dataset-engineer"
+
+  - name: orcid
+    purpose: >-
+      Author disambiguation and affiliation enrichment. ORCID provides
+      persistent researcher identifiers that link authors across datasets.
+    source_url: "https://info.orcid.org/documentation/integration-guide/working-with-bulk-data/"
+    documentation_url: "https://info.orcid.org/documentation/"
+    license: "CC0 (public data)"
+    reuse_terms: >-
+      Public ORCID data is CC0. Some fields are member-only and have
+      restricted access. ScholarChain uses only the public data subset.
+    snapshot_date: "YYYY-MM-DD"
+    retrieval_command: "datasets/scripts/download-orcid-sample.sh --output-dir datasets/samples/"
+    format: "XML and JSON (tar.gz archive, one file per ORCID record)"
+    expected_size_estimate: "~100 GB full public data dump"
+    s3_raw_prefix: "s3://scholarchain-raw/orcid/snapshot_date=YYYY-MM-DD/"
+    sha256_checksum: "pending"
+    selected_subset_rule: >-
+      For bounded testing: download the summaries archive and extract the
+      first 10000 ORCID records (by lexicographic ORCID order).
+    incremental_update_strategy: >-
+      ORCID publishes annual public data dumps. Use the ORCID API
+      (with rate-limited polling) or compare dump dates to detect updates.
+      Match on ORCID identifier.
+    linkage_fields:
+      - ORCID
+      - author
+      - DOI
+    personal_data_notes: >-
+      Contains researcher names, affiliations, employment history, and
+      education as self-reported and marked public by the researchers.
+      Only publicly visible fields are used.
+    privacy_notes: >-
+      Only CC0 public-visibility data is ingested. Researchers control
+      which fields are public via their ORCID profile settings.
+    known_limitations:
+      - "Coverage is biased toward researchers in STEM and toward English-speaking countries"
+      - "Self-reported data may contain errors or outdated information"
+      - "Not all researchers have ORCID profiles"
+      - "Affiliation strings are not normalized (free text)"
+      - "DOI lists on profiles may be incomplete"
+    validation_commands:
+      - "bash -n datasets/scripts/download-orcid-sample.sh"
+      - "file datasets/samples/orcid-sample.json"
+      - "python3 -c \"import json; json.load(open('datasets/samples/orcid-sample.json'))\""
+    owning_agent: "dataset-engineer"
+
+  - name: crossref
+    purpose: >-
+      DOI resolution, citation links, and publisher metadata. Crossref
+      provides authoritative DOI-to-metadata mappings and reference lists
+      for building the citation graph.
+    source_url: "https://www.crossref.org/services/metadata-retrieval/public-data-file/"
+    documentation_url: "https://www.crossref.org/documentation/"
+    license: "Public domain (factual metadata); subject to Crossref Metadata Terms of Use"
+    reuse_terms: >-
+      Crossref metadata is factual and not copyrightable in most jurisdictions.
+      Abstracts and other contributed text may carry publisher restrictions.
+      ScholarChain uses only bibliographic metadata fields. API access requires
+      compliance with Crossref Metadata Terms of Use, including rate limits and
+      polite-pool requirements (provide a mailto contact for the polite pool).
+      See https://www.crossref.org/documentation/metadata-plus/metadata-plus-keys/
+    snapshot_date: "YYYY-MM-DD"
+    retrieval_command: "datasets/scripts/download-crossref-sample.sh --output-dir datasets/samples/"
+    format: "JSON (gzip-compressed, split into ~30000 files)"
+    expected_size_estimate: "~150 GB full public data file"
+    s3_raw_prefix: "s3://scholarchain-raw/crossref/snapshot_date=YYYY-MM-DD/"
+    sha256_checksum: "pending"
+    selected_subset_rule: >-
+      For bounded testing: download a single compressed JSON file from the
+      public data torrent or API, limited to 10000 records.
+    incremental_update_strategy: >-
+      Crossref provides a changes API with from-index-date parameter.
+      Poll monthly for updated DOIs and merge by DOI key. Full re-download
+      annually for consistency.
+    linkage_fields:
+      - DOI
+      - title
+      - author
+      - year
+      - venue
+      - ISSN
+    personal_data_notes: >-
+      Contains author names and affiliations as published in DOI metadata
+      registered by publishers. No private contact information.
+    privacy_notes: >-
+      All data is from publicly registered DOI metadata. Publisher-deposited
+      metadata is used under Crossref's metadata license terms.
+    known_limitations:
+      - "Reference lists (cited-by) are incomplete for older publications"
+      - "Author name formats vary by publisher (sometimes only initials)"
+      - "ORCID linkage in Crossref metadata depends on publisher deposits"
+      - "Some publishers deposit minimal metadata (no abstracts, no references)"
+      - "Affiliation data coverage is inconsistent across publishers"
+    validation_commands:
+      - "bash -n datasets/scripts/download-crossref-sample.sh"
+      - "file datasets/samples/crossref-sample.json"
+      - "python3 -c \"import json; json.load(open('datasets/samples/crossref-sample.json'))\""
+    owning_agent: "dataset-engineer"

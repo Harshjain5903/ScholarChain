@@ -1,0 +1,18 @@
+{
+  "researcherA": "researcher:openalex:A200",
+  "researcherB": "researcher:orcid:0000-0001-2345-6789",
+  "jointPublicationCount": 5,
+  "firstCollaborationYear": 2019,
+  "lastCollaborationYear": 2023,
+  "representativeWorkIds": [
+    "work:openalex:W123456",
+    "work:openalex:W789012"
+  ],
+  "provenance": {
+    "sourceDataset": "openalex",
+    "sourceRecordId": "W123456",
+    "pipelineRunId": "run:test-001",
+    "schemaVersion": "1.0.0",
+    "timestamp": "2024-01-15T10:30:00Z"
+  }
+}
