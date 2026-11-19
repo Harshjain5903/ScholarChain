@@ -4,40 +4,43 @@ import upickle.default.*
 
 /** The full author team on a single publication. */
 case class PublicationTeam(
-    workId: String,
-    year: Int,
-    authorMentions: Vector[AuthorMention],
-    teamSize: Int,
-    provenance: Provenance
+  workId: String,
+  year: Int,
+  authorMentions: Vector[AuthorMention],
+  teamSize: Int,
+  provenance: Provenance
 ) derives ReadWriter:
+
   require(
     teamSize == authorMentions.size,
     s"PublicationTeam teamSize ($teamSize) must equal authorMentions.size (${authorMentions.size})"
   )
 
 /**
- * An unresolved coauthor pair from a single publication. The constructor
- * guarantees mentionA < mentionB lexicographically.
+ * An unresolved coauthor pair from a single publication. The constructor guarantees mentionA <
+ * mentionB lexicographically.
  */
 case class CoauthorPairCandidate(
-    mentionA: String,
-    mentionB: String,
-    workId: String,
-    year: Int,
-    provenance: Provenance
+  mentionA: String,
+  mentionB: String,
+  workId: String,
+  year: Int,
+  provenance: Provenance
 ):
+
   require(
     mentionA < mentionB,
     s"CoauthorPairCandidate: mentionA must be < mentionB, got ($mentionA, $mentionB)"
   )
 
 object CoauthorPairCandidate:
+
   def apply(
-      mentionA: String,
-      mentionB: String,
-      workId: String,
-      year: Int,
-      provenance: Provenance
+    mentionA: String,
+    mentionB: String,
+    workId: String,
+    year: Int,
+    provenance: Provenance
   ): CoauthorPairCandidate =
     require(mentionA != mentionB, "CoauthorPairCandidate: self-pairs not allowed")
     if mentionA < mentionB
@@ -65,11 +68,28 @@ object CoauthorPairCandidate:
     )
 
 /**
- * An aggregated collaboration edge between two resolved researchers.
- * The constructor guarantees researcherA < researcherB lexicographically
- * and that firstCollaborationYear <= lastCollaborationYear.
+ * An aggregated collaboration edge between two resolved researchers. The constructor guarantees
+ * researcherA < researcherB lexicographically and that firstCollaborationYear <=
+ * lastCollaborationYear.
  */
 case class CoauthorEdge(
+  researcherA: String,
+  researcherB: String,
+  jointPublicationCount: Int,
+  firstCollaborationYear: Int,
+  lastCollaborationYear: Int,
+  representativeWorkIds: Vector[String],
+  provenance: Provenance
+):
+
+  require(
+    researcherA < researcherB,
+    s"CoauthorEdge: researcherA must be < researcherB, got ($researcherA, $researcherB)"
+  )
+
+object CoauthorEdge:
+
+  def apply(
     researcherA: String,
     researcherB: String,
     jointPublicationCount: Int,
@@ -77,21 +97,6 @@ case class CoauthorEdge(
     lastCollaborationYear: Int,
     representativeWorkIds: Vector[String],
     provenance: Provenance
-):
-  require(
-    researcherA < researcherB,
-    s"CoauthorEdge: researcherA must be < researcherB, got ($researcherA, $researcherB)"
-  )
-
-object CoauthorEdge:
-  def apply(
-      researcherA: String,
-      researcherB: String,
-      jointPublicationCount: Int,
-      firstCollaborationYear: Int,
-      lastCollaborationYear: Int,
-      representativeWorkIds: Vector[String],
-      provenance: Provenance
   ): CoauthorEdge =
     require(
       firstCollaborationYear <= lastCollaborationYear,
@@ -145,21 +150,22 @@ object CoauthorEdge:
 
 /** Per-researcher collaboration metrics for a time window. */
 case class ResearcherMetrics(
-    researcherId: String,
-    publicationCount: Int,
-    distinctCoauthorCount: Int,
-    totalCoauthorOccurrences: Int,
-    averageCoauthorsPerPaper: Double,
-    maximumCoauthorsOnOnePaper: Int,
-    weightedDegree: Double,
-    componentId: Option[String],
-    communityId: Option[String],
-    bridgeScore: Double,
-    coreness: Int,
-    windowStartYear: Int,
-    windowEndYear: Int,
-    provenance: Provenance
+  researcherId: String,
+  publicationCount: Int,
+  distinctCoauthorCount: Int,
+  totalCoauthorOccurrences: Int,
+  averageCoauthorsPerPaper: Double,
+  maximumCoauthorsOnOnePaper: Int,
+  weightedDegree: Double,
+  componentId: Option[String],
+  communityId: Option[String],
+  bridgeScore: Double,
+  coreness: Int,
+  windowStartYear: Int,
+  windowEndYear: Int,
+  provenance: Provenance
 ) derives ReadWriter:
+
   require(
     windowStartYear <= windowEndYear,
     s"windowStartYear ($windowStartYear) must be <= windowEndYear ($windowEndYear)"

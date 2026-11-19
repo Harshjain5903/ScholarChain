@@ -4,56 +4,56 @@ import com.typesafe.config.{Config, ConfigFactory}
 import scala.jdk.CollectionConverters.*
 
 case class StorageConfig(
-    s3RawBucket: String,
-    s3ProcessedBucket: String,
-    s3VectorsBucket: String
+  s3RawBucket: String,
+  s3ProcessedBucket: String,
+  s3VectorsBucket: String
 )
 
 case class NeptuneConfig(
-    endpoint: String,
-    port: Int,
-    region: String
+  endpoint: String,
+  port: Int,
+  region: String
 )
 
 case class S3VectorsConfig(
-    endpoint: String,
-    indexName: String,
-    dimensions: Int
+  endpoint: String,
+  indexName: String,
+  dimensions: Int
 )
 
 case class EntityResolutionConfig(
-    blockingKeyFields: Vector[String],
-    matchThreshold: Double,
-    rejectThreshold: Double,
-    policyVersion: String
+  blockingKeyFields: Vector[String],
+  matchThreshold: Double,
+  rejectThreshold: Double,
+  policyVersion: String
 )
 
 case class RetrievalConfig(
-    topK: Int,
-    maxHops: Int,
-    minScore: Double
+  topK: Int,
+  maxHops: Int,
+  minScore: Double
 )
 
 case class ModelsConfig(
-    embeddingModelId: String,
-    generationModelId: String,
-    region: String
+  embeddingModelId: String,
+  generationModelId: String,
+  region: String
 )
 
 case class OperationsConfig(
-    maxConcurrency: Int,
-    timeoutSeconds: Int,
-    retryCount: Int
+  maxConcurrency: Int,
+  timeoutSeconds: Int,
+  retryCount: Int
 )
 
 case class AppConfig(
-    storage: StorageConfig,
-    neptune: NeptuneConfig,
-    s3Vectors: S3VectorsConfig,
-    entityResolution: EntityResolutionConfig,
-    retrieval: RetrievalConfig,
-    models: ModelsConfig,
-    operations: OperationsConfig
+  storage: StorageConfig,
+  neptune: NeptuneConfig,
+  s3Vectors: S3VectorsConfig,
+  entityResolution: EntityResolutionConfig,
+  retrieval: RetrievalConfig,
+  models: ModelsConfig,
+  operations: OperationsConfig
 )
 
 /** Loads application configuration from HOCON with environment variable overrides. */

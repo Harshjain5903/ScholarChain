@@ -16,13 +16,13 @@ object IdGen:
     s"work:${source.toString.toLowerCase}:$sourceRecordId"
 
   /**
-   * Deterministic researcher ID preferring ORCID, then OpenAlex, then a
-   * SHA-256 hash of the fallback name.
+   * Deterministic researcher ID preferring ORCID, then OpenAlex, then a SHA-256 hash of the
+   * fallback name.
    */
   def researcherId(
-      orcid: Option[String],
-      openAlexId: Option[String],
-      fallbackName: String
+    orcid: Option[String],
+    openAlexId: Option[String],
+    fallbackName: String
   ): String =
     orcid
       .map(id => s"researcher:orcid:$id")
@@ -36,15 +36,15 @@ object IdGen:
       }
 
   /**
-   * Deterministic coauthor-edge ID from an ordered researcher pair, time
-   * window, and policy version.
+   * Deterministic coauthor-edge ID from an ordered researcher pair, time window, and policy
+   * version.
    */
   def coauthorEdgeId(
-      researcherA: String,
-      researcherB: String,
-      windowStart: Int,
-      windowEnd: Int,
-      policyVersion: String
+    researcherA: String,
+    researcherB: String,
+    windowStart: Int,
+    windowEnd: Int,
+    policyVersion: String
   ): String =
     val (a, b) =
       if researcherA <= researcherB then (researcherA, researcherB)
@@ -53,10 +53,10 @@ object IdGen:
 
   /** Deterministic chunk ID for a text fragment. */
   def chunkId(
-      entityId: String,
-      sourceVersion: String,
-      docType: String,
-      textHash: String
+    entityId: String,
+    sourceVersion: String,
+    docType: String,
+    textHash: String
   ): String =
     s"chunk:${sha256hex(s"$entityId|$sourceVersion|$docType|$textHash")}"
 

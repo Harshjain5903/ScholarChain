@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE dblp SYSTEM "dblp.dtd">
+<dblp>
+<article key="journals/tse/ChenWilliams2023" mdate="2023-06-15">
+<author>Liang Chen</author>
+<author>Rebecca Williams</author>
+<title>Scalable Graph Partitioning for Distributed Knowledge Bases</title>
+<journal>IEEE Trans. Software Eng.</journal>
+<year>2023</year>
+<volume>49</volume>
+<pages>1452-1468</pages>
+<ee>https://doi.org/10.1109/TSE.2023.0001234</ee>
+</article>
+<inproceedings key="conf/sigmod/PatelNguyen2022" mdate="2022-09-01">
+<author>Ananya Patel</author>
+<author>Minh Nguyen</author>
+<title>Adaptive Index Structures for Temporal Citation Graphs</title>
+<booktitle>SIGMOD Conference</booktitle>
+<year>2022</year>
+<pages>891-905</pages>
+<ee>https://doi.org/10.1145/3514221.3517891</ee>
+</inproceedings>
+<article key="journals/vldb/KimOConnor2021" mdate="2021-03-10">
+<author>Jae-won Kim</author>
+<author>Fiona O'Connor</author>
+<title>Efficient Entity Resolution in Bibliographic Databases Using Blocking Signatures</title>
+<journal>VLDB Journal</journal>
+<year>2021</year>
+<volume>30</volume>
+<pages>78-95</pages>
+<ee>https://doi.org/10.1007/s00778-021-00654-3</ee>
+</article>
+</dblp>

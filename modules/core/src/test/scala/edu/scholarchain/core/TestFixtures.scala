@@ -56,8 +56,7 @@ object TestFixtures:
     jointPublicationCount = 5,
     firstCollaborationYear = 2019,
     lastCollaborationYear = 2023,
-    representativeWorkIds =
-      Vector("work:openalex:W123456", "work:openalex:W789012"),
+    representativeWorkIds = Vector("work:openalex:W123456", "work:openalex:W789012"),
     provenance = sampleProvenance
   )
 
@@ -177,8 +176,7 @@ object TestFixtures:
     queryId = "query:001",
     claims = Vector(sampleAnswerClaim),
     evidenceBundle = sampleEvidenceBundle,
-    generatedText =
-      "Based on the analysis, Jane Smith is a leading collaborator.",
+    generatedText = "Based on the analysis, Jane Smith is a leading collaborator.",
     provenance = sampleProvenance
   )
 
