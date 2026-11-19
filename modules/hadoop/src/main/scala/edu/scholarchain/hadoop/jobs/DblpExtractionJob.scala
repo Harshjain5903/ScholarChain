@@ -9,11 +9,7 @@ import org.apache.hadoop.io.{LongWritable, NullWritable, Text}
 import org.apache.hadoop.io.compress.GzipCodec
 import org.apache.hadoop.mapreduce.{Job, Mapper, Reducer}
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
-import org.apache.hadoop.mapreduce.lib.output.{
-  FileOutputFormat,
-  MultipleOutputs,
-  TextOutputFormat,
-}
+import org.apache.hadoop.mapreduce.lib.output.{FileOutputFormat, MultipleOutputs, TextOutputFormat}
 import org.apache.hadoop.util.{Tool, ToolRunner}
 import upickle.default.*
 import edu.scholarchain.core.{Provenance, WorkRecord}
@@ -21,15 +17,12 @@ import edu.scholarchain.core.{Provenance, WorkRecord}
 /**
  * J01 -- DBLP Record Extraction.
  *
- * Reads raw DBLP XML using DblpInputFormat, parses each record into
- * WorkRecord + AuthorMention domain objects, and writes normalized
- * JSON lines. Malformed records go to a reject side output.
+ * Reads raw DBLP XML using DblpInputFormat, parses each record into WorkRecord + AuthorMention
+ * domain objects, and writes normalized JSON lines. Malformed records go to a reject side output.
  *
- * Key-value contracts:
- *   Mapper input:  (LongWritable offset, Text xmlRecord)
- *   Mapper output: (Text sourceRecordId, Text workRecordJson)
- *   Reducer input:  (Text sourceRecordId, Iterable[Text] workRecordJsons)
- *   Reducer output: (Text workRecordJson, NullWritable)
+ * Key-value contracts: Mapper input: (LongWritable offset, Text xmlRecord) Mapper output: (Text
+ * sourceRecordId, Text workRecordJson) Reducer input: (Text sourceRecordId, Iterable[Text]
+ * workRecordJsons) Reducer output: (Text workRecordJson, NullWritable)
  */
 object DblpExtractionJob:
   val JobName = "dblp-extraction"
@@ -37,38 +30,38 @@ object DblpExtractionJob:
   /** Map a parsed DBLP record type to its counter name. */
   def counterForRecordType(recordType: String): String =
     recordType match
-      case "article"        => HadoopCounters.ArticleCount
-      case "inproceedings"  => HadoopCounters.InproceedingsCount
-      case "proceedings"    => HadoopCounters.ProceedingsCount
-      case "book"           => HadoopCounters.BookCount
-      case "incollection"   => HadoopCounters.IncollectionCount
-      case "phdthesis"      => HadoopCounters.PhdthesisCount
-      case "mastersthesis"  => HadoopCounters.MastersthesisCount
-      case _                => HadoopCounters.ArticleCount
+      case "article"       => HadoopCounters.ArticleCount
+      case "inproceedings" => HadoopCounters.InproceedingsCount
+      case "proceedings"   => HadoopCounters.ProceedingsCount
+      case "book"          => HadoopCounters.BookCount
+      case "incollection"  => HadoopCounters.IncollectionCount
+      case "phdthesis"     => HadoopCounters.PhdthesisCount
+      case "mastersthesis" => HadoopCounters.MastersthesisCount
+      case _               => HadoopCounters.ArticleCount
 
-class DblpExtractionMapper
-    extends Mapper[LongWritable, Text, Text, Text]:
+class DblpExtractionMapper extends Mapper[LongWritable, Text, Text, Text]:
 
   private val outKey   = new Text()
   private val outValue = new Text()
+
   private var multipleOutputs: MultipleOutputs[Text, Text] =
     scala.compiletime.uninitialized
 
   override def setup(
-      context: Mapper[LongWritable, Text, Text, Text]#Context
+    context: Mapper[LongWritable, Text, Text, Text]#Context
   ): Unit =
     multipleOutputs = new MultipleOutputs[Text, Text](context)
 
   override def map(
-      key: LongWritable,
-      value: Text,
-      context: Mapper[LongWritable, Text, Text, Text]#Context,
+    key: LongWritable,
+    value: Text,
+    context: Mapper[LongWritable, Text, Text, Text]#Context
   ): Unit =
-    val conf        = context.getConfiguration
-    val runId       = JobConfig.pipelineRunId(conf)
-    val schemaVer   = JobConfig.schemaVersion(conf)
-    val timestamp   = java.time.Instant.now.toString
-    val xmlStr      = value.toString
+    val conf      = context.getConfiguration
+    val runId     = JobConfig.pipelineRunId(conf)
+    val schemaVer = JobConfig.schemaVersion(conf)
+    val timestamp = java.time.Instant.now.toString
+    val xmlStr    = value.toString
 
     context
       .getCounter(HadoopCounters.SharedGroup, HadoopCounters.InputRecords)
@@ -82,7 +75,7 @@ class DblpExtractionMapper
         context
           .getCounter(
             HadoopCounters.DblpGroup,
-            DblpExtractionJob.counterForRecordType(recordType),
+            DblpExtractionJob.counterForRecordType(recordType)
           )
           .increment(1)
         outKey.set(work.sourceRecordId)
@@ -99,7 +92,7 @@ class DblpExtractionMapper
           sourceRecordId = sourceId,
           pipelineRunId = runId,
           schemaVersion = schemaVer,
-          timestamp = timestamp,
+          timestamp = timestamp
         )
         RejectWriter.writeReject(
           multipleOutputs,
@@ -108,11 +101,11 @@ class DblpExtractionMapper
           msg,
           xmlStr,
           DblpExtractionJob.JobName,
-          provenance,
+          provenance
         )
 
   override def cleanup(
-      context: Mapper[LongWritable, Text, Text, Text]#Context
+    context: Mapper[LongWritable, Text, Text, Text]#Context
   ): Unit =
     if multipleOutputs != null then multipleOutputs.close()
 
@@ -126,19 +119,18 @@ class DblpExtractionMapper
 /**
  * Deduplication reducer: keeps the first record per DBLP key.
  */
-class DblpExtractionReducer
-    extends Reducer[Text, Text, Text, NullWritable]:
+class DblpExtractionReducer extends Reducer[Text, Text, Text, NullWritable]:
 
   override def reduce(
-      key: Text,
-      values: java.lang.Iterable[Text],
-      context: Reducer[Text, Text, Text, NullWritable]#Context,
+    key: Text,
+    values: java.lang.Iterable[Text],
+    context: Reducer[Text, Text, Text, NullWritable]#Context
   ): Unit =
     val iter = values.iterator()
-    if iter.hasNext then
-      context.write(new Text(iter.next().toString), NullWritable.get())
+    if iter.hasNext then context.write(new Text(iter.next().toString), NullWritable.get())
 
 class DblpExtractionTool extends Configured with Tool:
+
   override def run(args: Array[String]): Int =
     if args.length < 2 then
       System.err.println("Usage: DblpExtractionTool <input> <output>")
@@ -161,16 +153,16 @@ class DblpExtractionTool extends Configured with Tool:
     conf.set("mapreduce.output.fileoutputformat.compress", "true")
     conf.set(
       "mapreduce.output.fileoutputformat.compress.codec",
-      "org.apache.hadoop.io.compress.GzipCodec",
+      "org.apache.hadoop.io.compress.GzipCodec"
     )
 
     FileInputFormat.addInputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(0)),
+      new org.apache.hadoop.fs.Path(args(0))
     )
     FileOutputFormat.setOutputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(1)),
+      new org.apache.hadoop.fs.Path(args(1))
     )
 
     MultipleOutputs.addNamedOutput(
@@ -178,7 +170,7 @@ class DblpExtractionTool extends Configured with Tool:
       RejectWriter.RejectOutputName,
       classOf[TextOutputFormat[?, ?]],
       classOf[Text],
-      classOf[NullWritable],
+      classOf[NullWritable]
     )
 
     if job.waitForCompletion(true) then 0 else 1

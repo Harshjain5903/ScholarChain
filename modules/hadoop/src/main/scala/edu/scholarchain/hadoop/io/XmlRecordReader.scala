@@ -3,44 +3,35 @@ package edu.scholarchain.hadoop.io
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FSDataInputStream, FileSystem, Path}
 import org.apache.hadoop.io.{DataOutputBuffer, LongWritable, Text}
-import org.apache.hadoop.mapreduce.{
-  InputSplit,
-  RecordReader,
-  TaskAttemptContext,
-}
-import org.apache.hadoop.mapreduce.lib.input.{
-  FileSplit,
-  TextInputFormat,
-}
+import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
+import org.apache.hadoop.mapreduce.lib.input.{FileSplit, TextInputFormat}
 
 /**
- * A RecordReader that reads complete XML records delimited by configurable
- * start and end tags. It scans the byte stream for matching tag pairs and
- * emits each complete element (including the tags) as a single Text value.
+ * A RecordReader that reads complete XML records delimited by configurable start and end tags. It
+ * scans the byte stream for matching tag pairs and emits each complete element (including the tags)
+ * as a single Text value.
  *
  * This prevents DBLP records from being split across mappers.
  *
  * Configuration keys:
- *   - scholarchain.xml.start.tags: comma-separated start tags
- *     (e.g. "<article,<inproceedings")
- *   - scholarchain.xml.end.tags: comma-separated end tags
- *     (e.g. "</article>,</inproceedings>")
+ *   - scholarchain.xml.start.tags: comma-separated start tags (e.g. "<article,<inproceedings")
+ *   - scholarchain.xml.end.tags: comma-separated end tags (e.g. "</article>,</inproceedings>")
  */
 class XmlRecordReader extends RecordReader[LongWritable, Text]:
 
-  private var start: Long        = 0L
-  private var end: Long          = 0L
-  private var pos: Long          = 0L
-  private var fsin: FSDataInputStream = scala.compiletime.uninitialized
+  private var start: Long                   = 0L
+  private var end: Long                     = 0L
+  private var pos: Long                     = 0L
+  private var fsin: FSDataInputStream       = scala.compiletime.uninitialized
   private var startTags: Array[Array[Byte]] = scala.compiletime.uninitialized
   private var endTags: Array[Array[Byte]]   = scala.compiletime.uninitialized
-  private val buffer = new DataOutputBuffer()
-  private val key    = new LongWritable()
-  private val value  = new Text()
+  private val buffer                        = new DataOutputBuffer()
+  private val key                           = new LongWritable()
+  private val value                         = new Text()
 
   override def initialize(
-      split: InputSplit,
-      context: TaskAttemptContext,
+    split: InputSplit,
+    context: TaskAttemptContext
   ): Unit =
     val fileSplit = split.asInstanceOf[FileSplit]
     val conf      = context.getConfiguration
@@ -48,18 +39,18 @@ class XmlRecordReader extends RecordReader[LongWritable, Text]:
     val fs        = path.getFileSystem(conf)
 
     start = fileSplit.getStart
-    end   = start + fileSplit.getLength
+    end = start + fileSplit.getLength
 
     val startTagStr =
       conf.get("scholarchain.xml.start.tags", "<article,<inproceedings")
     val endTagStr =
       conf.get(
         "scholarchain.xml.end.tags",
-        "</article>,</inproceedings>",
+        "</article>,</inproceedings>"
       )
 
     startTags = startTagStr.split(",").map(_.getBytes("UTF-8"))
-    endTags   = endTagStr.split(",").map(_.getBytes("UTF-8"))
+    endTags = endTagStr.split(",").map(_.getBytes("UTF-8"))
 
     fsin = fs.open(path)
     fsin.seek(start)
@@ -93,13 +84,12 @@ class XmlRecordReader extends RecordReader[LongWritable, Text]:
     }
 
   /**
-   * Scan the input stream looking for one of the given tags. If matchStart
-   * is true, the buffer is reset before scanning; if false, we append the
-   * end tag to the existing buffer content.
+   * Scan the input stream looking for one of the given tags. If matchStart is true, the buffer is
+   * reset before scanning; if false, we append the end tag to the existing buffer content.
    */
   private def scanToTag(
-      tags: Array[Array[Byte]],
-      matchStart: Boolean,
+    tags: Array[Array[Byte]],
+    matchStart: Boolean
   ): Boolean =
     if matchStart then buffer.reset()
     val matchers = tags.map(t => new TagMatcher(t))
@@ -122,11 +112,13 @@ class XmlRecordReader extends RecordReader[LongWritable, Text]:
         if matchers.exists(_.matched) then found = true
     found
 
-  override def getCurrentKey: LongWritable   = key
-  override def getCurrentValue: Text         = value
+  override def getCurrentKey: LongWritable = key
+  override def getCurrentValue: Text       = value
+
   override def getProgress: Float =
     if start == end then 1.0f
     else (pos - start).toFloat / (end - start).toFloat
+
   override def close(): Unit =
     if fsin != null then fsin.close()
 
@@ -134,8 +126,8 @@ class XmlRecordReader extends RecordReader[LongWritable, Text]:
  * Simple state machine that matches a byte sequence in a stream.
  */
 private class TagMatcher(tag: Array[Byte]):
-  private var idx: Int  = 0
-  var matched: Boolean  = false
+  private var idx: Int = 0
+  var matched: Boolean = false
 
   def feed(b: Byte): Unit =
     if matched then return
@@ -146,5 +138,5 @@ private class TagMatcher(tag: Array[Byte]):
     else idx = 0
 
   def reset(): Unit =
-    idx     = 0
+    idx = 0
     matched = false

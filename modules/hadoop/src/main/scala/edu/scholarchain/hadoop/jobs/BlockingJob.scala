@@ -16,9 +16,8 @@ import upickle.default.*
 /**
  * J04 -- Researcher and Work Blocking.
  *
- * Generates blocking keys from normalized WorkRecords and groups
- * records into blocks for pairwise comparison. Oversized blocks are
- * truncated to a configurable maximum (default 1000).
+ * Generates blocking keys from normalized WorkRecords and groups records into blocks for pairwise
+ * comparison. Oversized blocks are truncated to a configurable maximum (default 1000).
  *
  * Blocking strategies:
  *   - Author blocking: normalized surname + first initial
@@ -26,10 +25,9 @@ import upickle.default.*
  *   - Work blocking: sorted normalized title tokens (first 5)
  *   - Work blocking: year + venue
  *
- * Key-value contracts:
- *   Mapper input:  (LongWritable offset, Text workRecordJson)
- *   Mapper output: (Text blockKey, Text workRecordJson)
- *   Reducer output: (Text blockKey, Text "recordJson1\trecordJson2\t...")
+ * Key-value contracts: Mapper input: (LongWritable offset, Text workRecordJson) Mapper output:
+ * (Text blockKey, Text workRecordJson) Reducer output: (Text blockKey, Text
+ * "recordJson1\trecordJson2\t...")
  */
 object BlockingJob:
   val JobName = "blocking"
@@ -59,16 +57,14 @@ object BlockingJob:
         j <- (i + 1) until surnames.size
       do
         val pair =
-          if surnames(i) <= surnames(j) then
-            s"${surnames(i)}:${surnames(j)}"
+          if surnames(i) <= surnames(j) then s"${surnames(i)}:${surnames(j)}"
           else s"${surnames(j)}:${surnames(i)}"
         keys += s"coauth:$pair"
 
     // Work blocking: sorted title tokens (first 5)
     val titleTokens =
       NormalizationUtils.sortedTitleTokens(work.title)
-    if titleTokens.nonEmpty then
-      keys += s"title:${titleTokens.take(5).mkString(":")}"
+    if titleTokens.nonEmpty then keys += s"title:${titleTokens.take(5).mkString(":")}"
 
     // Work blocking: year + venue
     work.venueId.foreach { v =>
@@ -77,16 +73,15 @@ object BlockingJob:
 
     keys.result().distinct
 
-class BlockingMapper
-    extends Mapper[LongWritable, Text, Text, Text]:
+class BlockingMapper extends Mapper[LongWritable, Text, Text, Text]:
 
   private val outKey   = new Text()
   private val outValue = new Text()
 
   override def map(
-      key: LongWritable,
-      value: Text,
-      context: Mapper[LongWritable, Text, Text, Text]#Context,
+    key: LongWritable,
+    value: Text,
+    context: Mapper[LongWritable, Text, Text, Text]#Context
   ): Unit =
     val line = value.toString.trim
     if line.isEmpty then return
@@ -114,17 +109,16 @@ class BlockingMapper
 class BlockingReducer extends Reducer[Text, Text, Text, Text]:
 
   override def reduce(
-      key: Text,
-      values: java.lang.Iterable[Text],
-      context: Reducer[Text, Text, Text, Text]#Context,
+    key: Text,
+    values: java.lang.Iterable[Text],
+    context: Reducer[Text, Text, Text, Text]#Context
   ): Unit =
     val maxBlockSize =
       JobConfig.maxBlockSize(context.getConfiguration)
     val records = scala.collection.mutable.ArrayBuffer[String]()
     val iter    = values.iterator()
 
-    while iter.hasNext && records.size < maxBlockSize do
-      records += iter.next().toString
+    while iter.hasNext && records.size < maxBlockSize do records += iter.next().toString
 
     context
       .getCounter(HadoopCounters.BlockingGroup, HadoopCounters.TotalBlocks)
@@ -132,7 +126,7 @@ class BlockingReducer extends Reducer[Text, Text, Text, Text]:
     context
       .getCounter(
         HadoopCounters.BlockingGroup,
-        HadoopCounters.RecordsInBlocks,
+        HadoopCounters.RecordsInBlocks
       )
       .increment(records.size.toLong)
 
@@ -141,14 +135,14 @@ class BlockingReducer extends Reducer[Text, Text, Text, Text]:
       context
         .getCounter(
           HadoopCounters.BlockingGroup,
-          HadoopCounters.OversizeBlocks,
+          HadoopCounters.OversizeBlocks
         )
         .increment(1)
 
-    if records.nonEmpty then
-      context.write(key, new Text(records.mkString("\t")))
+    if records.nonEmpty then context.write(key, new Text(records.mkString("\t")))
 
 class BlockingTool extends Configured with Tool:
+
   override def run(args: Array[String]): Int =
     if args.length < 2 then
       System.err.println("Usage: BlockingTool <input> <output>")
@@ -171,16 +165,16 @@ class BlockingTool extends Configured with Tool:
     conf.set("mapreduce.output.fileoutputformat.compress", "true")
     conf.set(
       "mapreduce.output.fileoutputformat.compress.codec",
-      "org.apache.hadoop.io.compress.GzipCodec",
+      "org.apache.hadoop.io.compress.GzipCodec"
     )
 
     FileInputFormat.addInputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(0)),
+      new org.apache.hadoop.fs.Path(args(0))
     )
     FileOutputFormat.setOutputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(1)),
+      new org.apache.hadoop.fs.Path(args(1))
     )
 
     if job.waitForCompletion(true) then 0 else 1

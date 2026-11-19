@@ -1,11 +1,6 @@
 package edu.scholarchain.hadoop.jobs
 
-import edu.scholarchain.core.{
-  AuthorMention,
-  Provenance,
-  PublicationTeam,
-  WorkRecord,
-}
+import edu.scholarchain.core.{AuthorMention, Provenance, PublicationTeam, WorkRecord}
 import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.counters.HadoopCounters
 import edu.scholarchain.hadoop.io.JsonLineInputFormat
@@ -20,48 +15,46 @@ import upickle.default.*
 /**
  * J06 -- Publication Team Extraction.
  *
- * Reads normalized WorkRecords and emits one PublicationTeam per work
- * with ordered AuthorMention vector. Also emits author-paper records
- * keyed by (mention_id, work_id).
+ * Reads normalized WorkRecords and emits one PublicationTeam per work with ordered AuthorMention
+ * vector. Also emits author-paper records keyed by (mention_id, work_id).
  *
- * Key-value contracts:
- *   Mapper input:  (LongWritable offset, Text workRecordJson)
- *   Mapper output: (Text teamOrAuthorPaperJson, NullWritable)
+ * Key-value contracts: Mapper input: (LongWritable offset, Text workRecordJson) Mapper output:
+ * (Text teamOrAuthorPaperJson, NullWritable)
  */
 object TeamExtractionJob:
   val JobName = "team-extraction"
 
   /** Build a PublicationTeam from a WorkRecord. */
   def extractTeam(
-      work: WorkRecord,
-      pipelineRunId: String,
-      schemaVersion: String,
-      timestamp: String,
+    work: WorkRecord,
+    pipelineRunId: String,
+    schemaVersion: String,
+    timestamp: String
   ): PublicationTeam =
     val provenance = Provenance(
       sourceDataset = work.source.toString.toLowerCase,
       sourceRecordId = work.sourceRecordId,
       pipelineRunId = pipelineRunId,
       schemaVersion = schemaVersion,
-      timestamp = timestamp,
+      timestamp = timestamp
     )
     PublicationTeam(
       workId = work.workId,
       year = work.year,
       authorMentions = work.authors,
       teamSize = work.authors.size,
-      provenance = provenance,
+      provenance = provenance
     )
 
   /** Build an author-paper JSON record with provenance. */
   def authorPaperJson(
-      mention: AuthorMention,
-      workId: String,
-      pipelineRunId: String,
-      schemaVersion: String,
-      timestamp: String,
-      sourceDataset: String,
-      sourceRecordId: String,
+    mention: AuthorMention,
+    workId: String,
+    pipelineRunId: String,
+    schemaVersion: String,
+    timestamp: String,
+    sourceDataset: String,
+    sourceRecordId: String
   ): String =
     val authorPaper = ujson.Obj(
       "mention_id" -> ujson.Str(mention.mentionId),
@@ -72,25 +65,24 @@ object TeamExtractionJob:
         "sourceRecordId" -> ujson.Str(sourceRecordId),
         "pipelineRunId"  -> ujson.Str(pipelineRunId),
         "schemaVersion"  -> ujson.Str(schemaVersion),
-        "timestamp"      -> ujson.Str(timestamp),
-      ),
+        "timestamp"      -> ujson.Str(timestamp)
+      )
     )
     ujson.write(authorPaper)
 
-class TeamExtractionMapper
-    extends Mapper[LongWritable, Text, Text, NullWritable]:
+class TeamExtractionMapper extends Mapper[LongWritable, Text, Text, NullWritable]:
 
   private val outKey = new Text()
 
   override def map(
-      key: LongWritable,
-      value: Text,
-      context: Mapper[
-        LongWritable,
-        Text,
-        Text,
-        NullWritable,
-      ]#Context,
+    key: LongWritable,
+    value: Text,
+    context: Mapper[
+      LongWritable,
+      Text,
+      Text,
+      NullWritable
+    ]#Context
   ): Unit =
     val line = value.toString.trim
     if line.isEmpty then return
@@ -111,7 +103,7 @@ class TeamExtractionMapper
         work,
         runId,
         schemaVer,
-        timestamp,
+        timestamp
       )
 
       context
@@ -137,12 +129,12 @@ class TeamExtractionMapper
           schemaVer,
           timestamp,
           sourceDataset,
-          work.sourceRecordId,
+          work.sourceRecordId
         )
         context
           .getCounter(
             HadoopCounters.TeamGroup,
-            HadoopCounters.TotalAuthorPaperRecords,
+            HadoopCounters.TotalAuthorPaperRecords
           )
           .increment(1)
         outKey.set(apJson)
@@ -155,6 +147,7 @@ class TeamExtractionMapper
           .increment(1)
 
 class TeamExtractionTool extends Configured with Tool:
+
   override def run(args: Array[String]): Int =
     if args.length < 2 then
       System.err.println(
@@ -177,16 +170,16 @@ class TeamExtractionTool extends Configured with Tool:
     conf.set("mapreduce.output.fileoutputformat.compress", "true")
     conf.set(
       "mapreduce.output.fileoutputformat.compress.codec",
-      "org.apache.hadoop.io.compress.GzipCodec",
+      "org.apache.hadoop.io.compress.GzipCodec"
     )
 
     FileInputFormat.addInputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(0)),
+      new org.apache.hadoop.fs.Path(args(0))
     )
     FileOutputFormat.setOutputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(1)),
+      new org.apache.hadoop.fs.Path(args(1))
     )
 
     if job.waitForCompletion(true) then 0 else 1

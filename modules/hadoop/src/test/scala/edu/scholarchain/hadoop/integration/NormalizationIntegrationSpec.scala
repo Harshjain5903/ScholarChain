@@ -6,8 +6,8 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 
 /**
- * Integration tests that parse the Phase 3 sample files from
- * datasets/samples/ and verify field mapping end-to-end.
+ * Integration tests that parse the Phase 3 sample files from datasets/samples/ and verify field
+ * mapping end-to-end.
  */
 class NormalizationIntegrationSpec extends AnyFunSuite with Matchers:
 
@@ -48,36 +48,38 @@ class NormalizationIntegrationSpec extends AnyFunSuite with Matchers:
   // -- OpenAlex integration --
 
   test("OpenAlex: parse sample record end-to-end") {
-    val json = ujson.Obj(
-      "source_id" -> "openalex:W3194827561",
-      "doi"       -> "10.1109/TSE.2023.0001234",
-      "title" ->
-        "Scalable Graph Partitioning for Distributed Knowledge Bases",
-      "year" -> 2023,
-      "authors" -> ujson.Arr(
-        ujson.Obj(
-          "name"       -> "Liang Chen",
-          "openalex_id" -> "A4012983745",
-          "orcid"      -> "0000-0003-4567-8901",
-          "position"   -> "first",
-          "affiliations" -> ujson.Arr(
-            ujson.Obj("name" -> "Westfield Institute of Technology")
+    val json = ujson
+      .Obj(
+        "source_id" -> "openalex:W3194827561",
+        "doi"       -> "10.1109/TSE.2023.0001234",
+        "title" ->
+          "Scalable Graph Partitioning for Distributed Knowledge Bases",
+        "year" -> 2023,
+        "authors" -> ujson.Arr(
+          ujson.Obj(
+            "name"        -> "Liang Chen",
+            "openalex_id" -> "A4012983745",
+            "orcid"       -> "0000-0003-4567-8901",
+            "position"    -> "first",
+            "affiliations" -> ujson.Arr(
+              ujson.Obj("name" -> "Westfield Institute of Technology")
+            )
           ),
+          ujson.Obj(
+            "name"        -> "Rebecca Williams",
+            "openalex_id" -> "A2987654321",
+            "orcid"       -> ujson.Null,
+            "position"    -> "last",
+            "affiliations" -> ujson.Arr(
+              ujson.Obj("name" -> "Northgate University")
+            )
+          )
         ),
-        ujson.Obj(
-          "name"       -> "Rebecca Williams",
-          "openalex_id" -> "A2987654321",
-          "orcid"      -> ujson.Null,
-          "position"   -> "last",
-          "affiliations" -> ujson.Arr(
-            ujson.Obj("name" -> "Northgate University")
-          ),
-        ),
-      ),
-      "venue" -> ujson.Obj(
-        "name" -> "IEEE Transactions on Software Engineering"
-      ),
-    ).toString()
+        "venue" -> ujson.Obj(
+          "name" -> "IEEE Transactions on Software Engineering"
+        )
+      )
+      .toString()
 
     val result =
       OpenAlexParser.parse(json, runId, schemaVer, ts)
@@ -97,23 +99,25 @@ class NormalizationIntegrationSpec extends AnyFunSuite with Matchers:
   // -- ORCID integration --
 
   test("ORCID: parse sample record end-to-end") {
-    val json = ujson.Obj(
-      "source_id"     -> "orcid:0000-0003-4567-8901",
-      "orcid"         -> "0000-0003-4567-8901",
-      "name"          -> "Liang Chen",
-      "given_name"    -> "Liang",
-      "family_name"   -> "Chen",
-      "name_variants" -> ujson.Arr("L. Chen", "Liang C."),
-      "affiliations" -> ujson.Arr(
-        ujson.Obj(
-          "organization" -> "Westfield Institute of Technology",
-          "department"   -> "CS",
-          "role"         -> "Prof",
-          "start_year"   -> 2018,
-          "end_year"     -> ujson.Null,
+    val json = ujson
+      .Obj(
+        "source_id"     -> "orcid:0000-0003-4567-8901",
+        "orcid"         -> "0000-0003-4567-8901",
+        "name"          -> "Liang Chen",
+        "given_name"    -> "Liang",
+        "family_name"   -> "Chen",
+        "name_variants" -> ujson.Arr("L. Chen", "Liang C."),
+        "affiliations" -> ujson.Arr(
+          ujson.Obj(
+            "organization" -> "Westfield Institute of Technology",
+            "department"   -> "CS",
+            "role"         -> "Prof",
+            "start_year"   -> 2018,
+            "end_year"     -> ujson.Null
+          )
         )
-      ),
-    ).toString()
+      )
+      .toString()
 
     val result = OrcidParser.parse(json, runId, schemaVer, ts)
     result.isRight shouldBe true
@@ -128,35 +132,37 @@ class NormalizationIntegrationSpec extends AnyFunSuite with Matchers:
   // -- Crossref integration --
 
   test("Crossref: parse sample record end-to-end") {
-    val json = ujson.Obj(
-      "source_id" -> "crossref:10.1109/TSE.2023.0001234",
-      "doi"       -> "10.1109/TSE.2023.0001234",
-      "title" ->
-        "Scalable Graph Partitioning for Distributed Knowledge Bases",
-      "year" -> 2023,
-      "authors" -> ujson.Arr(
-        ujson.Obj(
-          "given_name"  -> "Liang",
-          "family_name" -> "Chen",
-          "orcid"       -> "0000-0003-4567-8901",
-          "affiliations" -> ujson.Arr(
-            "Westfield Institute of Technology"
+    val json = ujson
+      .Obj(
+        "source_id" -> "crossref:10.1109/TSE.2023.0001234",
+        "doi"       -> "10.1109/TSE.2023.0001234",
+        "title" ->
+          "Scalable Graph Partitioning for Distributed Knowledge Bases",
+        "year" -> 2023,
+        "authors" -> ujson.Arr(
+          ujson.Obj(
+            "given_name"  -> "Liang",
+            "family_name" -> "Chen",
+            "orcid"       -> "0000-0003-4567-8901",
+            "affiliations" -> ujson.Arr(
+              "Westfield Institute of Technology"
+            )
           ),
+          ujson.Obj(
+            "given_name"  -> "Rebecca",
+            "family_name" -> "Williams",
+            "orcid"       -> ujson.Null,
+            "affiliations" -> ujson.Arr(
+              "Northgate University"
+            )
+          )
         ),
-        ujson.Obj(
-          "given_name"  -> "Rebecca",
-          "family_name" -> "Williams",
-          "orcid"       -> ujson.Null,
-          "affiliations" -> ujson.Arr(
-            "Northgate University"
-          ),
-        ),
-      ),
-      "venue" -> ujson.Obj(
-        "name"      -> "IEEE Transactions on Software Engineering",
-        "publisher" -> "IEEE",
-      ),
-    ).toString()
+        "venue" -> ujson.Obj(
+          "name"      -> "IEEE Transactions on Software Engineering",
+          "publisher" -> "IEEE"
+        )
+      )
+      .toString()
 
     val result =
       CrossrefParser.parse(json, runId, schemaVer, ts)
@@ -177,7 +183,7 @@ class NormalizationIntegrationSpec extends AnyFunSuite with Matchers:
       "<article>unclosed",
       runId,
       schemaVer,
-      ts,
+      ts
     )
     result.isLeft shouldBe true
   }
@@ -187,28 +193,32 @@ class NormalizationIntegrationSpec extends AnyFunSuite with Matchers:
       "{not valid json",
       runId,
       schemaVer,
-      ts,
+      ts
     )
     result.isLeft shouldBe true
   }
 
   test("ORCID: invalid ORCID format produces reject") {
-    val json = ujson.Obj(
-      "source_id" -> "orcid:bad",
-      "orcid"     -> "1234",
-      "name"      -> "Test",
-    ).toString()
+    val json = ujson
+      .Obj(
+        "source_id" -> "orcid:bad",
+        "orcid"     -> "1234",
+        "name"      -> "Test"
+      )
+      .toString()
     val result = OrcidParser.parse(json, runId, schemaVer, ts)
     result.isLeft shouldBe true
     result.left.toOption.get._1 shouldBe "INVALID_ORCID"
   }
 
   test("Crossref: missing title produces reject") {
-    val json = ujson.Obj(
-      "source_id" -> "crossref:10.1234/test",
-      "doi"       -> "10.1234/test",
-      "year"      -> 2023,
-    ).toString()
+    val json = ujson
+      .Obj(
+        "source_id" -> "crossref:10.1234/test",
+        "doi"       -> "10.1234/test",
+        "year"      -> 2023
+      )
+      .toString()
     val result = CrossrefParser.parse(json, runId, schemaVer, ts)
     result.isLeft shouldBe true
     result.left.toOption.get._1 shouldBe "MISSING_TITLE"

@@ -11,34 +11,36 @@ class CrossrefParserSpec extends AnyFunSuite with Matchers:
   private val ts        = "2024-01-01T00:00:00Z"
 
   test("parse valid Crossref work") {
-    val json = ujson.Obj(
-      "source_id" -> "crossref:10.1109/TSE.2023.0001234",
-      "doi"       -> "10.1109/TSE.2023.0001234",
-      "title"     -> "Scalable Graph Partitioning",
-      "year"      -> 2023,
-      "authors" -> ujson.Arr(
-        ujson.Obj(
-          "given_name"  -> "Liang",
-          "family_name" -> "Chen",
-          "orcid"       -> "0000-0003-4567-8901",
-          "affiliations" -> ujson.Arr(
-            "Westfield Institute"
+    val json = ujson
+      .Obj(
+        "source_id" -> "crossref:10.1109/TSE.2023.0001234",
+        "doi"       -> "10.1109/TSE.2023.0001234",
+        "title"     -> "Scalable Graph Partitioning",
+        "year"      -> 2023,
+        "authors" -> ujson.Arr(
+          ujson.Obj(
+            "given_name"  -> "Liang",
+            "family_name" -> "Chen",
+            "orcid"       -> "0000-0003-4567-8901",
+            "affiliations" -> ujson.Arr(
+              "Westfield Institute"
+            )
           ),
+          ujson.Obj(
+            "given_name"  -> "Rebecca",
+            "family_name" -> "Williams",
+            "orcid"       -> ujson.Null,
+            "affiliations" -> ujson.Arr(
+              "Northgate University"
+            )
+          )
         ),
-        ujson.Obj(
-          "given_name"  -> "Rebecca",
-          "family_name" -> "Williams",
-          "orcid"       -> ujson.Null,
-          "affiliations" -> ujson.Arr(
-            "Northgate University"
-          ),
-        ),
-      ),
-      "venue" -> ujson.Obj(
-        "name"      -> "IEEE TSE",
-        "publisher" -> "IEEE",
-      ),
-    ).toString()
+        "venue" -> ujson.Obj(
+          "name"      -> "IEEE TSE",
+          "publisher" -> "IEEE"
+        )
+      )
+      .toString()
 
     val result =
       CrossrefParser.parse(json, runId, schemaVer, ts)
@@ -58,11 +60,13 @@ class CrossrefParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse missing title returns Left") {
-    val json = ujson.Obj(
-      "source_id" -> "crossref:10.1234/test",
-      "doi"       -> "10.1234/test",
-      "year"      -> 2023,
-    ).toString()
+    val json = ujson
+      .Obj(
+        "source_id" -> "crossref:10.1234/test",
+        "doi"       -> "10.1234/test",
+        "year"      -> 2023
+      )
+      .toString()
 
     val result =
       CrossrefParser.parse(json, runId, schemaVer, ts)
@@ -78,13 +82,15 @@ class CrossrefParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse empty authors list returns Left with MISSING_AUTHORS") {
-    val json = ujson.Obj(
-      "source_id" -> "crossref:10.1234/noauth",
-      "doi"       -> "10.1234/noauth",
-      "title"     -> "No Authors Paper",
-      "year"      -> 2023,
-      "authors"   -> ujson.Arr(),
-    ).toString()
+    val json = ujson
+      .Obj(
+        "source_id" -> "crossref:10.1234/noauth",
+        "doi"       -> "10.1234/noauth",
+        "title"     -> "No Authors Paper",
+        "year"      -> 2023,
+        "authors"   -> ujson.Arr()
+      )
+      .toString()
 
     val result =
       CrossrefParser.parse(json, runId, schemaVer, ts)
@@ -93,12 +99,14 @@ class CrossrefParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse missing authors field returns Left with MISSING_AUTHORS") {
-    val json = ujson.Obj(
-      "source_id" -> "crossref:10.1234/nofield",
-      "doi"       -> "10.1234/nofield",
-      "title"     -> "No Authors Field",
-      "year"      -> 2023,
-    ).toString()
+    val json = ujson
+      .Obj(
+        "source_id" -> "crossref:10.1234/nofield",
+        "doi"       -> "10.1234/nofield",
+        "title"     -> "No Authors Field",
+        "year"      -> 2023
+      )
+      .toString()
 
     val result =
       CrossrefParser.parse(json, runId, schemaVer, ts)
@@ -107,18 +115,20 @@ class CrossrefParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse preserves provenance") {
-    val json = ujson.Obj(
-      "source_id" -> "crossref:10.1234/prov",
-      "doi"       -> "10.1234/prov",
-      "title"     -> "Provenance Test",
-      "year"      -> 2023,
-      "authors" -> ujson.Arr(
-        ujson.Obj(
-          "given_name"  -> "Test",
-          "family_name" -> "Author",
+    val json = ujson
+      .Obj(
+        "source_id" -> "crossref:10.1234/prov",
+        "doi"       -> "10.1234/prov",
+        "title"     -> "Provenance Test",
+        "year"      -> 2023,
+        "authors" -> ujson.Arr(
+          ujson.Obj(
+            "given_name"  -> "Test",
+            "family_name" -> "Author"
+          )
         )
-      ),
-    ).toString()
+      )
+      .toString()
 
     val result =
       CrossrefParser.parse(json, runId, schemaVer, ts)
@@ -129,10 +139,12 @@ class CrossrefParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse missing source_id returns Left") {
-    val json = ujson.Obj(
-      "title" -> "Test",
-      "year"  -> 2023,
-    ).toString()
+    val json = ujson
+      .Obj(
+        "title" -> "Test",
+        "year"  -> 2023
+      )
+      .toString()
 
     val result =
       CrossrefParser.parse(json, runId, schemaVer, ts)

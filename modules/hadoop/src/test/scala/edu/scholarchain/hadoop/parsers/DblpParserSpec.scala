@@ -58,7 +58,7 @@ class DblpParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse malformed XML returns Left") {
-    val xml = "<article>not closed"
+    val xml    = "<article>not closed"
     val result = DblpParser.parse(xml, runId, schemaVer, ts)
     result.isLeft shouldBe true
     result.left.toOption.get._1 shouldBe "MALFORMED_XML"
@@ -215,8 +215,8 @@ class DblpParserSpec extends AnyFunSuite with Matchers:
         |<year>2023</year>
         |</article>""".stripMargin
 
-    val result1 = DblpParser.parse(xml, runId, schemaVer, ts)
-    val result2 = DblpParser.parse(xml, runId, schemaVer, ts)
+    val result1    = DblpParser.parse(xml, runId, schemaVer, ts)
+    val result2    = DblpParser.parse(xml, runId, schemaVer, ts)
     val (w1, _, _) = result1.toOption.get
     val (w2, _, _) = result2.toOption.get
     w1.workId shouldBe w2.workId

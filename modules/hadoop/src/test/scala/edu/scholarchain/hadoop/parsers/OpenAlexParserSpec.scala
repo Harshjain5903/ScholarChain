@@ -11,33 +11,35 @@ class OpenAlexParserSpec extends AnyFunSuite with Matchers:
   private val ts        = "2024-01-01T00:00:00Z"
 
   test("parse valid OpenAlex work") {
-    val json = ujson.Obj(
-      "source_id" -> "openalex:W3194827561",
-      "doi"       -> "10.1109/TSE.2023.0001234",
-      "title"     -> "Scalable Graph Partitioning",
-      "year"      -> 2023,
-      "authors" -> ujson.Arr(
-        ujson.Obj(
-          "name"       -> "Liang Chen",
-          "openalex_id" -> "A4012983745",
-          "orcid"      -> "0000-0003-4567-8901",
-          "position"   -> "first",
-          "affiliations" -> ujson.Arr(
-            ujson.Obj("name" -> "Westfield Institute")
+    val json = ujson
+      .Obj(
+        "source_id" -> "openalex:W3194827561",
+        "doi"       -> "10.1109/TSE.2023.0001234",
+        "title"     -> "Scalable Graph Partitioning",
+        "year"      -> 2023,
+        "authors" -> ujson.Arr(
+          ujson.Obj(
+            "name"        -> "Liang Chen",
+            "openalex_id" -> "A4012983745",
+            "orcid"       -> "0000-0003-4567-8901",
+            "position"    -> "first",
+            "affiliations" -> ujson.Arr(
+              ujson.Obj("name" -> "Westfield Institute")
+            )
           ),
+          ujson.Obj(
+            "name"        -> "Rebecca Williams",
+            "openalex_id" -> "A2987654321",
+            "orcid"       -> ujson.Null,
+            "position"    -> "last",
+            "affiliations" -> ujson.Arr(
+              ujson.Obj("name" -> "Northgate University")
+            )
+          )
         ),
-        ujson.Obj(
-          "name"       -> "Rebecca Williams",
-          "openalex_id" -> "A2987654321",
-          "orcid"      -> ujson.Null,
-          "position"   -> "last",
-          "affiliations" -> ujson.Arr(
-            ujson.Obj("name" -> "Northgate University")
-          ),
-        ),
-      ),
-      "venue" -> ujson.Obj("name" -> "IEEE TSE"),
-    ).toString()
+        "venue" -> ujson.Obj("name" -> "IEEE TSE")
+      )
+      .toString()
 
     val result =
       OpenAlexParser.parse(json, runId, schemaVer, ts)
@@ -56,17 +58,19 @@ class OpenAlexParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse missing DOI still succeeds with authors") {
-    val json = ujson.Obj(
-      "source_id" -> "openalex:W999",
-      "title"     -> "Test Title",
-      "year"      -> 2023,
-      "authors" -> ujson.Arr(
-        ujson.Obj(
-          "name"       -> "Test Author",
-          "openalex_id" -> "A123",
+    val json = ujson
+      .Obj(
+        "source_id" -> "openalex:W999",
+        "title"     -> "Test Title",
+        "year"      -> 2023,
+        "authors" -> ujson.Arr(
+          ujson.Obj(
+            "name"        -> "Test Author",
+            "openalex_id" -> "A123"
+          )
         )
-      ),
-    ).toString()
+      )
+      .toString()
 
     val result =
       OpenAlexParser.parse(json, runId, schemaVer, ts)
@@ -75,12 +79,14 @@ class OpenAlexParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse empty authors list returns Left with MISSING_AUTHORS") {
-    val json = ujson.Obj(
-      "source_id" -> "openalex:W998",
-      "title"     -> "No Authors Paper",
-      "year"      -> 2023,
-      "authors"   -> ujson.Arr(),
-    ).toString()
+    val json = ujson
+      .Obj(
+        "source_id" -> "openalex:W998",
+        "title"     -> "No Authors Paper",
+        "year"      -> 2023,
+        "authors"   -> ujson.Arr()
+      )
+      .toString()
 
     val result =
       OpenAlexParser.parse(json, runId, schemaVer, ts)
@@ -89,11 +95,13 @@ class OpenAlexParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse missing authors field returns Left with MISSING_AUTHORS") {
-    val json = ujson.Obj(
-      "source_id" -> "openalex:W997",
-      "title"     -> "No Authors Field",
-      "year"      -> 2023,
-    ).toString()
+    val json = ujson
+      .Obj(
+        "source_id" -> "openalex:W997",
+        "title"     -> "No Authors Field",
+        "year"      -> 2023
+      )
+      .toString()
 
     val result =
       OpenAlexParser.parse(json, runId, schemaVer, ts)
@@ -109,10 +117,12 @@ class OpenAlexParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse missing title returns Left") {
-    val json = ujson.Obj(
-      "source_id" -> "openalex:W999",
-      "year"      -> 2023,
-    ).toString()
+    val json = ujson
+      .Obj(
+        "source_id" -> "openalex:W999",
+        "year"      -> 2023
+      )
+      .toString()
 
     val result =
       OpenAlexParser.parse(json, runId, schemaVer, ts)
@@ -121,10 +131,12 @@ class OpenAlexParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse missing source_id returns Left") {
-    val json = ujson.Obj(
-      "title" -> "Test",
-      "year"  -> 2023,
-    ).toString()
+    val json = ujson
+      .Obj(
+        "title" -> "Test",
+        "year"  -> 2023
+      )
+      .toString()
 
     val result =
       OpenAlexParser.parse(json, runId, schemaVer, ts)
@@ -133,17 +145,19 @@ class OpenAlexParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse preserves provenance") {
-    val json = ujson.Obj(
-      "source_id" -> "openalex:W123",
-      "title"     -> "Test",
-      "year"      -> 2023,
-      "authors" -> ujson.Arr(
-        ujson.Obj(
-          "name"       -> "Test Author",
-          "openalex_id" -> "A456",
+    val json = ujson
+      .Obj(
+        "source_id" -> "openalex:W123",
+        "title"     -> "Test",
+        "year"      -> 2023,
+        "authors" -> ujson.Arr(
+          ujson.Obj(
+            "name"        -> "Test Author",
+            "openalex_id" -> "A456"
+          )
         )
-      ),
-    ).toString()
+      )
+      .toString()
 
     val result =
       OpenAlexParser.parse(json, runId, schemaVer, ts)

@@ -1,10 +1,6 @@
 package edu.scholarchain.hadoop.jobs
 
-import edu.scholarchain.core.{
-  CoauthorPairCandidate,
-  Provenance,
-  PublicationTeam,
-}
+import edu.scholarchain.core.{CoauthorPairCandidate, Provenance, PublicationTeam}
 import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.counters.HadoopCounters
 import edu.scholarchain.hadoop.io.JsonLineInputFormat
@@ -19,24 +15,22 @@ import upickle.default.*
 /**
  * J07 -- Coauthor Pair Expansion.
  *
- * Reads PublicationTeam records and generates n*(n-1)/2 unordered
- * coauthor pairs per paper. Uses CoauthorPairCandidate with lexicographic
- * canonicalization (mentionA < mentionB). Papers with 0 or 1 authors
- * are skipped.
+ * Reads PublicationTeam records and generates n*(n-1)/2 unordered coauthor pairs per paper. Uses
+ * CoauthorPairCandidate with lexicographic canonicalization (mentionA < mentionB). Papers with 0 or
+ * 1 authors are skipped.
  *
- * Key-value contracts:
- *   Mapper input:  (LongWritable offset, Text teamJson)
- *   Mapper output: (Text pairCandidateJson, NullWritable)
+ * Key-value contracts: Mapper input: (LongWritable offset, Text teamJson) Mapper output: (Text
+ * pairCandidateJson, NullWritable)
  */
 object PairExpansionJob:
   val JobName = "pair-expansion"
 
   /** Generate all unordered pairs from a PublicationTeam. */
   def expandPairs(
-      team: PublicationTeam,
-      pipelineRunId: String,
-      schemaVersion: String,
-      timestamp: String,
+    team: PublicationTeam,
+    pipelineRunId: String,
+    schemaVersion: String,
+    timestamp: String
   ): Vector[CoauthorPairCandidate] =
     val mentions = team.authorMentions
     if mentions.size < 2 then return Vector.empty
@@ -46,7 +40,7 @@ object PairExpansionJob:
       sourceRecordId = team.workId,
       pipelineRunId = pipelineRunId,
       schemaVersion = schemaVersion,
-      timestamp = timestamp,
+      timestamp = timestamp
     )
 
     val pairs = Vector.newBuilder[CoauthorPairCandidate]
@@ -59,25 +53,24 @@ object PairExpansionJob:
         mentionB = mentions(j).mentionId,
         workId = team.workId,
         year = team.year,
-        provenance = provenance,
+        provenance = provenance
       )
 
     pairs.result()
 
-class PairExpansionMapper
-    extends Mapper[LongWritable, Text, Text, NullWritable]:
+class PairExpansionMapper extends Mapper[LongWritable, Text, Text, NullWritable]:
 
   private val outKey = new Text()
 
   override def map(
-      key: LongWritable,
-      value: Text,
-      context: Mapper[
-        LongWritable,
-        Text,
-        Text,
-        NullWritable,
-      ]#Context,
+    key: LongWritable,
+    value: Text,
+    context: Mapper[
+      LongWritable,
+      Text,
+      Text,
+      NullWritable
+    ]#Context
   ): Unit =
     val line = value.toString.trim
     if line.isEmpty then return
@@ -94,7 +87,7 @@ class PairExpansionMapper
       context
         .getCounter(
           HadoopCounters.PairGroup,
-          HadoopCounters.PapersProcessed,
+          HadoopCounters.PapersProcessed
         )
         .increment(1)
 
@@ -102,7 +95,7 @@ class PairExpansionMapper
         context
           .getCounter(
             HadoopCounters.PairGroup,
-            HadoopCounters.SkippedSingletonTeams,
+            HadoopCounters.SkippedSingletonTeams
           )
           .increment(1)
         return
@@ -111,7 +104,7 @@ class PairExpansionMapper
         context
           .getCounter(
             HadoopCounters.PairGroup,
-            HadoopCounters.LargeTeamExpansions,
+            HadoopCounters.LargeTeamExpansions
           )
           .increment(1)
 
@@ -119,14 +112,14 @@ class PairExpansionMapper
         team,
         runId,
         schemaVer,
-        timestamp,
+        timestamp
       )
 
       pairs.foreach { pair =>
         context
           .getCounter(
             HadoopCounters.PairGroup,
-            HadoopCounters.TotalPairsEmitted,
+            HadoopCounters.TotalPairsEmitted
           )
           .increment(1)
         outKey.set(write(pair))
@@ -139,6 +132,7 @@ class PairExpansionMapper
           .increment(1)
 
 class PairExpansionTool extends Configured with Tool:
+
   override def run(args: Array[String]): Int =
     if args.length < 2 then
       System.err.println(
@@ -161,16 +155,16 @@ class PairExpansionTool extends Configured with Tool:
     conf.set("mapreduce.output.fileoutputformat.compress", "true")
     conf.set(
       "mapreduce.output.fileoutputformat.compress.codec",
-      "org.apache.hadoop.io.compress.GzipCodec",
+      "org.apache.hadoop.io.compress.GzipCodec"
     )
 
     FileInputFormat.addInputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(0)),
+      new org.apache.hadoop.fs.Path(args(0))
     )
     FileOutputFormat.setOutputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(1)),
+      new org.apache.hadoop.fs.Path(args(1))
     )
 
     if job.waitForCompletion(true) then 0 else 1

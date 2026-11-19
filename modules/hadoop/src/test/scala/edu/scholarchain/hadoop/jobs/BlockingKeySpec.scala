@@ -11,12 +11,12 @@ class BlockingKeySpec extends AnyFunSuite with Matchers:
     sourceRecordId = "test:1",
     pipelineRunId = "run-1",
     schemaVersion = "1.0.0",
-    timestamp = "2024-01-01T00:00:00Z",
+    timestamp = "2024-01-01T00:00:00Z"
   )
 
   private def mkMention(
-      name: String,
-      pos: Int,
+    name: String,
+    pos: Int
   ): AuthorMention =
     AuthorMention(
       mentionId = s"mention:test:1:$pos",
@@ -27,14 +27,14 @@ class BlockingKeySpec extends AnyFunSuite with Matchers:
       openAlexId = None,
       affiliationRaw = None,
       sourceRecordId = "test:1",
-      provenance = prov,
+      provenance = prov
     )
 
   private def mkWork(
-      authors: Vector[AuthorMention],
-      title: String = "Test Title",
-      venue: Option[String] = None,
-      year: Int = 2023,
+    authors: Vector[AuthorMention],
+    title: String = "Test Title",
+    venue: Option[String] = None,
+    year: Int = 2023
   ): WorkRecord =
     WorkRecord(
       workId = "work:test:1",
@@ -48,14 +48,14 @@ class BlockingKeySpec extends AnyFunSuite with Matchers:
       arxivId = None,
       authors = authors,
       abstractTextRef = None,
-      provenance = prov,
+      provenance = prov
     )
 
   test("generates author surname+initial blocking keys") {
     val work = mkWork(
       authors = Vector(
         mkMention("Liang Chen", 0),
-        mkMention("Rebecca Williams", 1),
+        mkMention("Rebecca Williams", 1)
       )
     )
     val keys = BlockingJob.generateBlockingKeys(work)
@@ -67,7 +67,7 @@ class BlockingKeySpec extends AnyFunSuite with Matchers:
     val work = mkWork(
       authors = Vector(
         mkMention("Liang Chen", 0),
-        mkMention("Rebecca Williams", 1),
+        mkMention("Rebecca Williams", 1)
       )
     )
     val keys = BlockingJob.generateBlockingKeys(work)
@@ -77,7 +77,7 @@ class BlockingKeySpec extends AnyFunSuite with Matchers:
   test("generates title token blocking keys") {
     val work = mkWork(
       authors = Vector(mkMention("Author A", 0)),
-      title = "Scalable Graph Partitioning for Distributed Systems",
+      title = "Scalable Graph Partitioning for Distributed Systems"
     )
     val keys = BlockingJob.generateBlockingKeys(work)
     keys.exists(_.startsWith("title:")) shouldBe true
@@ -87,7 +87,7 @@ class BlockingKeySpec extends AnyFunSuite with Matchers:
     val work = mkWork(
       authors = Vector(mkMention("Author A", 0)),
       venue = Some("ieee tse"),
-      year = 2023,
+      year = 2023
     )
     val keys = BlockingJob.generateBlockingKeys(work)
     keys should contain("yearvenue:2023:ieee tse")
@@ -105,7 +105,7 @@ class BlockingKeySpec extends AnyFunSuite with Matchers:
     val work = mkWork(
       authors = Vector(
         mkMention("John Smith", 0),
-        mkMention("John Smith", 1),
+        mkMention("John Smith", 1)
       )
     )
     val keys = BlockingJob.generateBlockingKeys(work)
@@ -117,7 +117,7 @@ class BlockingKeySpec extends AnyFunSuite with Matchers:
       authors = Vector(
         mkMention("John Smith", 0),
         mkMention("Jane Doe", 1),
-        mkMention("Bob Johnson", 2),
+        mkMention("Bob Johnson", 2)
       )
     )
     val keys = BlockingJob.generateBlockingKeys(work)

@@ -4,16 +4,16 @@ import upickle.default.*
 import edu.scholarchain.core.Provenance
 
 /**
- * A record that was rejected during ingestion or normalization.
- * Carries the original content, reason code, and provenance.
+ * A record that was rejected during ingestion or normalization. Carries the original content,
+ * reason code, and provenance.
  */
 case class RejectRecord(
-    sourceRecordId: String,
-    reasonCode: String,
-    reasonMessage: String,
-    originalContent: String,
-    jobName: String,
-    provenance: Provenance
+  sourceRecordId: String,
+  reasonCode: String,
+  reasonMessage: String,
+  originalContent: String,
+  jobName: String,
+  provenance: Provenance
 ) derives ReadWriter
 
 /** Standard reason codes for rejected records. */

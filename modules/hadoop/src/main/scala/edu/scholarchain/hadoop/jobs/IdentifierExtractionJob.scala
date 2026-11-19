@@ -16,21 +16,20 @@ import upickle.default.*
 /**
  * J03 -- Exact Identifier Extraction.
  *
- * Reads normalized WorkRecord JSON, extracts and normalizes identifiers
- * (DOI, arXiv, ORCID, OpenAlex), emits (identifier_key, source_record_id)
- * pairs. The reducer groups by identifier and detects duplicates/conflicts.
+ * Reads normalized WorkRecord JSON, extracts and normalizes identifiers (DOI, arXiv, ORCID,
+ * OpenAlex), emits (identifier_key, source_record_id) pairs. The reducer groups by identifier and
+ * detects duplicates/conflicts.
  *
- * Key-value contracts:
- *   Mapper input:  (LongWritable offset, Text workRecordJson)
- *   Mapper output: (Text "type:value", Text sourceRecordId)
- *   Reducer output: (Text "type:value", Text "source_id1,source_id2,...")
+ * Key-value contracts: Mapper input: (LongWritable offset, Text workRecordJson) Mapper output:
+ * (Text "type:value", Text sourceRecordId) Reducer output: (Text "type:value", Text
+ * "source_id1,source_id2,...")
  */
 object IdentifierExtractionJob:
   val JobName = "identifier-extraction"
 
   /** Extract identifier pairs from a WorkRecord. */
   def extractIdentifiers(
-      work: WorkRecord
+    work: WorkRecord
   ): Vector[(String, String)] =
     val buf = Vector.newBuilder[(String, String)]
 
@@ -59,16 +58,15 @@ object IdentifierExtractionJob:
 
     buf.result()
 
-class IdentifierExtractionMapper
-    extends Mapper[LongWritable, Text, Text, Text]:
+class IdentifierExtractionMapper extends Mapper[LongWritable, Text, Text, Text]:
 
   private val outKey   = new Text()
   private val outValue = new Text()
 
   override def map(
-      key: LongWritable,
-      value: Text,
-      context: Mapper[LongWritable, Text, Text, Text]#Context,
+    key: LongWritable,
+    value: Text,
+    context: Mapper[LongWritable, Text, Text, Text]#Context
   ): Unit =
     val line = value.toString.trim
     if line.isEmpty then return
@@ -85,7 +83,7 @@ class IdentifierExtractionMapper
         context
           .getCounter(
             HadoopCounters.IdentifierGroup,
-            HadoopCounters.MissingKeys,
+            HadoopCounters.MissingKeys
           )
           .increment(1)
 
@@ -93,7 +91,7 @@ class IdentifierExtractionMapper
         context
           .getCounter(
             HadoopCounters.IdentifierGroup,
-            HadoopCounters.TotalIdentifiers,
+            HadoopCounters.TotalIdentifiers
           )
           .increment(1)
         outKey.set(idKey)
@@ -106,13 +104,12 @@ class IdentifierExtractionMapper
           .getCounter(HadoopCounters.SharedGroup, HadoopCounters.Rejected)
           .increment(1)
 
-class IdentifierExtractionReducer
-    extends Reducer[Text, Text, Text, Text]:
+class IdentifierExtractionReducer extends Reducer[Text, Text, Text, Text]:
 
   override def reduce(
-      key: Text,
-      values: java.lang.Iterable[Text],
-      context: Reducer[Text, Text, Text, Text]#Context,
+    key: Text,
+    values: java.lang.Iterable[Text],
+    context: Reducer[Text, Text, Text, Text]#Context
   ): Unit =
     val sources = scala.collection.mutable.LinkedHashSet[String]()
     val iter    = values.iterator()
@@ -126,20 +123,21 @@ class IdentifierExtractionReducer
         context
           .getCounter(
             HadoopCounters.IdentifierGroup,
-            HadoopCounters.Conflicts,
+            HadoopCounters.Conflicts
           )
           .increment(1)
       else
         context
           .getCounter(
             HadoopCounters.IdentifierGroup,
-            HadoopCounters.Duplicates,
+            HadoopCounters.Duplicates
           )
           .increment(1)
 
     context.write(key, new Text(sources.mkString(",")))
 
 class IdentifierExtractionTool extends Configured with Tool:
+
   override def run(args: Array[String]): Int =
     if args.length < 2 then
       System.err.println(
@@ -164,16 +162,16 @@ class IdentifierExtractionTool extends Configured with Tool:
     conf.set("mapreduce.output.fileoutputformat.compress", "true")
     conf.set(
       "mapreduce.output.fileoutputformat.compress.codec",
-      "org.apache.hadoop.io.compress.GzipCodec",
+      "org.apache.hadoop.io.compress.GzipCodec"
     )
 
     FileInputFormat.addInputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(0)),
+      new org.apache.hadoop.fs.Path(args(0))
     )
     FileOutputFormat.setOutputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(1)),
+      new org.apache.hadoop.fs.Path(args(1))
     )
 
     if job.waitForCompletion(true) then 0 else 1

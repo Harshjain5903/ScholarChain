@@ -9,53 +9,48 @@ import org.apache.hadoop.conf.{Configuration, Configured}
 import org.apache.hadoop.io.{LongWritable, NullWritable, Text}
 import org.apache.hadoop.mapreduce.{Job, Mapper}
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
-import org.apache.hadoop.mapreduce.lib.output.{
-  FileOutputFormat,
-  MultipleOutputs,
-  TextOutputFormat,
-}
+import org.apache.hadoop.mapreduce.lib.output.{FileOutputFormat, MultipleOutputs, TextOutputFormat}
 import org.apache.hadoop.util.{Tool, ToolRunner}
 import upickle.default.*
 
 /**
  * J02b -- ORCID Source Normalization.
  *
- * Reads ORCID JSON Lines, maps each record to AuthorMention +
- * CanonicalResearcher, writes normalized JSON lines.
+ * Reads ORCID JSON Lines, maps each record to AuthorMention + CanonicalResearcher, writes
+ * normalized JSON lines.
  *
- * Key-value contracts:
- *   Mapper input:  (LongWritable offset, Text jsonLine)
- *   Mapper output: (Text mentionJson, NullWritable)
+ * Key-value contracts: Mapper input: (LongWritable offset, Text jsonLine) Mapper output: (Text
+ * mentionJson, NullWritable)
  */
 object OrcidNormalizationJob:
   val JobName = "orcid-normalization"
 
-class OrcidNormalizationMapper
-    extends Mapper[LongWritable, Text, Text, NullWritable]:
+class OrcidNormalizationMapper extends Mapper[LongWritable, Text, Text, NullWritable]:
 
   private val outKey = new Text()
+
   private var multipleOutputs: MultipleOutputs[Text, NullWritable] =
     scala.compiletime.uninitialized
 
   override def setup(
-      context: Mapper[
-        LongWritable,
-        Text,
-        Text,
-        NullWritable,
-      ]#Context
+    context: Mapper[
+      LongWritable,
+      Text,
+      Text,
+      NullWritable
+    ]#Context
   ): Unit =
     multipleOutputs = new MultipleOutputs[Text, NullWritable](context)
 
   override def map(
-      key: LongWritable,
-      value: Text,
-      context: Mapper[
-        LongWritable,
-        Text,
-        Text,
-        NullWritable,
-      ]#Context,
+    key: LongWritable,
+    value: Text,
+    context: Mapper[
+      LongWritable,
+      Text,
+      Text,
+      NullWritable
+    ]#Context
   ): Unit =
     val line = value.toString.trim
     if line.isEmpty then return
@@ -85,12 +80,12 @@ class OrcidNormalizationMapper
           .getCounter(HadoopCounters.SharedGroup, HadoopCounters.Rejected)
           .increment(1)
         if code == "MISSING_NAME" || code == "MISSING_SOURCE_ID"
-           || code == "INVALID_ORCID"
+          || code == "INVALID_ORCID"
         then
           context
             .getCounter(
               HadoopCounters.SharedGroup,
-              HadoopCounters.MissingRequiredFields,
+              HadoopCounters.MissingRequiredFields
             )
             .increment(1)
         val sourceId = extractSourceId(line)
@@ -99,7 +94,7 @@ class OrcidNormalizationMapper
           sourceRecordId = sourceId,
           pipelineRunId = runId,
           schemaVersion = schemaVer,
-          timestamp = timestamp,
+          timestamp = timestamp
         )
         RejectWriter.writeReject(
           multipleOutputs,
@@ -108,16 +103,16 @@ class OrcidNormalizationMapper
           msg,
           line,
           OrcidNormalizationJob.JobName,
-          provenance,
+          provenance
         )
 
   override def cleanup(
-      context: Mapper[
-        LongWritable,
-        Text,
-        Text,
-        NullWritable,
-      ]#Context
+    context: Mapper[
+      LongWritable,
+      Text,
+      Text,
+      NullWritable
+    ]#Context
   ): Unit =
     if multipleOutputs != null then multipleOutputs.close()
 
@@ -129,6 +124,7 @@ class OrcidNormalizationMapper
     catch case _: Exception => "unknown"
 
 class OrcidNormalizationTool extends Configured with Tool:
+
   override def run(args: Array[String]): Int =
     if args.length < 2 then
       System.err.println(
@@ -151,16 +147,16 @@ class OrcidNormalizationTool extends Configured with Tool:
     conf.set("mapreduce.output.fileoutputformat.compress", "true")
     conf.set(
       "mapreduce.output.fileoutputformat.compress.codec",
-      "org.apache.hadoop.io.compress.GzipCodec",
+      "org.apache.hadoop.io.compress.GzipCodec"
     )
 
     FileInputFormat.addInputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(0)),
+      new org.apache.hadoop.fs.Path(args(0))
     )
     FileOutputFormat.setOutputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(1)),
+      new org.apache.hadoop.fs.Path(args(1))
     )
 
     MultipleOutputs.addNamedOutput(
@@ -168,7 +164,7 @@ class OrcidNormalizationTool extends Configured with Tool:
       RejectWriter.RejectOutputName,
       classOf[TextOutputFormat[?, ?]],
       classOf[Text],
-      classOf[NullWritable],
+      classOf[NullWritable]
     )
 
     if job.waitForCompletion(true) then 0 else 1

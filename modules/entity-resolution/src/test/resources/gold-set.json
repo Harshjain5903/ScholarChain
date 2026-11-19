@@ -1,0 +1,1404 @@
+{
+  "pairs": [
+    {
+      "sourceId": "work:dblp:doi-match-1",
+      "targetId": "work:openalex:doi-match-1",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 1"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-2",
+      "targetId": "work:openalex:doi-match-2",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 2"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-3",
+      "targetId": "work:openalex:doi-match-3",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 3"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-4",
+      "targetId": "work:openalex:doi-match-4",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 4"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-5",
+      "targetId": "work:openalex:doi-match-5",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 5"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-6",
+      "targetId": "work:openalex:doi-match-6",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 6"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-7",
+      "targetId": "work:openalex:doi-match-7",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 7"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-8",
+      "targetId": "work:openalex:doi-match-8",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 8"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-9",
+      "targetId": "work:openalex:doi-match-9",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 9"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-10",
+      "targetId": "work:openalex:doi-match-10",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 10"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-11",
+      "targetId": "work:openalex:doi-match-11",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 11"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-12",
+      "targetId": "work:openalex:doi-match-12",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 12"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-13",
+      "targetId": "work:openalex:doi-match-13",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 13"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-14",
+      "targetId": "work:openalex:doi-match-14",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 14"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-15",
+      "targetId": "work:openalex:doi-match-15",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 15"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-16",
+      "targetId": "work:openalex:doi-match-16",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 16"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-17",
+      "targetId": "work:openalex:doi-match-17",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 17"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-18",
+      "targetId": "work:openalex:doi-match-18",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 18"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-19",
+      "targetId": "work:openalex:doi-match-19",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 19"
+    },
+    {
+      "sourceId": "work:dblp:doi-match-20",
+      "targetId": "work:openalex:doi-match-20",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "DOI match pair 20"
+    },
+    {
+      "sourceId": "researcher:orcid-match-1",
+      "targetId": "researcher:openalex-orcid-match-1",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 1"
+    },
+    {
+      "sourceId": "researcher:orcid-match-2",
+      "targetId": "researcher:openalex-orcid-match-2",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 2"
+    },
+    {
+      "sourceId": "researcher:orcid-match-3",
+      "targetId": "researcher:openalex-orcid-match-3",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 3"
+    },
+    {
+      "sourceId": "researcher:orcid-match-4",
+      "targetId": "researcher:openalex-orcid-match-4",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 4"
+    },
+    {
+      "sourceId": "researcher:orcid-match-5",
+      "targetId": "researcher:openalex-orcid-match-5",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 5"
+    },
+    {
+      "sourceId": "researcher:orcid-match-6",
+      "targetId": "researcher:openalex-orcid-match-6",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 6"
+    },
+    {
+      "sourceId": "researcher:orcid-match-7",
+      "targetId": "researcher:openalex-orcid-match-7",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 7"
+    },
+    {
+      "sourceId": "researcher:orcid-match-8",
+      "targetId": "researcher:openalex-orcid-match-8",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 8"
+    },
+    {
+      "sourceId": "researcher:orcid-match-9",
+      "targetId": "researcher:openalex-orcid-match-9",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 9"
+    },
+    {
+      "sourceId": "researcher:orcid-match-10",
+      "targetId": "researcher:openalex-orcid-match-10",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 10"
+    },
+    {
+      "sourceId": "researcher:orcid-match-11",
+      "targetId": "researcher:openalex-orcid-match-11",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 11"
+    },
+    {
+      "sourceId": "researcher:orcid-match-12",
+      "targetId": "researcher:openalex-orcid-match-12",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 12"
+    },
+    {
+      "sourceId": "researcher:orcid-match-13",
+      "targetId": "researcher:openalex-orcid-match-13",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 13"
+    },
+    {
+      "sourceId": "researcher:orcid-match-14",
+      "targetId": "researcher:openalex-orcid-match-14",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 14"
+    },
+    {
+      "sourceId": "researcher:orcid-match-15",
+      "targetId": "researcher:openalex-orcid-match-15",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "ORCID match pair 15"
+    },
+    {
+      "sourceId": "work:arxiv-match-1",
+      "targetId": "work:semanticscholar-arxiv-match-1",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "arXiv ID match pair 1"
+    },
+    {
+      "sourceId": "work:arxiv-match-2",
+      "targetId": "work:semanticscholar-arxiv-match-2",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "arXiv ID match pair 2"
+    },
+    {
+      "sourceId": "work:arxiv-match-3",
+      "targetId": "work:semanticscholar-arxiv-match-3",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "arXiv ID match pair 3"
+    },
+    {
+      "sourceId": "work:arxiv-match-4",
+      "targetId": "work:semanticscholar-arxiv-match-4",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "arXiv ID match pair 4"
+    },
+    {
+      "sourceId": "work:arxiv-match-5",
+      "targetId": "work:semanticscholar-arxiv-match-5",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "arXiv ID match pair 5"
+    },
+    {
+      "sourceId": "work:arxiv-match-6",
+      "targetId": "work:semanticscholar-arxiv-match-6",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "arXiv ID match pair 6"
+    },
+    {
+      "sourceId": "work:arxiv-match-7",
+      "targetId": "work:semanticscholar-arxiv-match-7",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "arXiv ID match pair 7"
+    },
+    {
+      "sourceId": "work:arxiv-match-8",
+      "targetId": "work:semanticscholar-arxiv-match-8",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "arXiv ID match pair 8"
+    },
+    {
+      "sourceId": "work:arxiv-match-9",
+      "targetId": "work:semanticscholar-arxiv-match-9",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "arXiv ID match pair 9"
+    },
+    {
+      "sourceId": "work:arxiv-match-10",
+      "targetId": "work:semanticscholar-arxiv-match-10",
+      "expectedOutcome": "Accepted",
+      "matchPath": "exact_id",
+      "notes": "arXiv ID match pair 10"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-1",
+      "targetId": "work:crossref:bib-match-1",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 1"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-2",
+      "targetId": "work:crossref:bib-match-2",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 2"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-3",
+      "targetId": "work:crossref:bib-match-3",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 3"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-4",
+      "targetId": "work:crossref:bib-match-4",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 4"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-5",
+      "targetId": "work:crossref:bib-match-5",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 5"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-6",
+      "targetId": "work:crossref:bib-match-6",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 6"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-7",
+      "targetId": "work:crossref:bib-match-7",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 7"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-8",
+      "targetId": "work:crossref:bib-match-8",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 8"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-9",
+      "targetId": "work:crossref:bib-match-9",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 9"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-10",
+      "targetId": "work:crossref:bib-match-10",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 10"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-11",
+      "targetId": "work:crossref:bib-match-11",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 11"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-12",
+      "targetId": "work:crossref:bib-match-12",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 12"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-13",
+      "targetId": "work:crossref:bib-match-13",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 13"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-14",
+      "targetId": "work:crossref:bib-match-14",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 14"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-15",
+      "targetId": "work:crossref:bib-match-15",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 15"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-16",
+      "targetId": "work:crossref:bib-match-16",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 16"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-17",
+      "targetId": "work:crossref:bib-match-17",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 17"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-18",
+      "targetId": "work:crossref:bib-match-18",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 18"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-19",
+      "targetId": "work:crossref:bib-match-19",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 19"
+    },
+    {
+      "sourceId": "work:dblp:bib-match-20",
+      "targetId": "work:crossref:bib-match-20",
+      "expectedOutcome": "Accepted",
+      "matchPath": "deterministic_bibliographic",
+      "notes": "High bibliographic similarity pair 20"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-1",
+      "targetId": "work:dblp:prob-match-1",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 1"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-2",
+      "targetId": "work:dblp:prob-match-2",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 2"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-3",
+      "targetId": "work:dblp:prob-match-3",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 3"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-4",
+      "targetId": "work:dblp:prob-match-4",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 4"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-5",
+      "targetId": "work:dblp:prob-match-5",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 5"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-6",
+      "targetId": "work:dblp:prob-match-6",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 6"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-7",
+      "targetId": "work:dblp:prob-match-7",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 7"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-8",
+      "targetId": "work:dblp:prob-match-8",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 8"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-9",
+      "targetId": "work:dblp:prob-match-9",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 9"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-10",
+      "targetId": "work:dblp:prob-match-10",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 10"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-11",
+      "targetId": "work:dblp:prob-match-11",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 11"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-12",
+      "targetId": "work:dblp:prob-match-12",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 12"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-13",
+      "targetId": "work:dblp:prob-match-13",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 13"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-14",
+      "targetId": "work:dblp:prob-match-14",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 14"
+    },
+    {
+      "sourceId": "work:openalex:prob-match-15",
+      "targetId": "work:dblp:prob-match-15",
+      "expectedOutcome": "Accepted",
+      "matchPath": "probabilistic",
+      "notes": "Probabilistic match pair 15"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-1",
+      "targetId": "work:openalex:nonmatch-b-1",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 1"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-2",
+      "targetId": "work:openalex:nonmatch-b-2",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 2"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-3",
+      "targetId": "work:openalex:nonmatch-b-3",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 3"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-4",
+      "targetId": "work:openalex:nonmatch-b-4",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 4"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-5",
+      "targetId": "work:openalex:nonmatch-b-5",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 5"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-6",
+      "targetId": "work:openalex:nonmatch-b-6",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 6"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-7",
+      "targetId": "work:openalex:nonmatch-b-7",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 7"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-8",
+      "targetId": "work:openalex:nonmatch-b-8",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 8"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-9",
+      "targetId": "work:openalex:nonmatch-b-9",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 9"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-10",
+      "targetId": "work:openalex:nonmatch-b-10",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 10"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-11",
+      "targetId": "work:openalex:nonmatch-b-11",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 11"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-12",
+      "targetId": "work:openalex:nonmatch-b-12",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 12"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-13",
+      "targetId": "work:openalex:nonmatch-b-13",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 13"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-14",
+      "targetId": "work:openalex:nonmatch-b-14",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 14"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-15",
+      "targetId": "work:openalex:nonmatch-b-15",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 15"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-16",
+      "targetId": "work:openalex:nonmatch-b-16",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 16"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-17",
+      "targetId": "work:openalex:nonmatch-b-17",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 17"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-18",
+      "targetId": "work:openalex:nonmatch-b-18",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 18"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-19",
+      "targetId": "work:openalex:nonmatch-b-19",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 19"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-20",
+      "targetId": "work:openalex:nonmatch-b-20",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 20"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-21",
+      "targetId": "work:openalex:nonmatch-b-21",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 21"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-22",
+      "targetId": "work:openalex:nonmatch-b-22",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 22"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-23",
+      "targetId": "work:openalex:nonmatch-b-23",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 23"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-24",
+      "targetId": "work:openalex:nonmatch-b-24",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 24"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-25",
+      "targetId": "work:openalex:nonmatch-b-25",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 25"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-26",
+      "targetId": "work:openalex:nonmatch-b-26",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 26"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-27",
+      "targetId": "work:openalex:nonmatch-b-27",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 27"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-28",
+      "targetId": "work:openalex:nonmatch-b-28",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 28"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-29",
+      "targetId": "work:openalex:nonmatch-b-29",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 29"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-30",
+      "targetId": "work:openalex:nonmatch-b-30",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 30"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-31",
+      "targetId": "work:openalex:nonmatch-b-31",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 31"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-32",
+      "targetId": "work:openalex:nonmatch-b-32",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 32"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-33",
+      "targetId": "work:openalex:nonmatch-b-33",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 33"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-34",
+      "targetId": "work:openalex:nonmatch-b-34",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 34"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-35",
+      "targetId": "work:openalex:nonmatch-b-35",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 35"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-36",
+      "targetId": "work:openalex:nonmatch-b-36",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 36"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-37",
+      "targetId": "work:openalex:nonmatch-b-37",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 37"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-38",
+      "targetId": "work:openalex:nonmatch-b-38",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 38"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-39",
+      "targetId": "work:openalex:nonmatch-b-39",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 39"
+    },
+    {
+      "sourceId": "work:dblp:nonmatch-a-40",
+      "targetId": "work:openalex:nonmatch-b-40",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different works pair 40"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-1",
+      "targetId": "researcher:nonmatch-b-1",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 1"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-2",
+      "targetId": "researcher:nonmatch-b-2",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 2"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-3",
+      "targetId": "researcher:nonmatch-b-3",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 3"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-4",
+      "targetId": "researcher:nonmatch-b-4",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 4"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-5",
+      "targetId": "researcher:nonmatch-b-5",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 5"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-6",
+      "targetId": "researcher:nonmatch-b-6",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 6"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-7",
+      "targetId": "researcher:nonmatch-b-7",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 7"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-8",
+      "targetId": "researcher:nonmatch-b-8",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 8"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-9",
+      "targetId": "researcher:nonmatch-b-9",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 9"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-10",
+      "targetId": "researcher:nonmatch-b-10",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 10"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-11",
+      "targetId": "researcher:nonmatch-b-11",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 11"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-12",
+      "targetId": "researcher:nonmatch-b-12",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 12"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-13",
+      "targetId": "researcher:nonmatch-b-13",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 13"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-14",
+      "targetId": "researcher:nonmatch-b-14",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 14"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-15",
+      "targetId": "researcher:nonmatch-b-15",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 15"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-16",
+      "targetId": "researcher:nonmatch-b-16",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 16"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-17",
+      "targetId": "researcher:nonmatch-b-17",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 17"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-18",
+      "targetId": "researcher:nonmatch-b-18",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 18"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-19",
+      "targetId": "researcher:nonmatch-b-19",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 19"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-20",
+      "targetId": "researcher:nonmatch-b-20",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 20"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-21",
+      "targetId": "researcher:nonmatch-b-21",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 21"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-22",
+      "targetId": "researcher:nonmatch-b-22",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 22"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-23",
+      "targetId": "researcher:nonmatch-b-23",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 23"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-24",
+      "targetId": "researcher:nonmatch-b-24",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 24"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-25",
+      "targetId": "researcher:nonmatch-b-25",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 25"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-26",
+      "targetId": "researcher:nonmatch-b-26",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 26"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-27",
+      "targetId": "researcher:nonmatch-b-27",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 27"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-28",
+      "targetId": "researcher:nonmatch-b-28",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 28"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-29",
+      "targetId": "researcher:nonmatch-b-29",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 29"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-30",
+      "targetId": "researcher:nonmatch-b-30",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 30"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-31",
+      "targetId": "researcher:nonmatch-b-31",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 31"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-32",
+      "targetId": "researcher:nonmatch-b-32",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 32"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-33",
+      "targetId": "researcher:nonmatch-b-33",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 33"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-34",
+      "targetId": "researcher:nonmatch-b-34",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 34"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-35",
+      "targetId": "researcher:nonmatch-b-35",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 35"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-36",
+      "targetId": "researcher:nonmatch-b-36",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 36"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-37",
+      "targetId": "researcher:nonmatch-b-37",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 37"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-38",
+      "targetId": "researcher:nonmatch-b-38",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 38"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-39",
+      "targetId": "researcher:nonmatch-b-39",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 39"
+    },
+    {
+      "sourceId": "researcher:nonmatch-a-40",
+      "targetId": "researcher:nonmatch-b-40",
+      "expectedOutcome": "Rejected",
+      "matchPath": "rejected",
+      "notes": "Different researchers pair 40"
+    },
+    {
+      "sourceId": "researcher:common-name-1",
+      "targetId": "researcher:common-name-alt-1",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Common name ambiguity pair 1"
+    },
+    {
+      "sourceId": "researcher:common-name-2",
+      "targetId": "researcher:common-name-alt-2",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Common name ambiguity pair 2"
+    },
+    {
+      "sourceId": "researcher:common-name-3",
+      "targetId": "researcher:common-name-alt-3",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Common name ambiguity pair 3"
+    },
+    {
+      "sourceId": "researcher:common-name-4",
+      "targetId": "researcher:common-name-alt-4",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Common name ambiguity pair 4"
+    },
+    {
+      "sourceId": "researcher:common-name-5",
+      "targetId": "researcher:common-name-alt-5",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Common name ambiguity pair 5"
+    },
+    {
+      "sourceId": "researcher:common-name-6",
+      "targetId": "researcher:common-name-alt-6",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Common name ambiguity pair 6"
+    },
+    {
+      "sourceId": "researcher:common-name-7",
+      "targetId": "researcher:common-name-alt-7",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Common name ambiguity pair 7"
+    },
+    {
+      "sourceId": "researcher:common-name-8",
+      "targetId": "researcher:common-name-alt-8",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Common name ambiguity pair 8"
+    },
+    {
+      "sourceId": "researcher:common-name-9",
+      "targetId": "researcher:common-name-alt-9",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Common name ambiguity pair 9"
+    },
+    {
+      "sourceId": "researcher:common-name-10",
+      "targetId": "researcher:common-name-alt-10",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Common name ambiguity pair 10"
+    },
+    {
+      "sourceId": "researcher:namevar-muller-1",
+      "targetId": "researcher:namevar-mueller-1",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Name variant: Muller vs Mueller"
+    },
+    {
+      "sourceId": "researcher:namevar-gonzalez-2",
+      "targetId": "researcher:namevar-gonzlez-2",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Name variant: Gonzalez vs Gonzlez"
+    },
+    {
+      "sourceId": "researcher:namevar-obrien-3",
+      "targetId": "researcher:namevar-o'brien-3",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Name variant: OBrien vs O'Brien"
+    },
+    {
+      "sourceId": "researcher:namevar-bjork-4",
+      "targetId": "researcher:namevar-bjoerk-4",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Name variant: Bjork vs Bjoerk"
+    },
+    {
+      "sourceId": "researcher:namevar-schrodinger-5",
+      "targetId": "researcher:namevar-schroedinger-5",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Name variant: Schrodinger vs Schroedinger"
+    },
+    {
+      "sourceId": "researcher:namevar-nguyen-6",
+      "targetId": "researcher:namevar-nguyeen-6",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Name variant: Nguyen vs Nguyeen"
+    },
+    {
+      "sourceId": "researcher:namevar-suzuki-7",
+      "targetId": "researcher:namevar-szuki-7",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Name variant: Suzuki vs Szuki"
+    },
+    {
+      "sourceId": "researcher:namevar-li wei-8",
+      "targetId": "researcher:namevar-wei li-8",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Name variant: Li Wei vs Wei Li"
+    },
+    {
+      "sourceId": "researcher:namevar-joao silva-9",
+      "targetId": "researcher:namevar-joao da silva-9",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Name variant: Joao Silva vs Joao da Silva"
+    },
+    {
+      "sourceId": "researcher:namevar-oconnor-10",
+      "targetId": "researcher:namevar-o'connor-10",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Name variant: Oconnor vs O'Connor"
+    },
+    {
+      "sourceId": "work:missing-fields-1",
+      "targetId": "work:sparse-1",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Missing fields pair 1"
+    },
+    {
+      "sourceId": "work:missing-fields-2",
+      "targetId": "work:sparse-2",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Missing fields pair 2"
+    },
+    {
+      "sourceId": "work:missing-fields-3",
+      "targetId": "work:sparse-3",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Missing fields pair 3"
+    },
+    {
+      "sourceId": "work:missing-fields-4",
+      "targetId": "work:sparse-4",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Missing fields pair 4"
+    },
+    {
+      "sourceId": "work:missing-fields-5",
+      "targetId": "work:sparse-5",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Missing fields pair 5"
+    },
+    {
+      "sourceId": "work:missing-fields-6",
+      "targetId": "work:sparse-6",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Missing fields pair 6"
+    },
+    {
+      "sourceId": "work:missing-fields-7",
+      "targetId": "work:sparse-7",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Missing fields pair 7"
+    },
+    {
+      "sourceId": "work:missing-fields-8",
+      "targetId": "work:sparse-8",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Missing fields pair 8"
+    },
+    {
+      "sourceId": "work:missing-fields-9",
+      "targetId": "work:sparse-9",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Missing fields pair 9"
+    },
+    {
+      "sourceId": "work:missing-fields-10",
+      "targetId": "work:sparse-10",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Missing fields pair 10"
+    },
+    {
+      "sourceId": "work:year-mismatch-1",
+      "targetId": "work:year-off-1",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Year mismatch pair 1"
+    },
+    {
+      "sourceId": "work:year-mismatch-2",
+      "targetId": "work:year-off-2",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Year mismatch pair 2"
+    },
+    {
+      "sourceId": "work:year-mismatch-3",
+      "targetId": "work:year-off-3",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Year mismatch pair 3"
+    },
+    {
+      "sourceId": "work:year-mismatch-4",
+      "targetId": "work:year-off-4",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Year mismatch pair 4"
+    },
+    {
+      "sourceId": "work:year-mismatch-5",
+      "targetId": "work:year-off-5",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Year mismatch pair 5"
+    },
+    {
+      "sourceId": "work:year-mismatch-6",
+      "targetId": "work:year-off-6",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Year mismatch pair 6"
+    },
+    {
+      "sourceId": "work:year-mismatch-7",
+      "targetId": "work:year-off-7",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Year mismatch pair 7"
+    },
+    {
+      "sourceId": "work:year-mismatch-8",
+      "targetId": "work:year-off-8",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Year mismatch pair 8"
+    },
+    {
+      "sourceId": "work:year-mismatch-9",
+      "targetId": "work:year-off-9",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Year mismatch pair 9"
+    },
+    {
+      "sourceId": "work:year-mismatch-10",
+      "targetId": "work:year-off-10",
+      "expectedOutcome": "Unresolved",
+      "matchPath": "unresolved_band",
+      "notes": "Year mismatch pair 10"
+    }
+  ]
+}

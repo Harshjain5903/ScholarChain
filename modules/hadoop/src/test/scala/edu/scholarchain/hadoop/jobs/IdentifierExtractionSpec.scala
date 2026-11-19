@@ -11,13 +11,13 @@ class IdentifierExtractionSpec extends AnyFunSuite with Matchers:
     sourceRecordId = "test:1",
     pipelineRunId = "run-1",
     schemaVersion = "1.0.0",
-    timestamp = "2024-01-01T00:00:00Z",
+    timestamp = "2024-01-01T00:00:00Z"
   )
 
   private def mkWork(
-      doi: Option[String] = None,
-      arxivId: Option[String] = None,
-      authors: Vector[AuthorMention] = Vector.empty,
+    doi: Option[String] = None,
+    arxivId: Option[String] = None,
+    authors: Vector[AuthorMention] = Vector.empty
   ): WorkRecord =
     WorkRecord(
       workId = "work:test:1",
@@ -31,12 +31,12 @@ class IdentifierExtractionSpec extends AnyFunSuite with Matchers:
       arxivId = arxivId,
       authors = authors,
       abstractTextRef = None,
-      provenance = prov,
+      provenance = prov
     )
 
   private def mkMention(
-      orcid: Option[String] = None,
-      openAlexId: Option[String] = None,
+    orcid: Option[String] = None,
+    openAlexId: Option[String] = None
   ): AuthorMention =
     AuthorMention(
       mentionId = "mention:test:1:0",
@@ -47,7 +47,7 @@ class IdentifierExtractionSpec extends AnyFunSuite with Matchers:
       openAlexId = openAlexId,
       affiliationRaw = None,
       sourceRecordId = "test:1",
-      provenance = prov,
+      provenance = prov
     )
 
   test("extract DOI identifier") {
@@ -94,9 +94,9 @@ class IdentifierExtractionSpec extends AnyFunSuite with Matchers:
       authors = Vector(
         mkMention(
           orcid = Some("0000-0001-2345-6789"),
-          openAlexId = Some("A999"),
+          openAlexId = Some("A999")
         )
-      ),
+      )
     )
     val ids = IdentifierExtractionJob.extractIdentifiers(work)
     ids should have size 4

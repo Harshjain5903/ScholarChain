@@ -10,23 +10,25 @@ class OrcidParserSpec extends AnyFunSuite with Matchers:
   private val ts        = "2024-01-01T00:00:00Z"
 
   test("parse valid ORCID researcher") {
-    val json = ujson.Obj(
-      "source_id"   -> "orcid:0000-0003-4567-8901",
-      "orcid"       -> "0000-0003-4567-8901",
-      "name"        -> "Liang Chen",
-      "given_name"  -> "Liang",
-      "family_name" -> "Chen",
-      "name_variants" -> ujson.Arr("L. Chen", "Liang C."),
-      "affiliations" -> ujson.Arr(
-        ujson.Obj(
-          "organization" -> "Westfield Institute",
-          "department"   -> "CS",
-          "role"         -> "Prof",
-          "start_year"   -> 2018,
-          "end_year"     -> ujson.Null,
+    val json = ujson
+      .Obj(
+        "source_id"     -> "orcid:0000-0003-4567-8901",
+        "orcid"         -> "0000-0003-4567-8901",
+        "name"          -> "Liang Chen",
+        "given_name"    -> "Liang",
+        "family_name"   -> "Chen",
+        "name_variants" -> ujson.Arr("L. Chen", "Liang C."),
+        "affiliations" -> ujson.Arr(
+          ujson.Obj(
+            "organization" -> "Westfield Institute",
+            "department"   -> "CS",
+            "role"         -> "Prof",
+            "start_year"   -> 2018,
+            "end_year"     -> ujson.Null
+          )
         )
-      ),
-    ).toString()
+      )
+      .toString()
 
     val result = OrcidParser.parse(json, runId, schemaVer, ts)
     result.isRight shouldBe true
@@ -43,11 +45,13 @@ class OrcidParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse invalid ORCID format returns Left") {
-    val json = ujson.Obj(
-      "source_id" -> "orcid:invalid",
-      "orcid"     -> "1234-5678",
-      "name"      -> "Test Person",
-    ).toString()
+    val json = ujson
+      .Obj(
+        "source_id" -> "orcid:invalid",
+        "orcid"     -> "1234-5678",
+        "name"      -> "Test Person"
+      )
+      .toString()
 
     val result = OrcidParser.parse(json, runId, schemaVer, ts)
     result.isLeft shouldBe true
@@ -55,10 +59,12 @@ class OrcidParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse missing name returns Left") {
-    val json = ujson.Obj(
-      "source_id" -> "orcid:0000-0001-2345-6789",
-      "orcid"     -> "0000-0001-2345-6789",
-    ).toString()
+    val json = ujson
+      .Obj(
+        "source_id" -> "orcid:0000-0001-2345-6789",
+        "orcid"     -> "0000-0001-2345-6789"
+      )
+      .toString()
 
     val result = OrcidParser.parse(json, runId, schemaVer, ts)
     result.isLeft shouldBe true
@@ -73,11 +79,13 @@ class OrcidParserSpec extends AnyFunSuite with Matchers:
   }
 
   test("parse preserves provenance") {
-    val json = ujson.Obj(
-      "source_id" -> "orcid:0000-0002-9876-5432",
-      "orcid"     -> "0000-0002-9876-5432",
-      "name"      -> "Minh Nguyen",
-    ).toString()
+    val json = ujson
+      .Obj(
+        "source_id" -> "orcid:0000-0002-9876-5432",
+        "orcid"     -> "0000-0002-9876-5432",
+        "name"      -> "Minh Nguyen"
+      )
+      .toString()
 
     val result = OrcidParser.parse(json, runId, schemaVer, ts)
     result.isRight shouldBe true

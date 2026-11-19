@@ -11,12 +11,12 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
     sourceRecordId = "test:1",
     pipelineRunId = "run-1",
     schemaVersion = "1.0.0",
-    timestamp = "2024-01-01T00:00:00Z",
+    timestamp = "2024-01-01T00:00:00Z"
   )
 
   private def mkMention(
-      name: String,
-      pos: Int,
+    name: String,
+    pos: Int
   ): AuthorMention =
     AuthorMention(
       mentionId = s"mention:test:1:$pos",
@@ -27,15 +27,15 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
       openAlexId = None,
       affiliationRaw = None,
       sourceRecordId = "test:1",
-      provenance = prov,
+      provenance = prov
     )
 
   private def mkWork(
-      sourceId: String,
-      title: String,
-      year: Int,
-      venue: Option[String],
-      authors: Vector[AuthorMention],
+    sourceId: String,
+    title: String,
+    year: Int,
+    venue: Option[String],
+    authors: Vector[AuthorMention]
   ): WorkRecord =
     WorkRecord(
       workId = s"work:test:$sourceId",
@@ -49,7 +49,7 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
       arxivId = None,
       authors = authors,
       abstractTextRef = None,
-      provenance = prov,
+      provenance = prov
     )
 
   // -- Jaccard similarity --
@@ -57,21 +57,21 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
   test("jaccard of identical sets is 1.0") {
     FeatureConstructionJob.jaccard(
       Set("a", "b", "c"),
-      Set("a", "b", "c"),
+      Set("a", "b", "c")
     ) shouldBe 1.0
   }
 
   test("jaccard of disjoint sets is 0.0") {
     FeatureConstructionJob.jaccard(
       Set("a", "b"),
-      Set("c", "d"),
+      Set("c", "d")
     ) shouldBe 0.0
   }
 
   test("jaccard of overlapping sets") {
     val result = FeatureConstructionJob.jaccard(
       Set("a", "b", "c"),
-      Set("b", "c", "d"),
+      Set("b", "c", "d")
     )
     result shouldBe (2.0 / 4.0 +- 0.001)
   }
@@ -79,7 +79,7 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
   test("jaccard of empty sets is 1.0") {
     FeatureConstructionJob.jaccard(
       Set.empty,
-      Set.empty,
+      Set.empty
     ) shouldBe 1.0
   }
 
@@ -88,7 +88,7 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
   test("authorSimilarity of identical author lists") {
     val result = FeatureConstructionJob.authorSimilarity(
       Vector("liang chen", "rebecca williams"),
-      Vector("liang chen", "rebecca williams"),
+      Vector("liang chen", "rebecca williams")
     )
     result shouldBe 1.0
   }
@@ -96,7 +96,7 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
   test("authorSimilarity of completely different lists") {
     val result = FeatureConstructionJob.authorSimilarity(
       Vector("alpha beta"),
-      Vector("gamma delta"),
+      Vector("gamma delta")
     )
     result shouldBe 0.0
   }
@@ -104,7 +104,7 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
   test("authorSimilarity with empty list is 0.0") {
     FeatureConstructionJob.authorSimilarity(
       Vector.empty,
-      Vector("someone"),
+      Vector("someone")
     ) shouldBe 0.0
   }
 
@@ -113,7 +113,7 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
   test("coauthorOverlap with shared names") {
     val result = FeatureConstructionJob.coauthorOverlap(
       Vector("alice", "bob", "carol"),
-      Vector("bob", "carol", "dave"),
+      Vector("bob", "carol", "dave")
     )
     result shouldBe 2
   }
@@ -121,7 +121,7 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
   test("coauthorOverlap with no overlap") {
     val result = FeatureConstructionJob.coauthorOverlap(
       Vector("alice"),
-      Vector("bob"),
+      Vector("bob")
     )
     result shouldBe 0
   }
@@ -131,13 +131,21 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
   test("computeFeatures for identical works") {
     val authors = Vector(
       mkMention("Liang Chen", 0),
-      mkMention("Rebecca Williams", 1),
+      mkMention("Rebecca Williams", 1)
     )
     val work1 = mkWork(
-      "s1", "Graph Partitioning", 2023, Some("ieee tse"), authors
+      "s1",
+      "Graph Partitioning",
+      2023,
+      Some("ieee tse"),
+      authors
     )
     val work2 = mkWork(
-      "s2", "Graph Partitioning", 2023, Some("ieee tse"), authors
+      "s2",
+      "Graph Partitioning",
+      2023,
+      Some("ieee tse"),
+      authors
     )
 
     val features =

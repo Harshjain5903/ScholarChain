@@ -4,26 +4,25 @@ import edu.scholarchain.core.*
 import edu.scholarchain.hadoop.util.NormalizationUtils
 
 /**
- * Pure-function parser for Crossref JSON records. Converts a single
- * JSON object into domain WorkRecord + AuthorMention records.
- * Preserves DOI as primary key, references, ISSN, and publisher.
+ * Pure-function parser for Crossref JSON records. Converts a single JSON object into domain
+ * WorkRecord + AuthorMention records. Preserves DOI as primary key, references, ISSN, and
+ * publisher.
  */
 object CrossrefParser:
 
   def parse(
-      json: String,
-      pipelineRunId: String,
-      schemaVersion: String,
-      timestamp: String,
+    json: String,
+    pipelineRunId: String,
+    schemaVersion: String,
+    timestamp: String
   ): Either[
     (String, String),
-    (WorkRecord, Vector[AuthorMention]),
+    (WorkRecord, Vector[AuthorMention])
   ] =
     try
       val obj      = ujson.read(json).obj
       val sourceId = obj.get("source_id").map(_.str).getOrElse("")
-      if sourceId.isEmpty then
-        return Left(("MISSING_SOURCE_ID", "No source_id in record"))
+      if sourceId.isEmpty then return Left(("MISSING_SOURCE_ID", "No source_id in record"))
 
       val doiRaw = obj.get("doi").filter(!_.isNull).map(_.str)
       val doi    = doiRaw.flatMap(NormalizationUtils.normalizeDoi)
@@ -53,7 +52,7 @@ object CrossrefParser:
         sourceRecordId = sourceId,
         pipelineRunId = pipelineRunId,
         schemaVersion = schemaVersion,
-        timestamp = timestamp,
+        timestamp = timestamp
       )
 
       val authorsArr = obj
@@ -98,14 +97,13 @@ object CrossrefParser:
         AuthorMention(
           mentionId = s"mention:crossref:$sourceId:$idx",
           rawName = rawName,
-          normalizedName =
-            NormalizationUtils.normalizeName(rawName),
+          normalizedName = NormalizationUtils.normalizeName(rawName),
           position = idx,
           orcid = orcid,
           openAlexId = None,
           affiliationRaw = affiliation,
           sourceRecordId = sourceId,
-          provenance = provenance,
+          provenance = provenance
         )
       }
 
@@ -117,15 +115,14 @@ object CrossrefParser:
         source = SourceType.Crossref,
         sourceRecordId = sourceId,
         title = title,
-        normalizedTitle =
-          NormalizationUtils.normalizeTitle(title),
+        normalizedTitle = NormalizationUtils.normalizeTitle(title),
         year = year,
         venueId = venue.map(NormalizationUtils.normalizeVenue),
         doi = doi,
         arxivId = None,
         authors = mentions,
         abstractTextRef = None,
-        provenance = provenance,
+        provenance = provenance
       )
 
       Right((work, mentions))

@@ -8,9 +8,8 @@ import org.w3c.dom.{Document, Element, NodeList}
 import org.xml.sax.InputSource
 
 /**
- * Pure-function parser that converts a DBLP XML record string into
- * domain types (WorkRecord + AuthorMention vector). Returns Either
- * with a reason code on failure.
+ * Pure-function parser that converts a DBLP XML record string into domain types (WorkRecord +
+ * AuthorMention vector). Returns Either with a reason code on failure.
  */
 object DblpParser:
 
@@ -22,40 +21,41 @@ object DblpParser:
     "book",
     "incollection",
     "phdthesis",
-    "mastersthesis",
+    "mastersthesis"
   )
 
-  /** Parse a complete DBLP XML element string into domain records.
-   *  Returns (WorkRecord, AuthorMentions, recordType) where recordType
-   *  is the XML element tag (article, inproceedings, proceedings, etc.).
+  /**
+   * Parse a complete DBLP XML element string into domain records. Returns (WorkRecord,
+   * AuthorMentions, recordType) where recordType is the XML element tag (article, inproceedings,
+   * proceedings, etc.).
    */
   def parse(
-      xml: String,
-      pipelineRunId: String,
-      schemaVersion: String,
-      timestamp: String,
+    xml: String,
+    pipelineRunId: String,
+    schemaVersion: String,
+    timestamp: String
   ): Either[
     (String, String),
-    (WorkRecord, Vector[AuthorMention], String),
+    (WorkRecord, Vector[AuthorMention], String)
   ] =
     try
       val factory = DocumentBuilderFactory.newInstance()
       // Disable DTD loading to avoid network access and validation errors
       factory.setFeature(
         "http://apache.org/xml/features/nonvalidating/load-external-dtd",
-        false,
+        false
       )
       factory.setFeature(
         "http://xml.org/sax/features/external-general-entities",
-        false,
+        false
       )
       factory.setFeature(
         "http://xml.org/sax/features/external-parameter-entities",
-        false,
+        false
       )
-      val builder = factory.newDocumentBuilder()
-      val doc     = builder.parse(new InputSource(new StringReader(xml)))
-      val elem    = doc.getDocumentElement
+      val builder  = factory.newDocumentBuilder()
+      val doc      = builder.parse(new InputSource(new StringReader(xml)))
+      val elem     = doc.getDocumentElement
       val elemName = elem.getTagName
 
       if !RecordTypes.contains(elemName) then
@@ -67,8 +67,7 @@ object DblpParser:
 
       val sourceRecordId = s"dblp:$dblpKey"
       val title          = getChildText(elem, "title").trim
-      if title.isEmpty then
-        return Left(("MISSING_TITLE", s"No title in record $dblpKey"))
+      if title.isEmpty then return Left(("MISSING_TITLE", s"No title in record $dblpKey"))
 
       val yearText = getChildText(elem, "year").trim
       val year =
@@ -87,9 +86,7 @@ object DblpParser:
       val venue = extractVenue(elem)
       val ees   = getChildTexts(elem, "ee")
       val doi = ees
-        .find(e =>
-          e.contains("doi.org") || e.startsWith("10.")
-        )
+        .find(e => e.contains("doi.org") || e.startsWith("10."))
         .flatMap(NormalizationUtils.normalizeDoi)
 
       val arxivId = ees
@@ -107,25 +104,24 @@ object DblpParser:
         sourceRecordId = sourceRecordId,
         pipelineRunId = pipelineRunId,
         schemaVersion = schemaVersion,
-        timestamp = timestamp,
+        timestamp = timestamp
       )
 
       val mentions = authorNames.zipWithIndex.map { (rawName, idx) =>
         AuthorMention(
           mentionId = s"mention:dblp:$dblpKey:$idx",
           rawName = rawName.trim,
-          normalizedName =
-            NormalizationUtils.normalizeName(rawName.trim),
+          normalizedName = NormalizationUtils.normalizeName(rawName.trim),
           position = idx,
           orcid = None,
           openAlexId = None,
           affiliationRaw = None,
           sourceRecordId = sourceRecordId,
-          provenance = provenance,
+          provenance = provenance
         )
       }
 
-      val workId = IdGen.workId(SourceType.DBLP, sourceRecordId)
+      val workId          = IdGen.workId(SourceType.DBLP, sourceRecordId)
       val normalizedVenue = venue.map(NormalizationUtils.normalizeVenue)
 
       val work = WorkRecord(
@@ -140,7 +136,7 @@ object DblpParser:
         arxivId = arxivId,
         authors = mentions,
         abstractTextRef = None,
-        provenance = provenance,
+        provenance = provenance
       )
 
       Right((work, mentions, elemName))
@@ -160,8 +156,8 @@ object DblpParser:
 
   /** Get text content of all child elements with the given tag. */
   private def getChildTexts(
-      parent: Element,
-      tag: String,
+    parent: Element,
+    tag: String
   ): Vector[String] =
     val nodes = parent.getElementsByTagName(tag)
     (0 until nodes.getLength).map { i =>

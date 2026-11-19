@@ -17,9 +17,9 @@ import upickle.default.*
 /**
  * J05 -- Candidate Feature Construction.
  *
- * Reads blocked groups (block_key \t record1 \t record2 ...) and computes
- * deterministic pairwise features for every record pair in each block.
- * Emits MatchCandidate records (no accept/reject decision).
+ * Reads blocked groups (block_key \t record1 \t record2 ...) and computes deterministic pairwise
+ * features for every record pair in each block. Emits MatchCandidate records (no accept/reject
+ * decision).
  *
  * Features computed:
  *   - title_jaccard: Jaccard similarity on normalized title token sets
@@ -28,10 +28,9 @@ import upickle.default.*
  *   - venue_match: 1.0 if normalized venues match, 0.0 otherwise
  *   - coauthor_overlap: count of shared normalized coauthor names
  *
- * Key-value contracts:
- *   Mapper input:  (LongWritable offset, Text "blockKey\trecord1\trecord2...")
- *   Mapper output: (Text blockKey, Text workRecordJson)  [pass-through]
- *   Reducer output: (Text matchCandidateJson, NullWritable)
+ * Key-value contracts: Mapper input: (LongWritable offset, Text "blockKey\trecord1\trecord2...")
+ * Mapper output: (Text blockKey, Text workRecordJson) [pass-through] Reducer output: (Text
+ * matchCandidateJson, NullWritable)
  */
 object FeatureConstructionJob:
   val JobName = "feature-construction"
@@ -45,12 +44,12 @@ object FeatureConstructionJob:
       if union == 0.0 then 0.0 else intersection / union
 
   /**
-   * Best-match author name similarity: for each name in the shorter
-   * list, find the best Jaccard match in the longer list, then average.
+   * Best-match author name similarity: for each name in the shorter list, find the best Jaccard
+   * match in the longer list, then average.
    */
   def authorSimilarity(
-      authorsA: Vector[String],
-      authorsB: Vector[String],
+    authorsA: Vector[String],
+    authorsB: Vector[String]
   ): Double =
     if authorsA.isEmpty || authorsB.isEmpty then 0.0
     else
@@ -60,26 +59,24 @@ object FeatureConstructionJob:
         else (authorsB, authorsA)
       val scores = shorter.map { a =>
         val aTokens = a.split("\\s+").toSet
-        longer
-          .map { b =>
-            val bTokens = b.split("\\s+").toSet
-            jaccard(aTokens, bTokens)
-          }
-          .max
+        longer.map { b =>
+          val bTokens = b.split("\\s+").toSet
+          jaccard(aTokens, bTokens)
+        }.max
       }
       scores.sum / scores.size.toDouble
 
   /** Count of shared normalized author names between two lists. */
   def coauthorOverlap(
-      authorsA: Vector[String],
-      authorsB: Vector[String],
+    authorsA: Vector[String],
+    authorsB: Vector[String]
   ): Int =
     authorsA.toSet.intersect(authorsB.toSet).size
 
   /** Compute all features for a pair of WorkRecords. */
   def computeFeatures(
-      a: WorkRecord,
-      b: WorkRecord,
+    a: WorkRecord,
+    b: WorkRecord
   ): Map[String, Double] =
     val titleTokensA =
       NormalizationUtils.sortedTitleTokens(a.title).toSet
@@ -87,8 +84,8 @@ object FeatureConstructionJob:
       NormalizationUtils.sortedTitleTokens(b.title).toSet
     val titleJaccard = jaccard(titleTokensA, titleTokensB)
 
-    val namesA = a.authors.map(_.normalizedName)
-    val namesB = b.authors.map(_.normalizedName)
+    val namesA    = a.authors.map(_.normalizedName)
+    val namesB    = b.authors.map(_.normalizedName)
     val authorSim = authorSimilarity(namesA, namesB)
 
     val yearDist = math.abs(a.year - b.year).toDouble
@@ -102,23 +99,22 @@ object FeatureConstructionJob:
       coauthorOverlap(namesA, namesB).toDouble
 
     Map(
-      "title_jaccard"    -> titleJaccard,
+      "title_jaccard"     -> titleJaccard,
       "author_similarity" -> authorSim,
-      "year_distance"    -> yearDist,
-      "venue_match"      -> venueMatch,
-      "coauthor_overlap"  -> coauthOverlap,
+      "year_distance"     -> yearDist,
+      "venue_match"       -> venueMatch,
+      "coauthor_overlap"  -> coauthOverlap
     )
 
-class FeatureConstructionMapper
-    extends Mapper[LongWritable, Text, Text, Text]:
+class FeatureConstructionMapper extends Mapper[LongWritable, Text, Text, Text]:
 
   private val outKey   = new Text()
   private val outValue = new Text()
 
   override def map(
-      key: LongWritable,
-      value: Text,
-      context: Mapper[LongWritable, Text, Text, Text]#Context,
+    key: LongWritable,
+    value: Text,
+    context: Mapper[LongWritable, Text, Text, Text]#Context
   ): Unit =
     val line = value.toString.trim
     if line.isEmpty then return
@@ -136,13 +132,12 @@ class FeatureConstructionMapper
       context.write(outKey, outValue)
     }
 
-class FeatureConstructionReducer
-    extends Reducer[Text, Text, Text, NullWritable]:
+class FeatureConstructionReducer extends Reducer[Text, Text, Text, NullWritable]:
 
   override def reduce(
-      key: Text,
-      values: java.lang.Iterable[Text],
-      context: Reducer[Text, Text, Text, NullWritable]#Context,
+    key: Text,
+    values: java.lang.Iterable[Text],
+    context: Reducer[Text, Text, Text, NullWritable]#Context
   ): Unit =
     val conf      = context.getConfiguration
     val runId     = JobConfig.pipelineRunId(conf)
@@ -163,7 +158,7 @@ class FeatureConstructionReducer
       context
         .getCounter(
           HadoopCounters.FeatureGroup,
-          HadoopCounters.OversizeFeatureBlocks,
+          HadoopCounters.OversizeFeatureBlocks
         )
         .increment(1)
       System.err.println(
@@ -184,23 +179,22 @@ class FeatureConstructionReducer
       context
         .getCounter(
           HadoopCounters.FeatureGroup,
-          HadoopCounters.PairsCompared,
+          HadoopCounters.PairsCompared
         )
         .increment(1)
       context
         .getCounter(
           HadoopCounters.FeatureGroup,
-          HadoopCounters.FeaturesComputed,
+          HadoopCounters.FeaturesComputed
         )
         .increment(features.size.toLong)
 
       val provenance = Provenance(
         sourceDataset = "scholarchain",
-        sourceRecordId =
-          s"${a.sourceRecordId}|${b.sourceRecordId}",
+        sourceRecordId = s"${a.sourceRecordId}|${b.sourceRecordId}",
         pipelineRunId = runId,
         schemaVersion = schemaVer,
-        timestamp = timestamp,
+        timestamp = timestamp
       )
 
       val candidate = MatchCandidate(
@@ -208,15 +202,16 @@ class FeatureConstructionReducer
         targetId = b.sourceRecordId,
         features = features,
         blockKey = key.toString,
-        provenance = provenance,
+        provenance = provenance
       )
 
       context.write(
         new Text(write(candidate)),
-        NullWritable.get(),
+        NullWritable.get()
       )
 
 class FeatureConstructionTool extends Configured with Tool:
+
   override def run(args: Array[String]): Int =
     if args.length < 2 then
       System.err.println(
@@ -241,16 +236,16 @@ class FeatureConstructionTool extends Configured with Tool:
     conf.set("mapreduce.output.fileoutputformat.compress", "true")
     conf.set(
       "mapreduce.output.fileoutputformat.compress.codec",
-      "org.apache.hadoop.io.compress.GzipCodec",
+      "org.apache.hadoop.io.compress.GzipCodec"
     )
 
     FileInputFormat.addInputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(0)),
+      new org.apache.hadoop.fs.Path(args(0))
     )
     FileOutputFormat.setOutputPath(
       job,
-      new org.apache.hadoop.fs.Path(args(1)),
+      new org.apache.hadoop.fs.Path(args(1))
     )
 
     if job.waitForCompletion(true) then 0 else 1

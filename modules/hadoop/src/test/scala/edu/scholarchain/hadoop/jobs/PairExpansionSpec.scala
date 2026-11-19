@@ -11,12 +11,12 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
     sourceRecordId = "test:1",
     pipelineRunId = "run-1",
     schemaVersion = "1.0.0",
-    timestamp = "2024-01-01T00:00:00Z",
+    timestamp = "2024-01-01T00:00:00Z"
   )
 
   private def mkMention(
-      id: String,
-      pos: Int,
+    id: String,
+    pos: Int
   ): AuthorMention =
     AuthorMention(
       mentionId = id,
@@ -27,18 +27,18 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
       openAlexId = None,
       affiliationRaw = None,
       sourceRecordId = "test:1",
-      provenance = prov,
+      provenance = prov
     )
 
   private def mkTeam(
-      mentions: Vector[AuthorMention]
+    mentions: Vector[AuthorMention]
   ): PublicationTeam =
     PublicationTeam(
       workId = "work:test:1",
       year = 2023,
       authorMentions = mentions,
       teamSize = mentions.size,
-      provenance = prov,
+      provenance = prov
     )
 
   test("2 authors produce 1 pair") {
@@ -49,7 +49,7 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
       team,
       "run-1",
       "1.0.0",
-      "ts",
+      "ts"
     )
     pairs should have size 1
     // Verify canonical ordering
@@ -61,14 +61,14 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
       Vector(
         mkMention("m:a", 0),
         mkMention("m:b", 1),
-        mkMention("m:c", 2),
+        mkMention("m:c", 2)
       )
     )
     val pairs = PairExpansionJob.expandPairs(
       team,
       "run-1",
       "1.0.0",
-      "ts",
+      "ts"
     )
     pairs should have size 3
   }
@@ -82,7 +82,7 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
       team,
       "run-1",
       "1.0.0",
-      "ts",
+      "ts"
     )
     pairs should have size 10
   }
@@ -93,7 +93,7 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
       team,
       "run-1",
       "1.0.0",
-      "ts",
+      "ts"
     )
     pairs shouldBe empty
   }
@@ -107,13 +107,13 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
       year = 2023,
       authorMentions = Vector.empty,
       teamSize = 0,
-      provenance = prov,
+      provenance = prov
     )
     val pairs = PairExpansionJob.expandPairs(
       team,
       "run-1",
       "1.0.0",
-      "ts",
+      "ts"
     )
     pairs shouldBe empty
   }
@@ -122,14 +122,14 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
     val team = mkTeam(
       Vector(
         mkMention("m:z", 0),
-        mkMention("m:a", 1),
+        mkMention("m:a", 1)
       )
     )
     val pairs = PairExpansionJob.expandPairs(
       team,
       "run-1",
       "1.0.0",
-      "ts",
+      "ts"
     )
     pairs should have size 1
     pairs.head.mentionA shouldBe "m:a"
@@ -144,7 +144,7 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
       team,
       "run-1",
       "1.0.0",
-      "ts",
+      "ts"
     )
     pairs.head.workId shouldBe "work:test:1"
     pairs.head.year shouldBe 2023
@@ -159,7 +159,7 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
       team,
       "run-1",
       "1.0.0",
-      "ts",
+      "ts"
     )
     pairs should have size 4950
     // All pairs must be canonically ordered
@@ -178,7 +178,7 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
       team,
       "my-run",
       "2.0.0",
-      "2024-06-15",
+      "2024-06-15"
     )
     pairs.head.provenance.pipelineRunId shouldBe "my-run"
     pairs.head.provenance.schemaVersion shouldBe "2.0.0"

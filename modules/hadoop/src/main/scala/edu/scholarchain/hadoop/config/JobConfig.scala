@@ -3,25 +3,26 @@ package edu.scholarchain.hadoop.config
 import org.apache.hadoop.conf.Configuration
 
 /**
- * Job configuration loader that reads ScholarChain-specific settings from
- * the Hadoop Configuration object. All settings use the "scholarchain."
- * prefix to avoid collisions with Hadoop's own configuration keys.
+ * Job configuration loader that reads ScholarChain-specific settings from the Hadoop Configuration
+ * object. All settings use the "scholarchain." prefix to avoid collisions with Hadoop's own
+ * configuration keys.
  */
 object JobConfig:
 
-  val PipelineRunIdKey  = "scholarchain.pipeline.run-id"
-  val SnapshotDateKey   = "scholarchain.pipeline.snapshot-date"
-  val SchemaVersionKey  = "scholarchain.pipeline.schema-version"
-  val OutputBaseKey     = "scholarchain.output.base-path"
-  val MaxBlockSizeKey   = "scholarchain.blocking.max-block-size"
+  val PipelineRunIdKey = "scholarchain.pipeline.run-id"
+  val SnapshotDateKey  = "scholarchain.pipeline.snapshot-date"
+  val SchemaVersionKey = "scholarchain.pipeline.schema-version"
+  val OutputBaseKey    = "scholarchain.output.base-path"
+  val MaxBlockSizeKey  = "scholarchain.blocking.max-block-size"
+
   val LargeTeamThresholdKey =
     "scholarchain.team.large-team-threshold"
   val CompressOutputKey = "scholarchain.output.compress"
 
-  val DefaultSchemaVersion    = "1.0.0"
-  val DefaultMaxBlockSize     = 1000
+  val DefaultSchemaVersion      = "1.0.0"
+  val DefaultMaxBlockSize       = 1000
   val DefaultLargeTeamThreshold = 50
-  val DefaultSnapshotDate     = "unknown"
+  val DefaultSnapshotDate       = "unknown"
 
   def pipelineRunId(conf: Configuration): String =
     Option(conf.get(PipelineRunIdKey)).getOrElse("run-local")
@@ -44,7 +45,7 @@ object JobConfig:
   def largeTeamThreshold(conf: Configuration): Int =
     conf.getInt(
       LargeTeamThresholdKey,
-      DefaultLargeTeamThreshold,
+      DefaultLargeTeamThreshold
     )
 
   /**
@@ -52,8 +53,8 @@ object JobConfig:
    * output_base/run_id=<run_id>/snapshot_date=<date>/job_name/
    */
   def outputPath(
-      conf: Configuration,
-      jobName: String,
+    conf: Configuration,
+    jobName: String
   ): String =
     val base = outputBase(conf)
     val run  = pipelineRunId(conf)

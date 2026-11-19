@@ -5,25 +5,24 @@ import edu.scholarchain.hadoop.util.NormalizationUtils
 import ujson.Value
 
 /**
- * Pure-function parser for OpenAlex JSON records. Converts a single
- * JSON object into domain WorkRecord + AuthorMention records.
+ * Pure-function parser for OpenAlex JSON records. Converts a single JSON object into domain
+ * WorkRecord + AuthorMention records.
  */
 object OpenAlexParser:
 
   def parse(
-      json: String,
-      pipelineRunId: String,
-      schemaVersion: String,
-      timestamp: String,
+    json: String,
+    pipelineRunId: String,
+    schemaVersion: String,
+    timestamp: String
   ): Either[
     (String, String),
-    (WorkRecord, Vector[AuthorMention]),
+    (WorkRecord, Vector[AuthorMention])
   ] =
     try
       val obj      = ujson.read(json).obj
       val sourceId = obj.get("source_id").map(_.str).getOrElse("")
-      if sourceId.isEmpty then
-        return Left(("MISSING_SOURCE_ID", "No source_id in record"))
+      if sourceId.isEmpty then return Left(("MISSING_SOURCE_ID", "No source_id in record"))
 
       val title = obj.get("title").map(_.str).getOrElse("").trim
       if title.isEmpty then
@@ -56,7 +55,7 @@ object OpenAlexParser:
         sourceRecordId = sourceId,
         pipelineRunId = pipelineRunId,
         schemaVersion = schemaVersion,
-        timestamp = timestamp,
+        timestamp = timestamp
       )
 
       val authorsArr = obj
@@ -91,14 +90,13 @@ object OpenAlexParser:
         AuthorMention(
           mentionId = s"mention:openalex:$sourceId:$idx",
           rawName = rawName,
-          normalizedName =
-            NormalizationUtils.normalizeName(rawName),
+          normalizedName = NormalizationUtils.normalizeName(rawName),
           position = idx,
           orcid = orcid,
           openAlexId = openAlexId,
           affiliationRaw = affiliation,
           sourceRecordId = sourceId,
-          provenance = provenance,
+          provenance = provenance
         )
       }
 
@@ -110,15 +108,14 @@ object OpenAlexParser:
         source = SourceType.OpenAlex,
         sourceRecordId = sourceId,
         title = title,
-        normalizedTitle =
-          NormalizationUtils.normalizeTitle(title),
+        normalizedTitle = NormalizationUtils.normalizeTitle(title),
         year = year,
         venueId = venue.map(NormalizationUtils.normalizeVenue),
         doi = doi,
         arxivId = None,
         authors = mentions,
         abstractTextRef = None,
-        provenance = provenance,
+        provenance = provenance
       )
 
       Right((work, mentions))
