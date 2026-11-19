@@ -45,8 +45,8 @@ object FeatureFunctions:
    * if positions differ maximally. Uses normalized name matching.
    */
   def authorOrderSimilarity(
-      sourceAuthors: Vector[String],
-      targetAuthors: Vector[String]
+    sourceAuthors: Vector[String],
+    targetAuthors: Vector[String]
   ): Double =
     if sourceAuthors.isEmpty || targetAuthors.isEmpty then 0.0
     else
@@ -77,8 +77,8 @@ object FeatureFunctions:
 
   /** Coauthor overlap: Jaccard on normalized author name sets. */
   def coauthorOverlap(
-      sourceAuthors: Vector[String],
-      targetAuthors: Vector[String]
+    sourceAuthors: Vector[String],
+    targetAuthors: Vector[String]
   ): Double =
     val srcSet = sourceAuthors.map(IdentifierNormalizer.normalizeName).toSet
     val tgtSet = targetAuthors.map(IdentifierNormalizer.normalizeName).toSet
@@ -97,7 +97,10 @@ object FeatureFunctions:
 
   /** Binary ORCID match: 1.0 if both present and equal after normalization, else 0.0. */
   def orcidMatch(a: Option[String], b: Option[String]): Double =
-    (a.flatMap(IdentifierNormalizer.normalizeOrcid), b.flatMap(IdentifierNormalizer.normalizeOrcid)) match
+    (
+      a.flatMap(IdentifierNormalizer.normalizeOrcid),
+      b.flatMap(IdentifierNormalizer.normalizeOrcid)
+    ) match
       case (Some(oa), Some(ob)) if oa == ob => 1.0
       case _                                => 0.0
 

@@ -8,10 +8,10 @@ import edu.scholarchain.core.{IdGen, MatchDecision, MatchOutcome, Provenance}
  * MatchDecision records with provenance
  */
 class EntityResolutionEngine(
-    policy: ScoringPolicy,
-    adjudicator: LlmAdjudicator,
-    llmEnabled: Boolean = false,
-    runId: String = IdGen.runId()
+  policy: ScoringPolicy,
+  adjudicator: LlmAdjudicator,
+  llmEnabled: Boolean = false,
+  runId: String = IdGen.runId()
 ):
 
   /** Resolve a candidate pair into a MatchDecision. */
@@ -39,10 +39,10 @@ class EntityResolutionEngine(
         // Step 2: Compute features and score
         val computedFeatures = computeFeatures(pair)
         // Precomputed features take precedence over locally computed ones
-        val allFeatures      = computedFeatures ++ pair.precomputedFeatures
-        val score            = policy.computeScore(allFeatures)
-        val classification   = policy.classify(score)
-        val matchPath        = policy.matchPath(score)
+        val allFeatures    = computedFeatures ++ pair.precomputedFeatures
+        val score          = policy.computeScore(allFeatures)
+        val classification = policy.classify(score)
+        val matchPath      = policy.matchPath(score)
 
         classification match
           case MatchOutcome.Accepted =>
@@ -51,8 +51,7 @@ class EntityResolutionEngine(
               features = allFeatures,
               outcome = MatchOutcome.Accepted,
               confidence = score,
-              reasonCodes =
-                Vector(s"score:${"%.4f".format(score)}", s"path:$matchPath")
+              reasonCodes = Vector(s"score:${"%.4f".format(score)}", s"path:$matchPath")
             )
           case MatchOutcome.Rejected =>
             makeDecision(
@@ -60,8 +59,7 @@ class EntityResolutionEngine(
               features = allFeatures,
               outcome = MatchOutcome.Rejected,
               confidence = score,
-              reasonCodes =
-                Vector(s"score:${"%.4f".format(score)}", s"path:$matchPath")
+              reasonCodes = Vector(s"score:${"%.4f".format(score)}", s"path:$matchPath")
             )
           case _ =>
             // Step 3: LLM adjudication for unresolved
@@ -84,10 +82,10 @@ class EntityResolutionEngine(
     pairs.map(resolve)
 
   private def adjudicateWithLlm(
-      pair: CandidatePair,
-      features: Map[String, Double],
-      score: Double,
-      matchPath: String
+    pair: CandidatePair,
+    features: Map[String, Double],
+    score: Double,
+    matchPath: String
   ): MatchDecision =
     val request = AdjudicationRequest(
       sourceId = pair.sourceId,
@@ -164,23 +162,21 @@ class EntityResolutionEngine(
       pair.sourceYear.foreach(v => fields += ("year" -> v.toString))
       pair.sourceDoi.foreach(v => fields += ("doi" -> v))
       pair.sourceOrcid.foreach(v => fields += ("orcid" -> v))
-      if pair.sourceAuthors.nonEmpty then
-        fields += ("authors" -> pair.sourceAuthors.mkString("; "))
+      if pair.sourceAuthors.nonEmpty then fields += ("authors" -> pair.sourceAuthors.mkString("; "))
     else
       pair.targetTitle.foreach(v => fields += ("title" -> v))
       pair.targetYear.foreach(v => fields += ("year" -> v.toString))
       pair.targetDoi.foreach(v => fields += ("doi" -> v))
       pair.targetOrcid.foreach(v => fields += ("orcid" -> v))
-      if pair.targetAuthors.nonEmpty then
-        fields += ("authors" -> pair.targetAuthors.mkString("; "))
+      if pair.targetAuthors.nonEmpty then fields += ("authors" -> pair.targetAuthors.mkString("; "))
     fields.toMap
 
   private def makeDecision(
-      pair: CandidatePair,
-      features: Map[String, Double],
-      outcome: MatchOutcome,
-      confidence: Double,
-      reasonCodes: Vector[String]
+    pair: CandidatePair,
+    features: Map[String, Double],
+    outcome: MatchOutcome,
+    confidence: Double,
+    reasonCodes: Vector[String]
   ): MatchDecision =
     MatchDecision(
       sourceId = pair.sourceId,

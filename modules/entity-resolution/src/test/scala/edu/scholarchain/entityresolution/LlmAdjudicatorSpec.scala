@@ -34,13 +34,13 @@ class LlmAdjudicatorSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "return None for uncached requests" in {
-    val newAdj = new StubLlmAdjudicator()
+    val newAdj    = new StubLlmAdjudicator()
     val different = request.copy(sourceId = "src-999")
     newAdj.lookupCache(different) shouldBe None
   }
 
   it should "produce different cache entries for same pair with different features" in {
-    val adj = new StubLlmAdjudicator()
+    val adj      = new StubLlmAdjudicator()
     val request1 = request.copy(features = Map("title_jaccard" -> 0.8))
     val request2 = request.copy(features = Map("title_jaccard" -> 0.5))
     adj.adjudicate(request1)

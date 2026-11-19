@@ -5,11 +5,11 @@ import upickle.default.*
 
 /** A gold-labeled pair for evaluation. */
 case class GoldLabel(
-    sourceId: String,
-    targetId: String,
-    expectedOutcome: String,
-    matchPath: Option[String] = None,
-    notes: Option[String] = None
+  sourceId: String,
+  targetId: String,
+  expectedOutcome: String,
+  matchPath: Option[String] = None,
+  notes: Option[String] = None
 ) derives ReadWriter
 
 /** Container for a gold-set file. */
@@ -17,49 +17,49 @@ case class GoldSet(pairs: Vector[GoldLabel]) derives ReadWriter
 
 /** Confusion matrix entry counts. */
 case class ConfusionMatrix(
-    truePositive: Int,
-    falsePositive: Int,
-    trueNegative: Int,
-    falseNegative: Int,
-    unresolvedCount: Int,
-    conflictCount: Int
+  truePositive: Int,
+  falsePositive: Int,
+  trueNegative: Int,
+  falseNegative: Int,
+  unresolvedCount: Int,
+  conflictCount: Int
 ) derives ReadWriter
 
 /** Evaluation metrics for a single threshold or overall. */
 case class EvaluationMetrics(
-    precision: Double,
-    recall: Double,
-    f1: Double,
-    coverage: Double,
-    unresolvedRate: Double,
-    confusion: ConfusionMatrix
+  precision: Double,
+  recall: Double,
+  f1: Double,
+  coverage: Double,
+  unresolvedRate: Double,
+  confusion: ConfusionMatrix
 ) derives ReadWriter
 
 /** Per-path breakdown of metrics. */
 case class PathMetrics(
-    path: String,
-    count: Int,
-    precision: Double,
-    recall: Double,
-    f1: Double
+  path: String,
+  count: Int,
+  precision: Double,
+  recall: Double,
+  f1: Double
 ) derives ReadWriter
 
 /** Full evaluation report. */
 case class EvaluationReport(
-    overall: EvaluationMetrics,
-    byPath: Vector[PathMetrics],
-    thresholdSensitivity: Vector[ThresholdPoint]
+  overall: EvaluationMetrics,
+  byPath: Vector[PathMetrics],
+  thresholdSensitivity: Vector[ThresholdPoint]
 ) derives ReadWriter
 
 /** A single point in threshold sensitivity analysis. */
 case class ThresholdPoint(
-    threshold: Double,
-    precision: Double,
-    recall: Double,
-    f1: Double,
-    acceptedCount: Int,
-    rejectedCount: Int,
-    unresolvedCount: Int
+  threshold: Double,
+  precision: Double,
+  recall: Double,
+  f1: Double,
+  acceptedCount: Int,
+  rejectedCount: Int,
+  unresolvedCount: Int
 ) derives ReadWriter
 
 /** Evaluates engine decisions against a gold-labeled set. */
@@ -71,10 +71,10 @@ object GoldSetEvaluator:
 
   /** Compute overall evaluation metrics. */
   def evaluate(
-      decisions: Vector[MatchDecision],
-      goldLabels: Vector[GoldLabel]
+    decisions: Vector[MatchDecision],
+    goldLabels: Vector[GoldLabel]
   ): EvaluationMetrics =
-    val goldMap = goldLabels.map(g => (g.sourceId, g.targetId) -> g.expectedOutcome).toMap
+    val goldMap     = goldLabels.map(g => (g.sourceId, g.targetId) -> g.expectedOutcome).toMap
     var tp          = 0
     var fp          = 0
     var tn          = 0
@@ -103,8 +103,8 @@ object GoldSetEvaluator:
     val total     = goldLabels.size
     val precision = if tp + fp > 0 then tp.toDouble / (tp + fp) else 0.0
     val recall    = if tp + fn > 0 then tp.toDouble / (tp + fn) else 0.0
-    val f1        = if precision + recall > 0 then 2 * precision * recall / (precision + recall) else 0.0
-    val coverage  = if total > 0 then totalJudged.toDouble / total else 0.0
+    val f1 = if precision + recall > 0 then 2 * precision * recall / (precision + recall) else 0.0
+    val coverage       = if total > 0 then totalJudged.toDouble / total else 0.0
     val unresolvedRate = if total > 0 then unresolved.toDouble / total else 0.0
 
     EvaluationMetrics(
@@ -118,8 +118,8 @@ object GoldSetEvaluator:
 
   /** Compute metrics broken down by match path (extracted from reason codes). */
   def evaluateByPath(
-      decisions: Vector[MatchDecision],
-      goldLabels: Vector[GoldLabel]
+    decisions: Vector[MatchDecision],
+    goldLabels: Vector[GoldLabel]
   ): Vector[PathMetrics] =
     val goldMap = goldLabels.map(g => (g.sourceId, g.targetId) -> g.expectedOutcome).toMap
 
@@ -150,16 +150,16 @@ object GoldSetEvaluator:
     }.toVector
 
   /**
-   * Threshold sensitivity analysis: sweep thresholds from 0.1 to 0.95, re-classifying decisions
-   * at each threshold.
+   * Threshold sensitivity analysis: sweep thresholds from 0.1 to 0.95, re-classifying decisions at
+   * each threshold.
    */
   def thresholdSensitivity(
-      pairs: Vector[(CandidatePair, Map[String, Double], Double)],
-      goldLabels: Vector[GoldLabel],
-      policy: ScoringPolicy,
-      step: Double = 0.05
+    pairs: Vector[(CandidatePair, Map[String, Double], Double)],
+    goldLabels: Vector[GoldLabel],
+    policy: ScoringPolicy,
+    step: Double = 0.05
   ): Vector[ThresholdPoint] =
-    val goldMap = goldLabels.map(g => (g.sourceId, g.targetId) -> g.expectedOutcome).toMap
+    val goldMap    = goldLabels.map(g => (g.sourceId, g.targetId) -> g.expectedOutcome).toMap
     val thresholds = (BigDecimal(0.1) to BigDecimal(0.95) by step).map(_.toDouble).toVector
 
     thresholds.map { thresh =>

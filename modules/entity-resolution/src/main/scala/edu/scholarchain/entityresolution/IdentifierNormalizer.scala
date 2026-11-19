@@ -60,7 +60,7 @@ object IdentifierNormalizer:
    * punctuation.
    */
   def normalizeName(raw: String): String =
-    val nfkd = java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFKD)
+    val nfkd     = java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFKD)
     val stripped = nfkd.replaceAll("\\p{M}", "")
     stripped.toLowerCase
       .replaceAll("[^a-z0-9\\s]", " ")
@@ -69,7 +69,7 @@ object IdentifierNormalizer:
 
   /** Normalize a title for comparison: lowercase, strip punctuation, collapse whitespace. */
   def normalizeTitle(raw: String): String =
-    val nfkd = java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFKD)
+    val nfkd     = java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFKD)
     val stripped = nfkd.replaceAll("\\p{M}", "")
     stripped.toLowerCase
       .replaceAll("[^a-z0-9\\s]", " ")

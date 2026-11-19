@@ -8,8 +8,9 @@ class EntityResolutionEngineSpec extends AnyFlatSpec with Matchers {
 
   import TestFixtures.*
 
-  val policy: ScoringPolicy          = ScoringPolicy.default
+  val policy: ScoringPolicy           = ScoringPolicy.default
   val adjudicator: StubLlmAdjudicator = new StubLlmAdjudicator()
+
   val engine: EntityResolutionEngine =
     new EntityResolutionEngine(policy, adjudicator, llmEnabled = false, runId = "test-run")
 

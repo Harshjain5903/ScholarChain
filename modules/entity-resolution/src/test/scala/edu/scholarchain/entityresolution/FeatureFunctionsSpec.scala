@@ -98,8 +98,8 @@ class FeatureFunctionsSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "differ from coauthorOverlap for similar but non-identical names" in {
-    val authors1 = Vector("J. Doe", "Jane Smith")
-    val authors2 = Vector("John Doe", "J. Smith")
+    val authors1  = Vector("J. Doe", "Jane Smith")
+    val authors2  = Vector("John Doe", "J. Smith")
     val bestMatch = FeatureFunctions.bestMatchNameSimilarity(authors1, authors2)
     val jaccard   = FeatureFunctions.coauthorOverlap(authors1, authors2)
     // bestMatchNameSimilarity uses fuzzy name matching, coauthorOverlap uses exact set Jaccard

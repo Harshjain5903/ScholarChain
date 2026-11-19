@@ -62,7 +62,7 @@ class ExactIdentifierMatcherSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "return Unresolved when no IDs available" in {
-    val pair = makePair()
+    val pair   = makePair()
     val result = ExactIdentifierMatcher.evaluate(pair)
     result.outcome shouldBe MatchOutcome.Unresolved
     result.matchedField shouldBe None

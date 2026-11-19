@@ -5,13 +5,13 @@ import upickle.default.*
 
 /** An item in the human review queue. */
 case class ReviewItem(
-    sourceId: String,
-    targetId: String,
-    features: Map[String, Double],
-    confidence: Double,
-    reasonCodes: Vector[String],
-    suggestedLabel: String,
-    policyVersion: String
+  sourceId: String,
+  targetId: String,
+  features: Map[String, Double],
+  confidence: Double,
+  reasonCodes: Vector[String],
+  suggestedLabel: String,
+  policyVersion: String
 ) derives ReadWriter
 
 /** A batch of items for human review. */
@@ -32,9 +32,9 @@ object ReviewQueueGenerator:
    *   maximum number of items in the review queue
    */
   def generate(
-      decisions: Vector[MatchDecision],
-      confidenceThreshold: Double = 0.7,
-      maxItems: Int = 500
+    decisions: Vector[MatchDecision],
+    confidenceThreshold: Double = 0.7,
+    maxItems: Int = 500
   ): ReviewQueue =
     val candidates = decisions
       .filter { d =>

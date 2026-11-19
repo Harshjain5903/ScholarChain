@@ -10,10 +10,10 @@ object ExactIdentifierMatcher:
 
   /** Result of exact identifier comparison. */
   case class ExactMatchResult(
-      outcome: MatchOutcome,
-      matchedField: Option[String],
-      conflictFields: Vector[String],
-      reasonCodes: Vector[String]
+    outcome: MatchOutcome,
+    matchedField: Option[String],
+    conflictFields: Vector[String],
+    reasonCodes: Vector[String]
   )
 
   /** Check all identifier fields for exact match or conflict. */
@@ -66,20 +66,20 @@ object ExactIdentifierMatcher:
     case Match, Conflict, NoData
 
   private case class FieldCheck(
-      fieldName: String,
-      status: FieldStatus
+    fieldName: String,
+    status: FieldStatus
   )
 
-  private def normDoi(s: String): Option[String]    = IdentifierNormalizer.normalizeDoi(s)
-  private def normArxiv(s: String): Option[String]  = IdentifierNormalizer.normalizeArxivId(s)
-  private def normOrcid(s: String): Option[String]  = IdentifierNormalizer.normalizeOrcid(s)
+  private def normDoi(s: String): Option[String]     = IdentifierNormalizer.normalizeDoi(s)
+  private def normArxiv(s: String): Option[String]   = IdentifierNormalizer.normalizeArxivId(s)
+  private def normOrcid(s: String): Option[String]   = IdentifierNormalizer.normalizeOrcid(s)
   private def normGeneric(s: String): Option[String] = Some(s.trim.toLowerCase)
 
   private def checkField(
-      name: String,
-      a: Option[String],
-      b: Option[String],
-      normalize: String => Option[String]
+    name: String,
+    a: Option[String],
+    b: Option[String],
+    normalize: String => Option[String]
   ): FieldCheck =
     val normA = a.flatMap(normalize)
     val normB = b.flatMap(normalize)

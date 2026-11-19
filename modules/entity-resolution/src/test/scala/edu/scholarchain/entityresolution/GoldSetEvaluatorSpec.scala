@@ -9,11 +9,11 @@ class GoldSetEvaluatorSpec extends AnyFlatSpec with Matchers {
   val tolerance = 0.001
 
   def makeDecision(
-      src: String,
-      tgt: String,
-      outcome: MatchOutcome,
-      confidence: Double,
-      path: String = "deterministic_bibliographic"
+    src: String,
+    tgt: String,
+    outcome: MatchOutcome,
+    confidence: Double,
+    path: String = "deterministic_bibliographic"
   ): MatchDecision =
     MatchDecision(
       sourceId = src,
@@ -89,7 +89,7 @@ class GoldSetEvaluatorSpec extends AnyFlatSpec with Matchers {
       {"sourceId": "a", "targetId": "b", "expectedOutcome": "Accepted"},
       {"sourceId": "c", "targetId": "d", "expectedOutcome": "Rejected"}
     ]}"""
-    val gs = GoldSetEvaluator.loadGoldSet(json)
+    val gs   = GoldSetEvaluator.loadGoldSet(json)
     gs.pairs should have size 2
     gs.pairs(0).expectedOutcome shouldBe "Accepted"
   }

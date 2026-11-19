@@ -15,30 +15,30 @@ object AdjudicationDecision:
 
 /** Structured input for LLM adjudication. */
 case class AdjudicationRequest(
-    sourceId: String,
-    targetId: String,
-    features: Map[String, Double],
-    sourceFields: Map[String, String],
-    targetFields: Map[String, String],
-    policyVersion: String,
-    promptVersion: String
+  sourceId: String,
+  targetId: String,
+  features: Map[String, Double],
+  sourceFields: Map[String, String],
+  targetFields: Map[String, String],
+  policyVersion: String,
+  promptVersion: String
 ) derives ReadWriter
 
 /** Structured output from LLM adjudication. */
 case class AdjudicationResponse(
-    decision: AdjudicationDecision,
-    reasonCodes: Vector[String],
-    confidence: Double,
-    modelVersion: String
+  decision: AdjudicationDecision,
+  reasonCodes: Vector[String],
+  confidence: Double,
+  modelVersion: String
 ) derives ReadWriter
 
 /** Cache entry for memoizing adjudication results. */
 case class AdjudicationCacheEntry(
-    inputHash: String,
-    promptVersion: String,
-    modelVersion: String,
-    policyVersion: String,
-    response: AdjudicationResponse
+  inputHash: String,
+  promptVersion: String,
+  modelVersion: String,
+  policyVersion: String,
+  response: AdjudicationResponse
 ) derives ReadWriter
 
 /** Trait for LLM adjudicators -- allows swapping stub with real Bedrock implementation. */

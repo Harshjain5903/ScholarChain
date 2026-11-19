@@ -8,10 +8,10 @@ import upickle.default.*
 class ReviewQueueGeneratorSpec extends AnyFlatSpec with Matchers {
 
   def makeDecision(
-      src: String,
-      tgt: String,
-      outcome: MatchOutcome,
-      confidence: Double
+    src: String,
+    tgt: String,
+    outcome: MatchOutcome,
+    confidence: Double
   ): MatchDecision =
     MatchDecision(
       sourceId = src,

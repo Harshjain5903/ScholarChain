@@ -7,13 +7,14 @@ import edu.scholarchain.core.MatchOutcome
  * threshold-based decision logic with an evidence hierarchy.
  */
 case class ScoringPolicy(
-    policyVersion: String,
-    weights: Map[String, Double],
-    acceptThreshold: Double,
-    rejectThreshold: Double,
-    unresolvedBandMin: Double,
-    unresolvedBandMax: Double
+  policyVersion: String,
+  weights: Map[String, Double],
+  acceptThreshold: Double,
+  rejectThreshold: Double,
+  unresolvedBandMin: Double,
+  unresolvedBandMax: Double
 ):
+
   require(
     rejectThreshold < unresolvedBandMin && unresolvedBandMin <= unresolvedBandMax &&
       unresolvedBandMax <= acceptThreshold,
@@ -53,13 +54,13 @@ object ScoringPolicy:
 
   /** Default feature weights from reference configuration. */
   val DefaultWeights: Map[String, Double] = Map(
-    "title_jaccard"      -> 0.30,
-    "author_similarity"  -> 0.25,
-    "year_distance"      -> 0.10,
-    "venue_match"        -> 0.10,
-    "coauthor_overlap"   -> 0.10,
-    "orcid_match"        -> 0.10,
-    "affiliation_match"  -> 0.05
+    "title_jaccard"     -> 0.30,
+    "author_similarity" -> 0.25,
+    "year_distance"     -> 0.10,
+    "venue_match"       -> 0.10,
+    "coauthor_overlap"  -> 0.10,
+    "orcid_match"       -> 0.10,
+    "affiliation_match" -> 0.05
   )
 
   /** Create a default scoring policy. */
