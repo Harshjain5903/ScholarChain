@@ -12,37 +12,37 @@ import java.time.Duration
 
 /** Metadata attached to each vector in S3 Vectors. */
 case class VectorMetadata(
-    documentType: String,
-    entityId: String,
-    windowStartYear: Option[Int],
-    windowEndYear: Option[Int],
-    topicId: Option[String],
-    institutionId: Option[String],
-    textS3Uri: String,
-    textHash: String,
-    embeddingModel: String,
-    runId: String
+  documentType: String,
+  entityId: String,
+  windowStartYear: Option[Int],
+  windowEndYear: Option[Int],
+  topicId: Option[String],
+  institutionId: Option[String],
+  textS3Uri: String,
+  textHash: String,
+  embeddingModel: String,
+  runId: String
 ) derives ReadWriter
 
 /** A vector record for ingestion into S3 Vectors. */
 case class VectorRecord(
-    key: String,
-    data: Vector[Float],
-    metadata: VectorMetadata
+  key: String,
+  data: Vector[Float],
+  metadata: VectorMetadata
 ) derives ReadWriter
 
 /** A vector search result from S3 Vectors. */
 case class VectorResult(
-    key: String,
-    score: Double,
-    metadata: VectorMetadata
+  key: String,
+  score: Double,
+  metadata: VectorMetadata
 ) derives ReadWriter
 
 /** Result of a batch put operation. */
 case class PutVectorsResult(
-    succeeded: Int,
-    failed: Int,
-    errors: Vector[String]
+  succeeded: Int,
+  failed: Int,
+  errors: Vector[String]
 )
 
 // ---------------------------------------------------------------------------
@@ -52,10 +52,10 @@ case class PutVectorsResult(
 /** Known S3 Vectors index names for ScholarChain. */
 object S3VectorsIndexes:
 
-  val ResearcherProfile: String = "researcher-profile-v1"
-  val CollaborationCommunity: String = "collaboration-community-v1"
-  val PaperAbstract: String = "paper-abstract-v1"
-  val CollaborationPath: String = "collaboration-path-v1"
+  val ResearcherProfile: String       = "researcher-profile-v1"
+  val CollaborationCommunity: String  = "collaboration-community-v1"
+  val PaperAbstract: String           = "paper-abstract-v1"
+  val CollaborationPath: String       = "collaboration-path-v1"
   val TopicInstitutionSummary: String = "topic-institution-summary-v1"
 
   val all: Vector[String] = Vector(
@@ -72,10 +72,10 @@ object S3VectorsIndexes:
 
 /** Adapter for S3 Vectors REST API using java.net.http.HttpClient. */
 class S3VectorsStorageClient(
-    region: String,
-    maxRetries: Int,
-    retryBaseDelayMs: Long,
-    httpClient: HttpClient
+  region: String,
+  maxRetries: Int,
+  retryBaseDelayMs: Long,
+  httpClient: HttpClient
 ):
 
   private def vectorsEndpoint(vectorBucket: String): String =
@@ -83,17 +83,17 @@ class S3VectorsStorageClient(
 
   /** Batch write vectors with retry and exponential backoff. */
   def putVectors(
-      vectorBucket: String,
-      indexName: String,
-      vectors: Vector[VectorRecord]
+    vectorBucket: String,
+    indexName: String,
+    vectors: Vector[VectorRecord]
   ): PutVectorsResult =
     var succeeded = 0
-    var failed = 0
-    var errors = Vector.empty[String]
+    var failed    = 0
+    var errors    = Vector.empty[String]
 
     vectors.foreach { record =>
       var attempt = 0
-      var done = false
+      var done    = false
       while attempt <= maxRetries && !done do
         try
           val body = ujson.Obj(
@@ -103,9 +103,11 @@ class S3VectorsStorageClient(
           )
           val request = HttpRequest
             .newBuilder()
-            .uri(URI.create(
-              s"${vectorsEndpoint(vectorBucket)}/vectors/$indexName"
-            ))
+            .uri(
+              URI.create(
+                s"${vectorsEndpoint(vectorBucket)}/vectors/$indexName"
+              )
+            )
             .header("Content-Type", "application/json")
             .PUT(HttpRequest.BodyPublishers.ofString(ujson.write(body)))
             .build()
@@ -136,11 +138,11 @@ class S3VectorsStorageClient(
 
   /** Query vectors by similarity. */
   def queryVectors(
-      vectorBucket: String,
-      indexName: String,
-      queryVector: Vector[Float],
-      topK: Int,
-      metadataFilters: Option[ujson.Value]
+    vectorBucket: String,
+    indexName: String,
+    queryVector: Vector[Float],
+    topK: Int,
+    metadataFilters: Option[ujson.Value]
   ): Vector[VectorResult] =
     val body = ujson.Obj(
       "queryVector" -> ujson.Arr(queryVector.map(f => ujson.Num(f.toDouble))*),
@@ -150,39 +152,47 @@ class S3VectorsStorageClient(
 
     val request = HttpRequest
       .newBuilder()
-      .uri(URI.create(
-        s"${vectorsEndpoint(vectorBucket)}/vectors/$indexName/query"
-      ))
+      .uri(
+        URI.create(
+          s"${vectorsEndpoint(vectorBucket)}/vectors/$indexName/query"
+        )
+      )
       .header("Content-Type", "application/json")
       .POST(HttpRequest.BodyPublishers.ofString(ujson.write(body)))
       .build()
     val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-    val json = ujson.read(response.body())
+    val json     = ujson.read(response.body())
     json.obj
       .get("results")
-      .map(_.arr.map { r =>
-        VectorResult(
-          key = r("key").str,
-          score = r("score").num,
-          metadata = read[VectorMetadata](r("metadata"))
-        )
-      }.toVector)
+      .map(
+        _.arr
+          .map { r =>
+            VectorResult(
+              key = r("key").str,
+              score = r("score").num,
+              metadata = read[VectorMetadata](r("metadata"))
+            )
+          }
+          .toVector
+      )
       .getOrElse(Vector.empty)
 
   /** Delete vectors by keys. */
   def deleteVectors(
-      vectorBucket: String,
-      indexName: String,
-      keys: Vector[String]
+    vectorBucket: String,
+    indexName: String,
+    keys: Vector[String]
   ): Unit =
     val body = ujson.Obj(
       "keys" -> ujson.Arr(keys.map(ujson.Str(_))*)
     )
     val request = HttpRequest
       .newBuilder()
-      .uri(URI.create(
-        s"${vectorsEndpoint(vectorBucket)}/vectors/$indexName/delete"
-      ))
+      .uri(
+        URI.create(
+          s"${vectorsEndpoint(vectorBucket)}/vectors/$indexName/delete"
+        )
+      )
       .header("Content-Type", "application/json")
       .POST(HttpRequest.BodyPublishers.ofString(ujson.write(body)))
       .build()

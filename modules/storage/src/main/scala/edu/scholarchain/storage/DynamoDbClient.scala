@@ -14,54 +14,54 @@ import scala.jdk.CollectionConverters.*
 
 /** Pipeline run ledger entry. PK = runId. */
 case class RunLedgerEntry(
-    runId: String,
-    status: String,
-    startTime: String,
-    endTime: Option[String],
-    config: String,
-    outputPaths: Vector[String],
-    provenance: Provenance
+  runId: String,
+  status: String,
+  startTime: String,
+  endTime: Option[String],
+  config: String,
+  outputPaths: Vector[String],
+  provenance: Provenance
 ) derives ReadWriter
 
 /** Entity-link cache entry. PK = sourceId, SK = targetId, with TTL. */
 case class EntityLinkCacheEntry(
-    sourceId: String,
-    targetId: String,
-    decision: String,
-    confidence: Double,
-    ttl: Long,
-    provenance: Provenance
+  sourceId: String,
+  targetId: String,
+  decision: String,
+  confidence: Double,
+  ttl: Long,
+  provenance: Provenance
 ) derives ReadWriter
 
 /** Query session entry. PK = queryId. */
 case class QuerySessionEntry(
-    queryId: String,
-    question: String,
-    status: String,
-    createdAt: String,
-    updatedAt: String,
-    resultRef: Option[String],
-    provenance: Provenance
+  queryId: String,
+  question: String,
+  status: String,
+  createdAt: String,
+  updatedAt: String,
+  resultRef: Option[String],
+  provenance: Provenance
 ) derives ReadWriter
 
 /** Evidence bundle entry. PK = bundleId. */
 case class EvidenceBundleEntry(
-    bundleId: String,
-    queryId: String,
-    itemCount: Int,
-    totalScore: Double,
-    s3Uri: String,
-    provenance: Provenance
+  bundleId: String,
+  queryId: String,
+  itemCount: Int,
+  totalScore: Double,
+  s3Uri: String,
+  provenance: Provenance
 ) derives ReadWriter
 
 /** Artifact registry entry. PK = artifactId. */
 case class ArtifactRegistryEntry(
-    artifactId: String,
-    artifactType: String,
-    version: String,
-    s3Uri: String,
-    checksum: String,
-    provenance: Provenance
+  artifactId: String,
+  artifactType: String,
+  version: String,
+  s3Uri: String,
+  checksum: String,
+  provenance: Provenance
 ) derives ReadWriter
 
 // ---------------------------------------------------------------------------
@@ -70,8 +70,8 @@ case class ArtifactRegistryEntry(
 
 /** Adapter for Amazon DynamoDB using AWS SDK v2. */
 class DynamoDbStorageClient(
-    client: AwsDynamoDbClient,
-    tablePrefix: String
+  client: AwsDynamoDbClient,
+  tablePrefix: String
 ):
 
   private def tableName(suffix: String): String = s"$tablePrefix-$suffix"
@@ -80,8 +80,8 @@ class DynamoDbStorageClient(
 
   def putRunLedger(entry: RunLedgerEntry): Unit =
     val item = Map(
-      "runId"      -> AttributeValue.fromS(entry.runId),
-      "jsonData"   -> AttributeValue.fromS(write(entry))
+      "runId"    -> AttributeValue.fromS(entry.runId),
+      "jsonData" -> AttributeValue.fromS(write(entry))
     )
     val request = PutItemRequest
       .builder()
@@ -107,10 +107,10 @@ class DynamoDbStorageClient(
 
   def putEntityLinkCache(entry: EntityLinkCacheEntry): Unit =
     val item = Map(
-      "sourceId"   -> AttributeValue.fromS(entry.sourceId),
-      "targetId"   -> AttributeValue.fromS(entry.targetId),
-      "jsonData"   -> AttributeValue.fromS(write(entry)),
-      "ttl"        -> AttributeValue.fromN(entry.ttl.toString)
+      "sourceId" -> AttributeValue.fromS(entry.sourceId),
+      "targetId" -> AttributeValue.fromS(entry.targetId),
+      "jsonData" -> AttributeValue.fromS(write(entry)),
+      "ttl"      -> AttributeValue.fromN(entry.ttl.toString)
     )
     val request = PutItemRequest
       .builder()
@@ -121,8 +121,8 @@ class DynamoDbStorageClient(
     client.putItem(request)
 
   def getEntityLinkCache(
-      sourceId: String,
-      targetId: String
+    sourceId: String,
+    targetId: String
   ): Option[EntityLinkCacheEntry] =
     val key = Map(
       "sourceId" -> AttributeValue.fromS(sourceId),
@@ -142,8 +142,8 @@ class DynamoDbStorageClient(
 
   def putQuerySession(entry: QuerySessionEntry): Unit =
     val item = Map(
-      "queryId"    -> AttributeValue.fromS(entry.queryId),
-      "jsonData"   -> AttributeValue.fromS(write(entry))
+      "queryId"  -> AttributeValue.fromS(entry.queryId),
+      "jsonData" -> AttributeValue.fromS(write(entry))
     )
     val request = PutItemRequest
       .builder()
@@ -169,8 +169,8 @@ class DynamoDbStorageClient(
 
   def putEvidenceBundle(entry: EvidenceBundleEntry): Unit =
     val item = Map(
-      "bundleId"   -> AttributeValue.fromS(entry.bundleId),
-      "jsonData"   -> AttributeValue.fromS(write(entry))
+      "bundleId" -> AttributeValue.fromS(entry.bundleId),
+      "jsonData" -> AttributeValue.fromS(write(entry))
     )
     val request = PutItemRequest
       .builder()

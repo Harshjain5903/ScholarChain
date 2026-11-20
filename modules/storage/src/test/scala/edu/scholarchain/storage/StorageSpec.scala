@@ -28,7 +28,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       outputPaths = Vector("s3://bucket/path1", "s3://bucket/path2"),
       provenance = testProvenance
     )
-    val json = write(entry)
+    val json     = write(entry)
     val restored = read[RunLedgerEntry](json)
     restored shouldBe entry
   }
@@ -43,7 +43,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       outputPaths = Vector.empty,
       provenance = testProvenance
     )
-    val json = write(entry)
+    val json     = write(entry)
     val restored = read[RunLedgerEntry](json)
     restored.endTime shouldBe None
   }
@@ -59,7 +59,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       ttl = 1700000000L,
       provenance = testProvenance
     )
-    val json = write(entry)
+    val json     = write(entry)
     val restored = read[EntityLinkCacheEntry](json)
     restored shouldBe entry
   }
@@ -76,7 +76,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       resultRef = Some("s3://bucket/results/q-001.json"),
       provenance = testProvenance
     )
-    val json = write(entry)
+    val json     = write(entry)
     val restored = read[QuerySessionEntry](json)
     restored shouldBe entry
   }
@@ -91,7 +91,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       resultRef = None,
       provenance = testProvenance
     )
-    val json = write(entry)
+    val json     = write(entry)
     val restored = read[QuerySessionEntry](json)
     restored.resultRef shouldBe None
   }
@@ -107,7 +107,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       s3Uri = "s3://bucket/bundles/bundle-001.json",
       provenance = testProvenance
     )
-    val json = write(entry)
+    val json     = write(entry)
     val restored = read[EvidenceBundleEntry](json)
     restored shouldBe entry
   }
@@ -123,7 +123,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       checksum = "abc123def456",
       provenance = testProvenance
     )
-    val json = write(entry)
+    val json     = write(entry)
     val restored = read[ArtifactRegistryEntry](json)
     restored shouldBe entry
   }
@@ -143,7 +143,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       embeddingModel = "amazon.titan-embed-text-v2",
       runId = "run-001"
     )
-    val json = write(meta)
+    val json     = write(meta)
     val restored = read[VectorMetadata](json)
     restored shouldBe meta
   }
@@ -161,7 +161,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       embeddingModel = "amazon.titan-embed-text-v2",
       runId = "run-002"
     )
-    val json = write(meta)
+    val json     = write(meta)
     val restored = read[VectorMetadata](json)
     restored shouldBe meta
   }
@@ -185,7 +185,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
         runId = "run-001"
       )
     )
-    val json = write(record)
+    val json     = write(record)
     val restored = read[VectorRecord](json)
     restored.key shouldBe record.key
     restored.metadata shouldBe record.metadata
@@ -214,7 +214,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
         runId = "run-003"
       )
     )
-    val json = write(result)
+    val json     = write(result)
     val restored = read[VectorResult](json)
     restored shouldBe result
   }
@@ -455,7 +455,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
 
   it should "return empty array for missing results key" in {
     val response = ujson.Obj("status" -> ujson.Str("ok"))
-    val results = NeptuneResponseParser.extractResults(response)
+    val results  = NeptuneResponseParser.extractResults(response)
     results.arr.size shouldBe 0
   }
 
@@ -474,11 +474,13 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
   it should "parse a path from query results" in {
     val response = ujson.Obj(
       "results" -> ujson.Arr(
-        ujson.Obj("path" -> ujson.Arr(
-          ujson.Str("r1"),
-          ujson.Str("r2"),
-          ujson.Str("r3")
-        ))
+        ujson.Obj(
+          "path" -> ujson.Arr(
+            ujson.Str("r1"),
+            ujson.Str("r2"),
+            ujson.Str("r3")
+          )
+        )
       )
     )
     val path = NeptuneResponseParser.parsePath(response)
@@ -508,7 +510,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
 
   "S3StorageClient" should "compute correct SHA-256 hash" in {
     val bytes = "hello world".getBytes("UTF-8")
-    val hash = S3StorageClient.sha256Hex(bytes)
+    val hash  = S3StorageClient.sha256Hex(bytes)
     // Known SHA-256 of "hello world"
     hash shouldBe "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
   }

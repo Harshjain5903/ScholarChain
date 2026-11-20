@@ -18,10 +18,10 @@ class S3StorageClient(client: AwsS3Client):
 
   /** Write an object with SHA-256 content hash metadata. */
   def putObject(
-      bucket: String,
-      key: String,
-      bytes: Array[Byte],
-      contentType: String
+    bucket: String,
+    key: String,
+    bytes: Array[Byte],
+    contentType: String
   ): String =
     val hash = sha256Hex(bytes)
     val request = PutObjectRequest
@@ -35,19 +35,19 @@ class S3StorageClient(client: AwsS3Client):
     hash
 
   /**
-   * Write an object only if the existing ETag does not match the content hash. Returns the hash
-   * if written, or the existing hash if skipped.
+   * Write an object only if the existing ETag does not match the content hash. Returns the hash if
+   * written, or the existing hash if skipped.
    */
   def putIfChanged(
-      bucket: String,
-      key: String,
-      bytes: Array[Byte],
-      contentType: String
+    bucket: String,
+    key: String,
+    bytes: Array[Byte],
+    contentType: String
   ): String =
     val hash = sha256Hex(bytes)
     val existingETag =
       try
-        val headReq = HeadObjectRequest.builder().bucket(bucket).key(key).build()
+        val headReq  = HeadObjectRequest.builder().bucket(bucket).key(key).build()
         val headResp = client.headObject(headReq)
         Some(headResp.eTag().replace("\"", ""))
       catch case _: NoSuchKeyException => None
@@ -56,27 +56,27 @@ class S3StorageClient(client: AwsS3Client):
 
   /** Read an object as raw bytes. */
   def getObject(bucket: String, key: String): Array[Byte] =
-    val request = GetObjectRequest.builder().bucket(bucket).key(key).build()
+    val request  = GetObjectRequest.builder().bucket(bucket).key(key).build()
     val response = client.getObjectAsBytes(request)
     response.asByteArray()
 
   /** List object keys under a prefix. */
   def listObjects(bucket: String, prefix: String): Vector[String] =
-    val request = ListObjectsV2Request.builder().bucket(bucket).prefix(prefix).build()
+    val request  = ListObjectsV2Request.builder().bucket(bucket).prefix(prefix).build()
     val response = client.listObjectsV2(request)
     response.contents().asScala.map(_.key()).toVector
 
   /** Write a JSON run manifest under the standard manifest path. */
   def putRunManifest(bucket: String, runId: String, manifest: ujson.Value): String =
-    val key = s"manifests/$runId/manifest.json"
+    val key   = s"manifests/$runId/manifest.json"
     val bytes = ujson.write(manifest, indent = 2).getBytes("UTF-8")
     putObject(bucket, key, bytes, "application/json")
 
   /** Generate a Neptune bulk-load manifest for files under a prefix. */
   def generateBulkLoadManifest(
-      bucket: String,
-      prefix: String,
-      format: String
+    bucket: String,
+    prefix: String,
+    format: String
   ): ujson.Value =
     val keys = listObjects(bucket, prefix)
     val sources = keys.map { k =>

@@ -8,18 +8,18 @@ import java.time.Duration
 
 /** Adapter for Neptune openCypher queries over HTTPS. */
 class NeptuneStorageClient(
-    endpoint: String,
-    port: Int,
-    queryTimeoutMs: Long,
-    httpClient: HttpClient
+  endpoint: String,
+  port: Int,
+  queryTimeoutMs: Long,
+  httpClient: HttpClient
 ):
 
   private val baseUri = s"https://$endpoint:$port/openCypher"
 
   /** Execute a parameterized openCypher query and return the JSON response. */
   def executeCypher(
-      query: String,
-      parameters: Map[String, ujson.Value]
+    query: String,
+    parameters: Map[String, ujson.Value]
   ): ujson.Value =
     val body = ujson.Obj(
       "query"      -> ujson.Str(query),
@@ -63,9 +63,9 @@ class NeptuneStorageClient(
 
   /** Find shortest path between two nodes, bounded depth 1-10. */
   def shortestPath(
-      fromId: String,
-      toId: String,
-      maxDepth: Int
+    fromId: String,
+    toId: String,
+    maxDepth: Int
   ): Option[Vector[String]] =
     val boundedDepth = math.max(1, math.min(maxDepth, 10))
     val result = executeCypher(
@@ -79,10 +79,10 @@ class NeptuneStorageClient(
 
   /** Get neighbors by edge types, bounded depth 1-3 and limit 1-500. */
   def getNeighbors(
-      nodeId: String,
-      edgeTypes: Vector[String],
-      depth: Int,
-      limit: Int
+    nodeId: String,
+    edgeTypes: Vector[String],
+    depth: Int,
+    limit: Int
   ): Vector[GraphNode] =
     val boundedDepth = math.max(1, math.min(depth, 3))
     val boundedLimit = math.max(1, math.min(limit, 500))
