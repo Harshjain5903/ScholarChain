@@ -34,13 +34,15 @@ class CanonicalGraphBuilderSpec extends SparkTestBase:
   }
 
   test("duplicate pairs are aggregated correctly") {
-    val mapping = sc.parallelize(Seq(
-      ("m1", "R1"),
-      ("m2", "R2"),
-      ("m3", "R3"),
-      ("m4", "R4"),
-      ("m5", "R5")
-    ))
+    val mapping = sc.parallelize(
+      Seq(
+        ("m1", "R1"),
+        ("m2", "R2"),
+        ("m3", "R3"),
+        ("m4", "R4"),
+        ("m5", "R5")
+      )
+    )
     val pairCandidates = sc.parallelize(TestFixtures.pairCandidates)
 
     val edges = CanonicalGraphBuilder.buildFromMapping(
@@ -67,13 +69,17 @@ class CanonicalGraphBuilderSpec extends SparkTestBase:
   }
 
   test("researcherA < researcherB ordering is maintained") {
-    val mapping = sc.parallelize(Seq(
-      ("m1", "ZZZ"),
-      ("m2", "AAA")
-    ))
-    val pairs = sc.parallelize(Seq(
-      CoauthorPairCandidate("m1", "m2", "w1", 2020, TestFixtures.mkProv("pair:m1:m2"))
-    ))
+    val mapping = sc.parallelize(
+      Seq(
+        ("m1", "ZZZ"),
+        ("m2", "AAA")
+      )
+    )
+    val pairs = sc.parallelize(
+      Seq(
+        CoauthorPairCandidate("m1", "m2", "w1", 2020, TestFixtures.mkProv("pair:m1:m2"))
+      )
+    )
 
     val edges = CanonicalGraphBuilder.buildFromMapping(
       sc,
@@ -94,13 +100,15 @@ class CanonicalGraphBuilderSpec extends SparkTestBase:
   }
 
   test("edges outside time window are excluded") {
-    val mapping = sc.parallelize(Seq(
-      ("m1", "R1"),
-      ("m2", "R2"),
-      ("m3", "R3"),
-      ("m4", "R4"),
-      ("m5", "R5")
-    ))
+    val mapping = sc.parallelize(
+      Seq(
+        ("m1", "R1"),
+        ("m2", "R2"),
+        ("m3", "R3"),
+        ("m4", "R4"),
+        ("m5", "R5")
+      )
+    )
     val pairCandidates = sc.parallelize(TestFixtures.pairCandidates)
 
     val edges = CanonicalGraphBuilder.buildFromMapping(
@@ -144,9 +152,11 @@ class CanonicalGraphBuilderSpec extends SparkTestBase:
 
   test("provenance is populated on output edges") {
     val mapping = sc.parallelize(Seq(("m1", "R1"), ("m2", "R2")))
-    val pairs = sc.parallelize(Seq(
-      CoauthorPairCandidate("m1", "m2", "w1", 2020, TestFixtures.mkProv("pair:m1:m2"))
-    ))
+    val pairs = sc.parallelize(
+      Seq(
+        CoauthorPairCandidate("m1", "m2", "w1", 2020, TestFixtures.mkProv("pair:m1:m2"))
+      )
+    )
 
     val edges = CanonicalGraphBuilder.buildFromMapping(
       sc,

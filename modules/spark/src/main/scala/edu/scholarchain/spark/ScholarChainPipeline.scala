@@ -105,7 +105,7 @@ object ScholarChainPipeline:
     )
 
     logger.info("Computing connected components (Job 4)")
-    val ccResult = ConnectedComponentsJob.compute(graph, mapping)
+    val ccResult      = ConnectedComponentsJob.compute(graph, mapping)
     val metricsWithCC = ConnectedComponentsJob.enrichMetrics(initialMetrics, ccResult)
 
     logger.info("Computing communities (Job 6)")
@@ -126,7 +126,7 @@ object ScholarChainPipeline:
     val metricsWithBridge = BridgeAnalysisJob.enrichMetrics(metricsWithComm, bridgeResult)
 
     logger.info("Computing k-core decomposition (Job 8)")
-    val coreness = KCoreJob.compute(graph, mapping)
+    val coreness     = KCoreJob.compute(graph, mapping)
     val finalMetrics = KCoreJob.enrichMetrics(metricsWithBridge, coreness)
     finalMetrics.cache()
 
@@ -144,9 +144,7 @@ object ScholarChainPipeline:
       temporalStep
     )
     val temporalAuthorships = pairCandidates
-      .flatMap(p =>
-        Iterator(p.mentionA, p.mentionB).map(m => (m, p.workId, 1, p.year))
-      )
+      .flatMap(p => Iterator(p.mentionA, p.mentionB).map(m => (m, p.workId, 1, p.year)))
     val temporalSnapshots = TemporalAnalysisJob.compute(
       sc,
       edges,
@@ -219,7 +217,8 @@ object ScholarChainPipeline:
       .collect { case Array(key, value) => (key.stripPrefix("--"), value) }
       .toMap
     PipelineConfig(
-      hadoopOutputPath = argsMap.getOrElse("hadoop-output", PipelineConfig.Default.hadoopOutputPath),
+      hadoopOutputPath =
+        argsMap.getOrElse("hadoop-output", PipelineConfig.Default.hadoopOutputPath),
       matchDecisionsPath =
         argsMap.getOrElse("match-decisions", PipelineConfig.Default.matchDecisionsPath),
       outputPath = argsMap.getOrElse("output", PipelineConfig.Default.outputPath),
@@ -233,10 +232,8 @@ object ScholarChainPipeline:
       betweennessSampleCount = argsMap
         .getOrElse("betweenness-samples", PipelineConfig.Default.betweennessSampleCount.toString)
         .toInt,
-      schemaVersion =
-        argsMap.getOrElse("schema-version", PipelineConfig.Default.schemaVersion),
-      policyVersion =
-        argsMap.getOrElse("policy-version", PipelineConfig.Default.policyVersion),
+      schemaVersion = argsMap.getOrElse("schema-version", PipelineConfig.Default.schemaVersion),
+      policyVersion = argsMap.getOrElse("policy-version", PipelineConfig.Default.policyVersion),
       maxBetweennessGraphSize = argsMap
         .getOrElse(
           "max-betweenness-graph-size",

@@ -64,7 +64,7 @@ object CollaborationMetricsJob:
     val allResearchers = perResearcherEdge
       .fullOuterJoin(paperStats)
       .map { case (rid, (edgeOpt, paperOpt)) =>
-        val (distinctCoauthors, weightedDeg) = edgeOpt.getOrElse((0, 0.0))
+        val (distinctCoauthors, weightedDeg)           = edgeOpt.getOrElse((0, 0.0))
         val (pubCount, totalCoauthorOcc, maxCoauthors) = paperOpt.getOrElse((0, 0, 0))
         val avgCoauthors =
           if pubCount > 0 then totalCoauthorOcc.toDouble / pubCount.toDouble

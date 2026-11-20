@@ -43,11 +43,10 @@ object CanonicalGraphBuilder:
     val graph = Graph(vertices, matchEdges)
     val cc    = graph.connectedComponents()
 
-
     val bcLongToId = sc.broadcast(longToId)
     val mapping = cc.vertices.map { case (vertexId, componentId) =>
-      val mentionStr    = bcLongToId.value(vertexId)
-      val canonicalStr  = bcLongToId.value(componentId)
+      val mentionStr   = bcLongToId.value(vertexId)
+      val canonicalStr = bcLongToId.value(componentId)
       (mentionStr, canonicalStr)
     }
     mapping
@@ -82,7 +81,6 @@ object CanonicalGraphBuilder:
         val (ra, rb) = if a < b then (a, b) else (b, a)
         ((ra, rb), (workId, year))
       }
-
 
     mapped
       .groupByKey()

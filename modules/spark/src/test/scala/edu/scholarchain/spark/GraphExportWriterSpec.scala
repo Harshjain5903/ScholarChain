@@ -17,7 +17,14 @@ class GraphExportWriterSpec extends SparkTestBase:
     val authorships = sc.parallelize(TestFixtures.authorships)
     val edgesRdd    = sc.parallelize(TestFixtures.allEdges)
     val metrics = CollaborationMetricsJob.compute(
-      sc, edgesRdd, authorships, 2000, 2030, "run", "1.0.0", "ts"
+      sc,
+      edgesRdd,
+      authorships,
+      2000,
+      2030,
+      "run",
+      "1.0.0",
+      "ts"
     )
     val outputDir = Files.createTempDirectory("spark-export-metrics").toString
     GraphExportWriter.writeMetrics(spark, metrics, outputDir)

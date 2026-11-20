@@ -50,8 +50,8 @@ object CommunityDetectionJob:
       .collectAsMap()
       .toMap
 
-    val bcSizes       = sc.broadcast(communitySizes)
-    val assignments   = vertexCommunities.map { case (_, (rid, commId)) =>
+    val bcSizes = sc.broadcast(communitySizes)
+    val assignments = vertexCommunities.map { case (_, (rid, commId)) =>
       (rid, s"community:$commId", bcSizes.value.getOrElse(commId, 0L))
     }
 
@@ -74,7 +74,6 @@ object CommunityDetectionJob:
         )
       }
       .reduceByKey(_ + _)
-
 
     CommunityResult(
       assignments = assignments,

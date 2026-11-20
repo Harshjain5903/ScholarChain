@@ -104,12 +104,14 @@ object TemporalAnalysisJob:
       year >= window.startYear && year <= window.endYear
     }
 
-    val edgeMetrics: RDD[(String, (Int, Double))] = windowEdges.flatMap { e =>
-      Iterator(
-        (e.researcherA, (1, e.jointPublicationCount.toDouble)),
-        (e.researcherB, (1, e.jointPublicationCount.toDouble))
-      )
-    }.reduceByKey { case ((c1, w1), (c2, w2)) => (c1 + c2, w1 + w2) }
+    val edgeMetrics: RDD[(String, (Int, Double))] = windowEdges
+      .flatMap { e =>
+        Iterator(
+          (e.researcherA, (1, e.jointPublicationCount.toDouble)),
+          (e.researcherB, (1, e.jointPublicationCount.toDouble))
+        )
+      }
+      .reduceByKey { case ((c1, w1), (c2, w2)) => (c1 + c2, w1 + w2) }
 
     val pubCounts: RDD[(String, Int)] = windowAuthorships
       .map { case (rid, workId, _, _) => (rid, workId) }
@@ -123,7 +125,12 @@ object TemporalAnalysisJob:
         val (distinctCoauthors, weightedDeg) = edgeOpt.getOrElse((0, 0.0))
         val pubs                             = pubOpt.getOrElse(0)
         val prov =
-          GraphUtils.makeProv(runId, schemaVersion, s"$rid:${window.startYear}-${window.endYear}", timestamp)
+          GraphUtils.makeProv(
+            runId,
+            schemaVersion,
+            s"$rid:${window.startYear}-${window.endYear}",
+            timestamp
+          )
         TemporalSnapshot(
           researcherId = rid,
           windowStartYear = window.startYear,

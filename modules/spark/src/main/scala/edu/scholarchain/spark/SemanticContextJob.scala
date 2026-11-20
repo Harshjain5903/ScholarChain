@@ -110,7 +110,8 @@ object SemanticContextJob:
         .sortBy(m => -bcBridge.value.getOrElse(m.researcherId, 0.0))
         .take(topBridgeCount)
         .map(_.researcherId)
-      val avgPubs = if count > 0 then memberList.map(_.publicationCount).sum.toDouble / count else 0.0
+      val avgPubs =
+        if count > 0 then memberList.map(_.publicationCount).sum.toDouble / count else 0.0
       val summary = s"Community $commId has $count members. " +
         s"Average publications per member: ${"%.1f".format(avgPubs)}. " +
         s"Key bridge researchers: ${topBridges.mkString(", ")}."

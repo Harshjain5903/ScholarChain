@@ -209,10 +209,11 @@ object GraphExportWriter:
         "communities" -> s"$outputPath/communities"
       ),
       "targets" -> ujson.Obj(
-        "neptune"  -> ujson.Obj("edges" -> s"$outputPath/edges", "components" -> s"$outputPath/components"),
-        "dynamodb" -> ujson.Obj("metrics" -> s"$outputPath/metrics"),
+        "neptune" -> ujson
+          .Obj("edges" -> s"$outputPath/edges", "components" -> s"$outputPath/components"),
+        "dynamodb"  -> ujson.Obj("metrics" -> s"$outputPath/metrics"),
         "s3vectors" -> ujson.Obj("summaries" -> s"$outputPath/summaries"),
-        "s3"       -> ujson.Obj("paths" -> s"$outputPath/paths")
+        "s3"        -> ujson.Obj("paths" -> s"$outputPath/paths")
       )
     )
     val manifestJson = ujson.write(manifest, indent = 2)

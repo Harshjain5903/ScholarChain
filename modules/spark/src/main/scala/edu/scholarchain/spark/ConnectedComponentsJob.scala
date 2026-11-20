@@ -35,8 +35,8 @@ object ConnectedComponentsJob:
     graph: Graph[String, Int],
     mapping: GraphUtils.VertexMapping
   ): ComponentResult =
-    val cc         = graph.connectedComponents()
-    val bcToStr    = graph.vertices.sparkContext.broadcast(mapping.toStr)
+    val cc      = graph.connectedComponents()
+    val bcToStr = graph.vertices.sparkContext.broadcast(mapping.toStr)
     val components = cc.vertices.map { case (vertexId, componentId) =>
       (componentId, bcToStr.value(vertexId))
     }
@@ -45,18 +45,17 @@ object ConnectedComponentsJob:
       .map { case (compId, _) => (compId, 1L) }
       .reduceByKey(_ + _)
 
-    val sizeMap          = componentSizes.collectAsMap()
-    val totalVertices    = sizeMap.values.sum.toDouble
-    val largestSize      = if sizeMap.nonEmpty then sizeMap.values.max else 0L
-    val singletons       = sizeMap.values.count(_ == 1L)
-    val largestFraction  = if totalVertices > 0 then largestSize / totalVertices else 0.0
+    val sizeMap         = componentSizes.collectAsMap()
+    val totalVertices   = sizeMap.values.sum.toDouble
+    val largestSize     = if sizeMap.nonEmpty then sizeMap.values.max else 0L
+    val singletons      = sizeMap.values.count(_ == 1L)
+    val largestFraction = if totalVertices > 0 then largestSize / totalVertices else 0.0
 
     val bcSizeMap = graph.vertices.sparkContext.broadcast(sizeMap)
     val assignments = components.map { case (compId, researcherId) =>
       val size = bcSizeMap.value(compId)
       (researcherId, s"component:$compId", size)
     }
-
 
     ComponentResult(
       assignments = assignments,

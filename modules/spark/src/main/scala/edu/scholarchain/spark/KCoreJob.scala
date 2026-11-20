@@ -53,15 +53,14 @@ object KCoreJob:
     if vertexCount == 0 then accumulated
     else
       val (remaining, removed) = removeLowDegree(graph, k)
-      if removed.isEmpty then
-        peel(sc, graph, k + 1, accumulated)
+      if removed.isEmpty then peel(sc, graph, k + 1, accumulated)
       else
         val newAccumulated = accumulated ++ removed.map(vid => (vid, k - 1))
         peel(sc, remaining, k, newAccumulated)
 
   /**
-   * Remove all vertices with degree less than k. Returns the subgraph and the set of removed
-   * vertex IDs. Iterates until no more vertices can be removed (cascading removal).
+   * Remove all vertices with degree less than k. Returns the subgraph and the set of removed vertex
+   * IDs. Iterates until no more vertices can be removed (cascading removal).
    */
   @annotation.tailrec
   private def removeLowDegree(
@@ -69,9 +68,9 @@ object KCoreJob:
     k: Int,
     accumulated: Set[VertexId] = Set.empty
   ): (Graph[Int, Int], Set[VertexId]) =
-    val degrees  = graph.outDegrees
-    val allVerts = graph.vertices.leftOuterJoin(degrees).mapValues {
-      case (_, degOpt) => degOpt.getOrElse(0)
+    val degrees = graph.outDegrees
+    val allVerts = graph.vertices.leftOuterJoin(degrees).mapValues { case (_, degOpt) =>
+      degOpt.getOrElse(0)
     }
     val lowDeg = allVerts.filter { case (_, deg) => deg < k }.map(_._1).collect().toSet
 

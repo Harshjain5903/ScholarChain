@@ -58,8 +58,7 @@ object BridgeAnalysisJob:
     val betweenness =
       if vertexCount <= maxGraphSize then
         computeApproximateBetweenness(graph, mapping, sampleCount, seed)
-      else
-        sc.parallelize(mapping.toStr.toSeq).map { case (_, rid) => (rid, 0.0) }
+      else sc.parallelize(mapping.toStr.toSeq).map { case (_, rid) => (rid, 0.0) }
 
     BridgeResult(scores = betweenness, crossCommunityDegrees = crossCommDeg)
 
@@ -69,10 +68,10 @@ object BridgeAnalysisJob:
     mapping: GraphUtils.VertexMapping,
     communityAssignments: RDD[(String, String)]
   ): RDD[(String, Int)] =
-    val sc       = graph.vertices.sparkContext
-    val commMap  = communityAssignments.collectAsMap()
-    val bcComm   = sc.broadcast(commMap)
-    val bcToStr  = sc.broadcast(mapping.toStr)
+    val sc      = graph.vertices.sparkContext
+    val commMap = communityAssignments.collectAsMap()
+    val bcComm  = sc.broadcast(commMap)
+    val bcToStr = sc.broadcast(mapping.toStr)
 
     val neighborCommunities = graph.edges
       .filter(e => e.srcId < e.dstId)
@@ -115,10 +114,10 @@ object BridgeAnalysisJob:
       .collectAsMap()
       .toMap
 
-    val rng      = new scala.util.Random(seed)
-    val k        = math.min(sampleCount, n)
-    val sources  = rng.shuffle(vertexIds.toIndexedSeq).take(k)
-    val scale    = if k > 0 then n.toDouble / k.toDouble else 1.0
+    val rng     = new scala.util.Random(seed)
+    val k       = math.min(sampleCount, n)
+    val sources = rng.shuffle(vertexIds.toIndexedSeq).take(k)
+    val scale   = if k > 0 then n.toDouble / k.toDouble else 1.0
 
     val betweenness = new java.util.HashMap[Long, Double]()
     vertexIds.foreach(v => betweenness.put(v, 0.0))
@@ -176,15 +175,14 @@ object BridgeAnalysisJob:
       }
 
     while !stack.isEmpty do
-      val w = stack.pop()
+      val w     = stack.pop()
       val preds = predecessors.get(w)
       val it    = preds.iterator()
       while it.hasNext do
         val v     = it.next()
         val coeff = (sigma.get(v).toDouble / sigma.get(w).toDouble) * (1.0 + delta.get(w))
         delta.put(v, delta.get(v) + coeff)
-      if w != source then
-        betweenness.put(w, betweenness.get(w) + delta.get(w))
+      if w != source then betweenness.put(w, betweenness.get(w) + delta.get(w))
 
   /** Update ResearcherMetrics with bridge scores. */
   def enrichMetrics(
