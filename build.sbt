@@ -107,6 +107,14 @@ lazy val sparkAnalytics = (project in file("modules/spark"))
     libraryDependencies ++= sparkProvided,
     // Spark 2.13 brings scala-xml_2.13 which conflicts with scala-xml_3; exclude it
     excludeDependencies += "org.scala-lang.modules" % "scala-xml_2.13",
+    Test / fork := true,
+    Test / javaOptions ++= Seq(
+      "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+      "--add-opens=java.base/java.lang=ALL-UNNAMED",
+      "--add-opens=java.base/java.util=ALL-UNNAMED",
+      "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+      "--add-opens=java.base/java.nio=ALL-UNNAMED"
+    ),
     assembly / mainClass := None,
     assembly / assemblyMergeStrategy := {
       case PathList("META-INF", "services", _*) => MergeStrategy.concat
