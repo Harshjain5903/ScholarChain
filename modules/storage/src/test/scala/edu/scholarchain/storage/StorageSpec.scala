@@ -6,6 +6,8 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.OptionValues
 import upickle.default.*
 
+import scala.util.{Success, Try}
+
 class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
 
   private val testProvenance = Provenance(
@@ -555,4 +557,184 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
     result.succeeded shouldBe 95
     result.failed shouldBe 5
     result.errors.size shouldBe 2
+  }
+
+  // ---- 20. EmbeddingQueueManager SHA-256 ----
+
+  "EmbeddingQueueManager" should "compute deterministic SHA-256" in {
+    val hash1 = EmbeddingQueueManager.sha256("hello|world|v1")
+    val hash2 = EmbeddingQueueManager.sha256("hello|world|v1")
+    hash1 shouldBe hash2
+    hash1.length shouldBe 64
+  }
+
+  it should "serialize EmbeddingJob round-trip via uPickle" in {
+    val job = EmbeddingJob(
+      jobId = "job-001",
+      entityId = "researcher:orcid:0000-0001",
+      documentType = "researcher-profile",
+      textS3Uri = "s3://bucket/text/chunk.txt",
+      textHash = "abc123",
+      embeddingModel = "amazon.titan-embed-text-v2",
+      windowStartYear = Some(2020),
+      windowEndYear = Some(2025),
+      runId = "run-001",
+      retryCount = 0
+    )
+    val json     = write(job)
+    val restored = read[EmbeddingJob](json)
+    restored shouldBe job
+  }
+
+  it should "detect duplicate by entityId, textHash, and modelVersion" in {
+    val dedupStore = scala.collection.mutable.Set.empty[String]
+    val stubQueue = new QueueClient:
+      def sendMessage(queueUrl: String, body: String): Try[String] =
+        Success("msg-1")
+      def receiveMessages(
+        queueUrl: String,
+        maxMessages: Int
+      ): Try[List[(String, String)]] = Success(Nil)
+      def deleteMessage(queueUrl: String, receiptHandle: String): Try[Unit] =
+        Success(())
+
+    val manager =
+      EmbeddingQueueManager(stubQueue, "http://queue", dedupStore)
+
+    // Not a duplicate initially
+    manager.isDuplicate("e1", "hash1", "v1").get shouldBe false
+
+    // Add the dedup key
+    val key = EmbeddingQueueManager.sha256("e1|hash1|v1")
+    dedupStore.add(key)
+
+    // Now detected as duplicate
+    manager.isDuplicate("e1", "hash1", "v1").get shouldBe true
+
+    // Different combination is not a duplicate
+    manager.isDuplicate("e1", "hash2", "v1").get shouldBe false
+  }
+
+  // ---- 21. EmbeddingBatchWriter index mapping ----
+
+  "EmbeddingBatchWriter" should "map documentType to correct index name" in {
+    val writer = new EmbeddingBatchWriter(
+      s3Vectors = null,
+      s3 = null,
+      vectorBucket = "test-bucket",
+      ragBucket = "test-rag"
+    )
+    writer.IndexNames("researcher-profile") shouldBe "researcher-profile-v1"
+    writer.IndexNames(
+      "collaboration-community"
+    ) shouldBe "collaboration-community-v1"
+    writer.IndexNames("paper-abstract") shouldBe "paper-abstract-v1"
+    writer.IndexNames("collaboration-path") shouldBe "collaboration-path-v1"
+    writer.IndexNames(
+      "topic-institution-summary"
+    ) shouldBe "topic-institution-summary-v1"
+    writer.IndexNames.size shouldBe 5
+  }
+
+  it should "reject empty embedding vectors" in {
+    val emptyMeta = VectorMetadata(
+      documentType = "paper-abstract",
+      entityId = "work:openalex:W1",
+      windowStartYear = None,
+      windowEndYear = None,
+      topicId = None,
+      institutionId = None,
+      textS3Uri = "s3://bucket/text.txt",
+      textHash = "h1",
+      embeddingModel = "amazon.titan-embed-text-v2",
+      runId = "run-001"
+    )
+    val emptyRecord = VectorRecord("k1", Vector.empty[Float], emptyMeta)
+
+    // Stub S3VectorsStorageClient that should not be called for empty vectors
+    val stubVectors = new S3VectorsStorageClient(
+      "us-east-1",
+      0,
+      0L,
+      java.net.http.HttpClient.newBuilder().build()
+    ) {
+      override def putVectors(
+        vectorBucket: String,
+        indexName: String,
+        vectors: Vector[VectorRecord]
+      ): PutVectorsResult =
+        PutVectorsResult(vectors.size, 0, Vector.empty)
+    }
+
+    val writer = new EmbeddingBatchWriter(
+      s3Vectors = stubVectors,
+      s3 = null,
+      vectorBucket = "test-bucket",
+      ragBucket = "test-rag",
+      maxRetries = 0
+    )
+    val result = writer.writeBatch(Vector(emptyRecord), "paper-abstract-v1")
+    result.isSuccess shouldBe true
+    val bwr = result.get
+    bwr.written shouldBe 0
+    bwr.rejected shouldBe 1
+    bwr.errors should have size 1
+    bwr.errors.head should include("Empty embedding")
+  }
+
+  it should "count written and rejected correctly" in {
+    val meta = VectorMetadata(
+      documentType = "researcher-profile",
+      entityId = "researcher:orcid:0000-0001",
+      windowStartYear = Some(2020),
+      windowEndYear = Some(2025),
+      topicId = None,
+      institutionId = None,
+      textS3Uri = "s3://bucket/text.txt",
+      textHash = "h1",
+      embeddingModel = "amazon.titan-embed-text-v2",
+      runId = "run-001"
+    )
+    val validRecord  = VectorRecord("k1", Vector(0.1f, 0.2f), meta)
+    val validRecord2 = VectorRecord("k2", Vector(0.3f, 0.4f), meta)
+    val emptyRecord  = VectorRecord("k3", Vector.empty[Float], meta)
+
+    val stubVectors = new S3VectorsStorageClient(
+      "us-east-1",
+      0,
+      0L,
+      java.net.http.HttpClient.newBuilder().build()
+    ) {
+      override def putVectors(
+        vectorBucket: String,
+        indexName: String,
+        vectors: Vector[VectorRecord]
+      ): PutVectorsResult =
+        // Simulate one failure in the batch
+        PutVectorsResult(
+          vectors.size - 1,
+          1,
+          Vector("key=k2 status=500")
+        )
+    }
+
+    val writer = new EmbeddingBatchWriter(
+      s3Vectors = stubVectors,
+      s3 = null,
+      vectorBucket = "test-bucket",
+      ragBucket = "test-rag",
+      maxRetries = 0
+    )
+    val result =
+      writer
+        .writeBatch(
+          Vector(validRecord, validRecord2, emptyRecord),
+          "researcher-profile-v1"
+        )
+        .get
+
+    // 2 valid sent, stub returns 1 succeeded + 1 failed; 1 empty rejected
+    result.written shouldBe 1
+    result.rejected shouldBe 2 // 1 from putVectors failure + 1 empty
+    result.errors should have size 2
   }
