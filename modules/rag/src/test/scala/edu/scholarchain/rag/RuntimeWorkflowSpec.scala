@@ -67,64 +67,69 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
 
   class FakeResearcherLookup(data: Map[String, Vector[CanonicalResearcher]])
       extends ResearcherLookup:
+
     def findByName(name: String): Vector[CanonicalResearcher] =
       data.getOrElse(name, Vector.empty)
+
     def findById(id: String): Option[CanonicalResearcher] =
       data.values.flatten.find(_.researcherId == id)
 
   class FakeMetricsStore(data: Map[String, ResearcherMetrics]) extends MetricsStore:
+
     def getMetrics(
-        researcherId: String,
-        windowStart: Int,
-        windowEnd: Int
+      researcherId: String,
+      windowStart: Int,
+      windowEnd: Int
     ): Option[ResearcherMetrics] =
       data.get(researcherId)
 
   class FakeGraphStore(
-      coauthors: Map[String, Vector[CoauthorEdge]] = Map.empty,
-      paths: Map[(String, String), Vector[String]] = Map.empty,
-      members: Map[String, Vector[String]] = Map.empty
+    coauthors: Map[String, Vector[CoauthorEdge]] = Map.empty,
+    paths: Map[(String, String), Vector[String]] = Map.empty,
+    members: Map[String, Vector[String]] = Map.empty
   ) extends GraphStore:
 
     def getDirectCoauthors(
-        researcherId: String,
-        limit: Int
+      researcherId: String,
+      limit: Int
     ): Vector[CoauthorEdge] =
       coauthors.getOrElse(researcherId, Vector.empty).take(limit)
 
     def shortestPath(
-        fromId: String,
-        toId: String,
-        maxDepth: Int
+      fromId: String,
+      toId: String,
+      maxDepth: Int
     ): Option[Vector[String]] =
       paths.get((fromId, toId))
 
     def getNeighbors(
-        nodeId: String,
-        edgeTypes: Vector[String],
-        depth: Int,
-        limit: Int
+      nodeId: String,
+      edgeTypes: Vector[String],
+      depth: Int,
+      limit: Int
     ): Vector[GraphNode] =
       Vector.empty
 
     def getComponentMembers(
-        componentId: String,
-        limit: Int
+      componentId: String,
+      limit: Int
     ): Vector[String] =
       members.getOrElse(componentId, Vector.empty).take(limit)
 
   class FakeVectorStore extends VectorStore:
+
     def query(
-        indexName: String,
-        queryVector: Vector[Float],
-        topK: Int,
-        filters: Option[ujson.Value]
+      indexName: String,
+      queryVector: Vector[Float],
+      topK: Int,
+      filters: Option[ujson.Value]
     ): Vector[VectorSearchResult] =
       Vector(
         VectorSearchResult("key1", 0.9, "researcher", "R001", "s3://bucket/text1")
       )
 
   class FakeTextStore extends TextStore:
+
     def getText(s3Uri: String): Option[String] =
       Some("Sample text for testing semantic context retrieval.")
 
@@ -133,12 +138,14 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
 
   class CountingLlmClient(responses: Iterator[String]) extends LlmClient:
     var callCount: Int = 0
+
     def generate(prompt: String, maxTokens: Int): String =
       callCount += 1
       responses.next()
 
   class FakeAuditStore extends AuditStore:
     var records: Vector[AuditRecord] = Vector.empty
+
     def persistAudit(record: AuditRecord): Unit =
       records = records :+ record
 

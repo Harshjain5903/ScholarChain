@@ -7,14 +7,11 @@ import java.net.URI
 import java.net.http.{HttpClient, HttpRequest, HttpResponse}
 import upickle.default.*
 
-class ServiceRoutesSpec
-    extends AnyFlatSpec
-    with Matchers
-    with BeforeAndAfterAll:
+class ServiceRoutesSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   private var server: com.sun.net.httpserver.HttpServer = _
   private var baseUrl: String                           = _
-  private val client = HttpClient.newHttpClient()
+  private val client                                    = HttpClient.newHttpClient()
 
   override def beforeAll(): Unit =
     val config = ServiceConfig(
@@ -43,9 +40,9 @@ class ServiceRoutesSpec
     client.send(req, HttpResponse.BodyHandlers.ofString())
 
   private def post(
-      path: String,
-      body: String,
-      headers: Map[String, String] = Map.empty
+    path: String,
+    body: String,
+    headers: Map[String, String] = Map.empty
   ): HttpResponse[String] =
     val builder = HttpRequest
       .newBuilder()
@@ -88,12 +85,12 @@ class ServiceRoutesSpec
       maxGraphDepth = 3,
       maxGraphLimit = 200
     )
-    val (wf, gs, as)   = RuntimeComposer.composeStubs()
-    val routes          = Routes(wf, gs, as, config)
-    val smallServer     = routes.start()
-    val smallPort       = smallServer.getAddress.getPort
-    val smallBase       = s"http://127.0.0.1:$smallPort"
-    val bigBody         = """{"question":"""" + "x" * 100 + "\"}"
+    val (wf, gs, as) = RuntimeComposer.composeStubs()
+    val routes       = Routes(wf, gs, as, config)
+    val smallServer  = routes.start()
+    val smallPort    = smallServer.getAddress.getPort
+    val smallBase    = s"http://127.0.0.1:$smallPort"
+    val bigBody      = """{"question":"""" + "x" * 100 + "\"}"
     val req = HttpRequest
       .newBuilder()
       .uri(URI.create(s"$smallBase/v1/query"))
