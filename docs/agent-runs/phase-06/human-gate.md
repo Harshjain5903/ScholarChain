@@ -1,21 +1,27 @@
-# Phase 0 – Human Gate
+# Phase 06 – Human Gate
 
-**Reviewed:** `.claude/agents/factory-engineer.md`, line by line.
+**The original Phase 06 human approval was not recorded in the sources checked**
+(git history and saved Claude Code session transcripts; see `repair-01.md`).
 
-**Checked:**
-- Tools field is explicit (Read, Grep, Glob, Write, Edit, Bash).
-- It owns only control-plane files, no application code.
-- It cannot approve its own work (law 1).
-- Safety floor rules are present (laws 6 and 10).
-- It refuses out-of-scope work (law 8).
-- Report fields match the spec.
+The earlier copy of this file was the Phase 00 human gate, byte-identical to
+`phase-00/human-gate.md`. It has been removed from this phase.
 
-**Decision:** ACCEPTED after repair-01.
+The human architect will write the new decision after verification.
 
-**Manual changes:** None to the agent file. Evidence files (this file, prompt.md, agent-report.md, repair-01.md) were created by hand after the session.
+**Decision:** PENDING
 
-**Remaining risk:**
-1. Law 9 (Bash = inspection only) is just a written rule until the Phase 1 hooks enforce it.
-2. The repair made `docs/agent-runs/README.md` a constitutional file as a side effect.
+**Accepted commit:** PENDING
 
-**Commit:** see commit.txt
+## Human approval of the evidence repair
+
+Approver: Harsh Shripal Jain (human architect)
+Scope: Phase 06 evidence repair only (`repair-01.md`). This approval does not
+cover the Spark implementation. The implementation decision and the accepted
+implementation commit above stay PENDING. The original BLOCKED-ON report in
+`agent-report.md` is preserved unchanged.
+
+I approved the correction of the misplaced Phase 06 records. I personally
+ran the scoped Git checks and confirmed that four files were modified and
+repair-01.md was added. The whitespace check flagged two trailing spaces
+in the restored prompt. Claude Code recovered the records from the saved
+sessions and documented the missing evidence.
