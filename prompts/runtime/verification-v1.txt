@@ -1,0 +1,7 @@
+Verify each claim against the evidence bundle. For each claim, check:
+1. All cited evidence IDs exist
+2. Numerical values match the evidence
+3. Researcher identities are correct
+4. Time windows are consistent
+
+Return a JSON array with each claim's verification status: VERIFIED, PARTIALLY_SUPPORTED, UNSUPPORTED, or CONFLICTING.

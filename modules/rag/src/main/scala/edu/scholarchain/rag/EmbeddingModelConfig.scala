@@ -1,11 +1,11 @@
 package edu.scholarchain.rag
 
 case class EmbeddingModelConfig(
-    modelId: String,
-    modelVersion: String,
-    dimensions: Int,
-    maxInputTokens: Int,
-    provider: String
+  modelId: String,
+  modelVersion: String,
+  dimensions: Int,
+  maxInputTokens: Int,
+  provider: String
 )
 
 object EmbeddingModelConfig:

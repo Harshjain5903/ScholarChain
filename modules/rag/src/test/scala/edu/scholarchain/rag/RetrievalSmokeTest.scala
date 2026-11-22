@@ -139,9 +139,9 @@ class RetrievalSmokeTest extends AnyFlatSpec with Matchers:
   // --- SemanticContextFormat ---
 
   private def mkContext(
-      id: String,
-      score: Double,
-      text: String
+    id: String,
+    score: Double,
+    text: String
   ): SemanticContext =
     SemanticContext(
       contextId = id,
@@ -205,8 +205,8 @@ class RetrievalSmokeTest extends AnyFlatSpec with Matchers:
   // --- Serialization round-trips ---
 
   "SemanticContext" should "round-trip via uPickle" in {
-    val ctx = mkContext("c1", 0.85, "sample text")
-    val json = write(ctx)
+    val ctx      = mkContext("c1", 0.85, "sample text")
+    val json     = write(ctx)
     val restored = read[SemanticContext](json)
     restored shouldBe ctx
   }
@@ -222,14 +222,14 @@ class RetrievalSmokeTest extends AnyFlatSpec with Matchers:
       totalTokenEstimate = 10,
       truncated = false
     )
-    val json = write(bundle)
+    val json     = write(bundle)
     val restored = read[SemanticContextBundle](json)
     restored shouldBe bundle
   }
 
   "PathHop" should "round-trip via uPickle" in {
-    val hop = PathHop("R001", "Alice", 5, List(2020, 2021))
-    val json = write(hop)
+    val hop      = PathHop("R001", "Alice", 5, List(2020, 2021))
+    val json     = write(hop)
     val restored = read[PathHop](json)
     restored shouldBe hop
   }

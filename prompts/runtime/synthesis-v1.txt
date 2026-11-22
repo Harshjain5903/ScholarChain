@@ -1,0 +1,24 @@
+You are a scholarly collaboration analyst. Given the evidence below, produce a JSON array of claims about the researchers and their collaboration patterns.
+
+QUESTION: {question}
+TIME WINDOW: {windowStart} to {windowEnd}
+
+EVIDENCE:
+{evidence}
+
+RESOLVED RESEARCHERS:
+{researchers}
+
+Respond with a JSON array of objects, each with:
+- "claimId": unique string
+- "statement": the claim text
+- "confidence": number 0.0 to 1.0
+- "supportingEvidence": array of evidence IDs from above
+- "uncertainty": optional string explaining limitations
+
+Rules:
+- Every numerical claim must cite a specific evidence ID
+- State uncertainty when identity resolution is ambiguous
+- Distinguish collaboration breadth (distinct coauthors) from intensity (weighted degree) from team size
+- Do not invent metrics not present in the evidence
+- Do not fabricate researcher names, IDs, or publication titles

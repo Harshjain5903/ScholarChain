@@ -4,9 +4,9 @@ enum ChunkingStrategy:
   case SentenceBoundary, ParagraphBoundary, FixedWindow
 
 case class ChunkingConfig(
-    maxTokens: Int,
-    overlapTokens: Int,
-    strategy: ChunkingStrategy
+  maxTokens: Int,
+  overlapTokens: Int,
+  strategy: ChunkingStrategy
 )
 
 object ChunkingPolicy:
@@ -35,35 +35,35 @@ object ChunkingPolicy:
         chunkByFixedWindow(text, config)
 
   private def chunkBySentence(
-      text: String,
-      config: ChunkingConfig
+    text: String,
+    config: ChunkingConfig
   ): List[String] =
     val sentences = text.split("(?<=\\.)\\s+").toList
     groupUnits(sentences, config)
 
   private def chunkByParagraph(
-      text: String,
-      config: ChunkingConfig
+    text: String,
+    config: ChunkingConfig
   ): List[String] =
     val paragraphs = text.split("\n\n").toList.filter(_.nonEmpty)
     groupUnits(paragraphs, config)
 
   private def chunkByFixedWindow(
-      text: String,
-      config: ChunkingConfig
+    text: String,
+    config: ChunkingConfig
   ): List[String] =
-    val words = text.split("\\s+").toList
+    val words      = text.split("\\s+").toList
     val windowSize = math.max(1, (config.maxTokens / 1.3).toInt)
     val stepSize =
       math.max(1, windowSize - (config.overlapTokens / 1.3).toInt)
     words.sliding(windowSize, stepSize).map(_.mkString(" ")).toList
 
   private def groupUnits(
-      units: List[String],
-      config: ChunkingConfig
+    units: List[String],
+    config: ChunkingConfig
   ): List[String] =
-    val result = scala.collection.mutable.ListBuffer.empty[String]
-    var current = new StringBuilder
+    val result        = scala.collection.mutable.ListBuffer.empty[String]
+    var current       = new StringBuilder
     var currentTokens = 0
     for unit <- units do
       val unitTokens = estimateTokens(unit)
@@ -75,8 +75,7 @@ object ChunkingPolicy:
           .mkString(" ")
         current = new StringBuilder(overlapText)
         currentTokens = estimateTokens(overlapText)
-      if current.nonEmpty && !current.toString.endsWith(" ") then
-        current.append(" ")
+      if current.nonEmpty && !current.toString.endsWith(" ") then current.append(" ")
       current.append(unit)
       currentTokens += unitTokens
     if current.nonEmpty then result += current.toString.trim

@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["queryId", "originalQuery", "operations", "filters"],
+  "properties": {
+    "queryId": {"type": "string"},
+    "originalQuery": {"type": "string"},
+    "operations": {"type": "array", "items": {"type": "string", "enum": ["ResearcherRanking","ShortestPath","ComponentLookup","CommunityComparison","BridgeRanking","TemporalComparison","TopicFilter","InstitutionFilter"]}},
+    "filters": {"type": "object", "additionalProperties": {"type": "string"}}
+  }
+}
