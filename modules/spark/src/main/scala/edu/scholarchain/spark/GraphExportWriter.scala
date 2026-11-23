@@ -12,7 +12,12 @@ import upickle.default.*
  */
 object GraphExportWriter:
 
-  /** Write CoauthorEdge RDD as Parquet partitioned by firstCollaborationYear decade. */
+  private val Key = GraphSchema.PropertyKey
+
+  /**
+   * Write CoauthorEdge RDD as Parquet partitioned by firstCollaborationYear decade. Column names of
+   * the edge fields are the [[GraphSchema.PropertyKey]] names.
+   */
   def writeEdges(
     spark: SparkSession,
     edges: RDD[CoauthorEdge],
@@ -20,13 +25,13 @@ object GraphExportWriter:
   ): Unit =
     val schema = StructType(
       Seq(
-        StructField("researcherA", StringType, nullable = false),
-        StructField("researcherB", StringType, nullable = false),
-        StructField("jointPublicationCount", IntegerType, nullable = false),
-        StructField("firstCollaborationYear", IntegerType, nullable = false),
-        StructField("lastCollaborationYear", IntegerType, nullable = false),
-        StructField("representativeWorkIds", StringType, nullable = false),
-        StructField("provenance", StringType, nullable = false),
+        StructField(Key.ResearcherA, StringType, nullable = false),
+        StructField(Key.ResearcherB, StringType, nullable = false),
+        StructField(Key.JointPublicationCount, IntegerType, nullable = false),
+        StructField(Key.FirstCollaborationYear, IntegerType, nullable = false),
+        StructField(Key.LastCollaborationYear, IntegerType, nullable = false),
+        StructField(Key.RepresentativeWorkIds, StringType, nullable = false),
+        StructField(Key.Provenance, StringType, nullable = false),
         StructField("decade", IntegerType, nullable = false)
       )
     )
@@ -44,6 +49,40 @@ object GraphExportWriter:
     }
     val df = spark.createDataFrame(rows, schema)
     df.write.partitionBy("decade").parquet(s"$outputPath/edges")
+
+  /** Write temporal snapshots as Parquet partitioned by window start year. */
+  def writeTemporal(
+    spark: SparkSession,
+    snapshots: RDD[TemporalAnalysisJob.TemporalSnapshot],
+    outputPath: String
+  ): Unit =
+    val schema = StructType(
+      Seq(
+        StructField("researcherId", StringType, nullable = false),
+        StructField("windowStartYear", IntegerType, nullable = false),
+        StructField("windowEndYear", IntegerType, nullable = false),
+        StructField("publicationCount", IntegerType, nullable = false),
+        StructField("distinctCoauthorCount", IntegerType, nullable = false),
+        StructField("weightedDegree", DoubleType, nullable = false),
+        StructField("provenance", StringType, nullable = false)
+      )
+    )
+    val rows = snapshots.map { t =>
+      Row(
+        t.researcherId,
+        t.windowStartYear,
+        t.windowEndYear,
+        t.publicationCount,
+        t.distinctCoauthorCount,
+        t.weightedDegree,
+        write(t.provenance)
+      )
+    }
+    spark
+      .createDataFrame(rows, schema)
+      .write
+      .partitionBy("windowStartYear")
+      .parquet(s"$outputPath/temporal")
 
   /** Write ResearcherMetrics as Parquet. */
   def writeMetrics(
@@ -190,33 +229,57 @@ object GraphExportWriter:
   /**
    * Write a JSON load manifest describing output locations for downstream services. Manifests are
    * consumed by the storage layer to load data into Neptune, DynamoDB, S3 Vectors, and S3.
+   *
+   * The `neptune` target points at the openCypher bulk-load CSV prefixes written by
+   * [[NeptuneBulkLoadExport]] (when `neptuneCsv` is true) and lists the [[GraphSchema]] labels,
+   * types and keys used, so a loader can check them before loading.
    */
   def writeManifest(
     spark: SparkSession,
     outputPath: String,
     runId: String,
-    timestamp: String
+    timestamp: String,
+    neptuneCsv: Boolean = false
   ): Unit =
+    val root = outputPath.stripSuffix("/")
+    val neptune =
+      if neptuneCsv then
+        ujson.Obj(
+          "format"            -> "opencypher",
+          "loadOrder"         -> ujson.Arr(s"$root/${NeptuneBulkLoadExport.Dir.Nodes}", s"$root/${NeptuneBulkLoadExport.Dir.Relationships}"),
+          "nodes"             -> s"$root/${NeptuneBulkLoadExport.Dir.Nodes}",
+          "relationships"     -> s"$root/${NeptuneBulkLoadExport.Dir.Relationships}",
+          "vertexLabels"      -> ujson.Arr.from(GraphSchema.VertexLabel.All),
+          "relationshipTypes" -> ujson.Arr.from(GraphSchema.EdgeType.All),
+          "jsonEncodedProperties" -> ujson.Arr(
+            GraphSchema.PropertyKey.Provenance,
+            GraphSchema.PropertyKey.RepresentativeWorkIds
+          )
+        )
+      else ujson.Obj("format" -> "none", "reason" -> "Neptune CSV export disabled for this run")
     val manifest = ujson.Obj(
       "runId"     -> runId,
       "timestamp" -> timestamp,
       "outputs" -> ujson.Obj(
-        "edges"       -> s"$outputPath/edges",
-        "metrics"     -> s"$outputPath/metrics",
-        "summaries"   -> s"$outputPath/summaries",
-        "paths"       -> s"$outputPath/paths",
-        "components"  -> s"$outputPath/components",
-        "communities" -> s"$outputPath/communities"
+        "edges"       -> s"$root/edges",
+        "metrics"     -> s"$root/metrics",
+        "summaries"   -> s"$root/summaries",
+        "paths"       -> s"$root/paths",
+        "components"  -> s"$root/components",
+        "communities" -> s"$root/communities",
+        "temporal"    -> s"$root/temporal"
       ),
       "targets" -> ujson.Obj(
-        "neptune" -> ujson
-          .Obj("edges" -> s"$outputPath/edges", "components" -> s"$outputPath/components"),
-        "dynamodb"  -> ujson.Obj("metrics" -> s"$outputPath/metrics"),
-        "s3vectors" -> ujson.Obj("summaries" -> s"$outputPath/summaries"),
-        "s3"        -> ujson.Obj("paths" -> s"$outputPath/paths")
+        "neptune"   -> neptune,
+        "dynamodb"  -> ujson.Obj("metrics" -> s"$root/metrics"),
+        "s3vectors" -> ujson.Obj("summaries" -> s"$root/summaries"),
+        "s3"        -> ujson.Obj("paths" -> s"$root/paths", "edgesParquet" -> s"$root/edges")
       )
     )
-    val manifestJson = ujson.write(manifest, indent = 2)
+    writeJson(spark, manifest, s"$root/manifest")
+
+  /** Write one pretty-printed JSON document as a single-part text dataset at `path`. */
+  def writeJson(spark: SparkSession, json: ujson.Value, path: String): Unit =
     spark.sparkContext
-      .parallelize(Seq(manifestJson), 1)
-      .saveAsTextFile(s"$outputPath/manifest")
+      .parallelize(Seq(ujson.write(json, indent = 2)), 1)
+      .saveAsTextFile(path)

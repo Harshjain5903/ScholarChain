@@ -4,9 +4,9 @@ import edu.scholarchain.core.*
 import upickle.default.*
 
 case class ResolvedResearcher(
-    researcher: CanonicalResearcher,
-    confidence: Double,
-    alternates: Vector[CanonicalResearcher]
+  researcher: CanonicalResearcher,
+  confidence: Double,
+  alternates: Vector[CanonicalResearcher]
 ) derives ReadWriter
 
 /** Resolves researcher names to canonical identities. Never silently picks one when ambiguous. */

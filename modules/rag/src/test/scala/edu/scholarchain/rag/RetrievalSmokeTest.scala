@@ -122,18 +122,18 @@ class RetrievalSmokeTest extends AnyFlatSpec with Matchers:
 
   // --- EmbeddingModelConfig ---
 
-  "EmbeddingModelConfig.fromEnv" should "return dimensions > 0" in {
-    val config = EmbeddingModelConfig.fromEnv()
+  "EmbeddingModelConfig.load" should "return dimensions > 0" in {
+    val config = EmbeddingModelConfig.load()
     config.dimensions should be > 0
   }
 
   it should "return non-empty modelId" in {
-    val config = EmbeddingModelConfig.fromEnv()
+    val config = EmbeddingModelConfig.load()
     config.modelId should not be empty
   }
 
-  "EmbeddingModelConfig.Default" should "match fromEnv" in {
-    EmbeddingModelConfig.Default shouldBe EmbeddingModelConfig.fromEnv()
+  "EmbeddingModelConfig.Default" should "match load" in {
+    EmbeddingModelConfig.Default shouldBe EmbeddingModelConfig.load()
   }
 
   // --- SemanticContextFormat ---

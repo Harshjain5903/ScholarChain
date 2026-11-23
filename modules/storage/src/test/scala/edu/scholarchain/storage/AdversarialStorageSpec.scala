@@ -140,7 +140,8 @@ class AdversarialStorageSpec extends AnyFlatSpec with Matchers:
       "us-east-1",
       0,
       0L,
-      java.net.http.HttpClient.newBuilder().build()
+      StorageTestAws.NoNetwork,
+      StorageTestAws.dummyCredentials
     ) {
       override def putVectors(
         vectorBucket: String,
@@ -155,6 +156,7 @@ class AdversarialStorageSpec extends AnyFlatSpec with Matchers:
       s3 = null,
       vectorBucket = "test-bucket",
       ragBucket = "test-rag",
+      indexConfig = S3VectorsConfig(1024, DistanceMetric.Cosine, "amazon.titan-embed-text-v2:0"),
       maxRetries = 0
     )
     val result = writer.writeBatch(Vector(emptyRecord), "researcher-profile-v1")

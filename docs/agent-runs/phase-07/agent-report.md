@@ -63,3 +63,78 @@ None — all gates pass automatically.
 ## Next Gate
 - `sbt check` passes (CONFIRMED — 36/36 storage tests, all other module tests pass)
 - Code review returns APPROVE
+
+
+## Original subagent final reports (RECONSTRUCTED 2026-11-23)
+Each report below is the subagent's final message, copied word for word from its transcript (`<session>/subagents/agent-<id>.jsonl`). Text above this section is the original file and is unchanged.
+
+### storage-engineer
+
+storage-engineer subagent `a1882e181560b4c38`, session `7aafb09f-5927-4b74-9c74-70dface1b0d2`.
+
+````text
+Storage module passes formatting, compilation, and all 36 tests. The `sbt check` failure is exclusively in the `entity-resolution` module's formatting, which is owned by `entity-resolution-engineer` and outside my scope.
+
+---
+
+```
+STATUS: COMPLETE
+OWNER: storage-engineer
+WORK ORDER: Implement storage adapters for S3, Neptune, DynamoDB, and S3 Vectors under modules/storage/
+FILES CREATED:
+  /Users/harshjain/Documents/scholarchain/modules/storage/src/main/resources/reference.conf
+  /Users/harshjain/Documents/scholarchain/modules/storage/src/main/scala/edu/scholarchain/storage/StorageConfig.scala
+  /Users/harshjain/Documents/scholarchain/modules/storage/src/main/scala/edu/scholarchain/storage/S3Client.scala
+  /Users/harshjain/Documents/scholarchain/modules/storage/src/main/scala/edu/scholarchain/storage/NeptuneClient.scala
+  /Users/harshjain/Documents/scholarchain/modules/storage/src/main/scala/edu/scholarchain/storage/DynamoDbClient.scala
+  /Users/harshjain/Documents/scholarchain/modules/storage/src/main/scala/edu/scholarchain/storage/S3VectorsClient.scala
+  /Users/harshjain/Documents/scholarchain/modules/storage/src/test/scala/edu/scholarchain/storage/StorageSpec.scala
+FILES MODIFIED: none
+COMMANDS RUN:
+  sbt storage/compile — success
+  sbt storage/test — 36 tests passed, 0 failed
+  sbt check — FAILED in entity-resolution module formatting (not storage)
+  sbt "storage/scalafmtCheckAll" — success (storage formatting clean)
+TEST RESULTS: 36 tests passed across 19 test cases covering serialization round-trips, index validation, core domain invariants, Neptune response parsing, DynamoDB conditional expressions, S3 content hashing, and config loading
+VALIDATION RESULTS:
+  - storage/compile: success
+  - storage/test: 36/36 passed
+  - storage/scalafmtCheckAll: success
+  - Full sbt check: blocked by entity-resolution formatting (not storage)
+ASSUMPTIONS:
+  - Neptune openCypher is accessed via HTTPS POST to /openCypher (standard Neptune data API)
+  - S3 Vectors REST API follows the documented PUT/POST pattern with regional endpoints
+  - DynamoDB stores full JSON payloads in a "jsonData" string attribute alongside indexed keys
+  - AWS SDK v2 neptune artifact is included for future management operations but data queries use java.net.http.HttpClient
+RISKS:
+  - S3 Vectors REST API endpoint format may differ from assumed pattern; adjust vectorsEndpoint if needed
+  - Neptune openCypher request/response format may require IAM SigV4 signing in production (not implemented here; handled by infrastructure/runtime layer)
+  - sbt check cannot pass globally due to pre-existing entity-resolution formatting issues
+MANUAL ACTION REQUIRED:
+  - entity-resolution-engineer must fix scalafmt in modules/entity-resolution/ before sbt check passes globally
+BLOCKED-ON OWNER: entity-resolution-engineer (for sbt check to pass globally)
+BLOCKED-ON EVIDENCE: sbt check fails with "scalafmt: 9 files must be formatted (/modules/entity-resolution)" and "scalafmt: 7 files must be formatted (/modules/entity-resolution)"
+NEXT GATE: contract tests and bounded load test
+```
+
+**Summary of what was implemented:**
+
+**Schemas / DynamoDB tables** (5 entry types, all with `attribute_not_exists` conditional puts for idempotency):
+- `RunLedgerEntry` — PK: runId
+- `EntityLinkCacheEntry` — PK: sourceId, SK: targetId, with TTL attribute
+- `QuerySessionEntry` — PK: queryId
+- `EvidenceBundleEntry` — PK: bundleId
+- `ArtifactRegistryEntry` — PK: artifactId
+
+**S3 Vectors indexes** (5):
+- researcher-profile-v1, collaboration-community-v1, paper-abstract-v1, collaboration-path-v1, topic-institution-summary-v1
+
+**Key design decisions:**
+- All Neptune queries use parameterized openCypher (no string concatenation of user values)
+- Depth bounded 1-10 for shortest path, 1-3 for neighbors; limit bounded 1-500
+- S3 putIfChanged uses HEAD + ETag comparison to skip redundant writes
+- S3 putObject attaches SHA-256 content hash as object metadata
+- S3 Vectors putVectors uses exponential backoff retry (up to maxRetries, configurable)
+- DynamoDB uses upickle JSON in a single `jsonData` string attribute alongside indexed key attributes
+- All config values loaded from HOCON `reference.conf` with environment variable overrides
+````

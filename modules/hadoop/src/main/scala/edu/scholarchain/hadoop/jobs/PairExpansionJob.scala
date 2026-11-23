@@ -25,6 +25,13 @@ import upickle.default.*
 object PairExpansionJob:
   val JobName = "pair-expansion"
 
+  /**
+   * True for the author-paper JSON lines written by J06 (TeamExtractionJob.authorPaperJson), which
+   * share J06's output directory with PublicationTeam records.
+   */
+  def isAuthorPaperRecord(json: ujson.Value): Boolean =
+    json.objOpt.exists(o => o.contains("mention_id") && o.contains("work_id"))
+
   /** Generate all unordered pairs from a PublicationTeam. */
   def expandPairs(
     team: PublicationTeam,
@@ -82,7 +89,18 @@ class PairExpansionMapper extends Mapper[LongWritable, Text, Text, NullWritable]
     val timestamp = java.time.Instant.now.toString
 
     try
-      val team = read[PublicationTeam](line)
+      val json = ujson.read(line)
+      // J06 output interleaves author-paper records with team records; skip them explicitly
+      // so they are not miscounted as rejected input.
+      if PairExpansionJob.isAuthorPaperRecord(json) then
+        context
+          .getCounter(
+            HadoopCounters.PairGroup,
+            HadoopCounters.SkippedAuthorPaperRecords
+          )
+          .increment(1)
+        return
+      val team = read[PublicationTeam](json)
 
       context
         .getCounter(
@@ -130,6 +148,9 @@ class PairExpansionMapper extends Mapper[LongWritable, Text, Text, NullWritable]
         context
           .getCounter(HadoopCounters.SharedGroup, HadoopCounters.Rejected)
           .increment(1)
+        context
+          .getCounter(HadoopCounters.RejectReasonGroup, "UNPARSEABLE_TEAM")
+          .increment(1)
 
 class PairExpansionTool extends Configured with Tool:
 
@@ -167,4 +188,4 @@ class PairExpansionTool extends Configured with Tool:
       new org.apache.hadoop.fs.Path(args(1))
     )
 
-    if job.waitForCompletion(true) then 0 else 1
+    edu.scholarchain.hadoop.driver.JobCompletion.waitAndReport(job)

@@ -4,8 +4,8 @@ package edu.scholarchain.services
 object ErrorHandler:
 
   def toErrorResponse(
-      e: Throwable,
-      traceId: String
+    e: Throwable,
+    traceId: String
   ): (Int, ErrorResponse) =
     e match
       case e: BadRequestException =>

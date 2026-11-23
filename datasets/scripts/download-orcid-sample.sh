@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: superseded by datasets/scripts/enrich_fetch.py orcid (bounded to orcid-candidates.txt; dry run by default). Do not use.
 # download-orcid-sample.sh
 # Owner: dataset-engineer
 # Provenance: ScholarChain dataset acquisition pipeline

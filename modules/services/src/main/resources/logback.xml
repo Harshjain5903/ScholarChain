@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ScholarChain services runtime logging (ECS Fargate -> CloudWatch Logs).
+
+  Security: the AWS SDK v2 SigV4 signer
+  (software.amazon.awssdk.http.auth.aws.internal.signer.DefaultV4RequestSigner)
+  logs the canonical request at DEBUG, including x-amz-security-token when
+  task-role session credentials are used. The AWS SDK, Apache HttpClient wire
+  and Netty loggers are therefore pinned to WARN with explicit levels. Explicit
+  logger levels are not inherited from root, so overriding the root level via
+  SCHOLARCHAIN_LOG_LEVEL (e.g. to DEBUG) does not lower them.
+
+  Output: one JSON object per line (logback's built-in JsonEncoder, no extra
+  dependencies), which CloudWatch Logs Insights parses natively.
+
+  MDC: the services module does not currently populate MDC (traceId is carried
+  in ErrorResponse bodies only). JsonEncoder emits any MDC entries that are
+  added later, so no pattern change is needed when that happens.
+-->
+<configuration scan="false">
+  <appender name="JSON_STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="ch.qos.logback.classic.encoder.JsonEncoder">
+      <withSequenceNumber>false</withSequenceNumber>
+      <withNanoseconds>false</withNanoseconds>
+      <withContext>false</withContext>
+      <withArguments>false</withArguments>
+      <withFormattedMessage>true</withFormattedMessage>
+      <withMessage>false</withMessage>
+    </encoder>
+  </appender>
+
+  <!-- Secret-bearing loggers: never below WARN, regardless of root level. -->
+  <logger name="software.amazon.awssdk" level="WARN"/>
+  <logger name="software.amazon.awssdk.request" level="WARN"/>
+  <logger name="software.amazon.awssdk.http.auth.aws.internal.signer" level="WARN"/>
+  <logger name="org.apache.http.wire" level="WARN"/>
+  <logger name="org.apache.http.headers" level="WARN"/>
+  <logger name="io.netty" level="WARN"/>
+
+  <root level="${SCHOLARCHAIN_LOG_LEVEL:-INFO}">
+    <appender-ref ref="JSON_STDOUT"/>
+  </root>
+</configuration>

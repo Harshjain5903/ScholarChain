@@ -1,0 +1,25 @@
+{
+  "code_version": "7638fde+uncommitted",
+  "description": "verbatim copy of dblp.dtd (CC0 1.0 header) so the sample parses offline",
+  "generated_at_utc": "2026-11-22T20:05:11Z",
+  "inputs": [
+    {
+      "path": "datasets/raw/dblp/snapshot=2026-11-16/dblp.dtd",
+      "sha256": "2d864498f9eef9298662df11e3874171ff24cd4a21ab5974f1369c90acdb1ef6",
+      "size_bytes": 13134
+    }
+  ],
+  "output": {
+    "path": "datasets/samples/dblp/dblp.dtd",
+    "sha256": "2d864498f9eef9298662df11e3874171ff24cd4a21ab5974f1369c90acdb1ef6",
+    "size_bytes": 13134
+  },
+  "producer": "dataset-engineer",
+  "rule": "Eligibility (fixed order, first failing reason counted): (1) top-level record type is article or inproceedings; (2) key attribute present and non-empty; (3) key unique among all top-level records in the dump; (4) title text (all character data inside <title>, inline markup flattened, entities resolved) non-empty after trimming; (5) first <year> is all ASCII digits; (6) at least 2 <author> children; (7) at least one <ee> whose value is an http(s)://[www.][dx.]doi.org/ URL (else no_doi_org_ee); (8) for the first such <ee> in document order yielding a valid DOI: canonical DOI = strip URL prefix, percent-decode, trim, lowercase; it must start with '10.' and contain no whitespace (else doi_invalid). DOI de-duplication: among eligible records sharing a canonical DOI, keep only the record with the smallest rank (rank = sha256(seed + '|' + key) hex); the others leave the pool. Selection: for each size N, allocate N across publication years in proportion to the de-duplicated pool counts using the largest-remainder method (remainder ties broken by ascending year); each smaller size is additionally capped per year by the allocation of the next larger size. Within each year take the a(year) records with the smallest rank. Never 'first N records'. Smaller selections are subsets of larger ones.",
+  "script": {
+    "name": "dblp_sample.py",
+    "version": "1.0.0"
+  },
+  "seed": "scholarchain-dblp-2026-11-16",
+  "source_dataset": "dblp"
+}

@@ -1,0 +1,681 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE dblp SYSTEM "dblp.dtd">
+<dblp>
+<inproceedings mdate="2017-05-23" key="conf/trust/LiR10">
+<author>Jiangtao Li 0001</author>
+<author>Anand Rajan</author>
+<title>An Anonymous Attestation Scheme with Optional Traceability.</title>
+<pages>196-210</pages>
+<year>2010</year>
+<booktitle>TRUST</booktitle>
+<ee>https://doi.org/10.1007/978-3-642-13869-0_13</ee>
+<crossref>conf/trust/2010</crossref>
+<url>db/conf/trust/trust2010.html#LiR10</url>
+</inproceedings>
+<inproceedings mdate="2025-12-25" key="conf/icinco/GunnarssonNSP18">
+<author>Gudmundur G. Gunnarsson</author>
+<author>Ole W. Nielsen</author>
+<author orcid="0000-0003-1676-4374">Christian Schlette</author>
+<author orcid="0000-0002-0425-170X">Henrik Gordon Petersen</author>
+<title>Fast and Simple Interacting Models of Drape Tool and Ply Material for Handling Free Hanging, Pre-impregnated Carbon Fibre Material.</title>
+<pages>1-25</pages>
+<year>2018</year>
+<booktitle>ICINCO (Selected Papers)</booktitle>
+<ee>https://doi.org/10.1007/978-3-030-31993-9_1</ee>
+<crossref>conf/icinco/2018s</crossref>
+<url>db/conf/icinco/icinco2018s.html#GunnarssonNSP18</url>
+</inproceedings>
+<inproceedings mdate="2020-10-25" key="conf/acit2/KawaiON15">
+<author>Ayako Kawai</author>
+<author orcid="0000-0001-7785-8468">Akitsu Oe</author>
+<author>Keiichi Noda</author>
+<title>Application of an Unbalanced-SNS to a Cross-Platform Online SCM Game: Promotion of Organizational Learning through Knowledge Sharing in a Supply Chain.</title>
+<pages>260-267</pages>
+<year>2015</year>
+<booktitle>ACIT-CSI</booktitle>
+<ee>https://doi.org/10.1109/ACIT-CSI.2015.54</ee>
+<crossref>conf/acit2/2015</crossref>
+<url>db/conf/acit2/acit2015.html#KawaiON15</url>
+</inproceedings>
+<inproceedings mdate="2022-12-07" key="conf/chi/NeshatiRFBLI21">
+<author>Ali Neshati</author>
+<author>Bradley Rey</author>
+<author>Ahmed Shariff Mohommed Faleel</author>
+<author>Sandra Bardot</author>
+<author orcid="0000-0002-2132-0092">Celine Latulipe</author>
+<author>Pourang Irani</author>
+<title>BezelGlide: Interacting with Graphs on Smartwatches with Minimal Screen Occlusion.</title>
+<pages>501:1-501:13</pages>
+<year>2021</year>
+<booktitle>CHI</booktitle>
+<ee>https://doi.org/10.1145/3411764.3445201</ee>
+<crossref>conf/chi/2021</crossref>
+<url>db/conf/chi/chi2021.html#NeshatiRFBLI21</url>
+</inproceedings>
+<inproceedings mdate="2026-10-15" key="conf/icra/GuzeyQUWYBLPRMWSB26">
+<author>Irmak Guzey</author>
+<author>Haozhi Qi</author>
+<author>Julen Urain</author>
+<author>Changhao Wang</author>
+<author>Jessica Yin</author>
+<author>Krishna Bodduluri</author>
+<author>Mike Lambeta</author>
+<author>Lerrel Pinto</author>
+<author>Akshara Rai</author>
+<author>Jitendra Malik</author>
+<author>Tingfan Wu</author>
+<author>Akash Sharma</author>
+<author>Homanga Bharadhwaj</author>
+<title>Dexterity from Smart Lenses: Multi-Fingered Robot Manipulation with In-the-Wild Human Demonstrations.</title>
+<booktitle>ICRA</booktitle>
+<year>2026</year>
+<pages>4856-4863</pages>
+<crossref>conf/icra/2026</crossref>
+<ee>https://doi.org/10.1109/ICRA57385.2026.11697220</ee>
+<url>db/conf/icra/icra2026.html#GuzeyQUWYBLPRMWSB26</url>
+<stream>streams/conf/icra</stream>
+</inproceedings>
+<inproceedings mdate="2026-09-17" key="conf/comma/GhodbaneGGC26">
+<author>Youcef Islam Ghodbane</author>
+<author>Yann Gabay</author>
+<author>Gowrishankar Ganesh</author>
+<author>Madalina Croitoru</author>
+<title>ADICT: Argumentative Dialogue Convergence Tracker.</title>
+<pages>532-533</pages>
+<year>2026</year>
+<booktitle>COMMA</booktitle>
+<ee>https://doi.org/10.3233/FAIA260845</ee>
+<crossref>conf/comma/2026</crossref>
+<url>db/conf/comma/comma2026.html#GhodbaneGGC26</url>
+</inproceedings>
+<inproceedings mdate="2026-10-16" key="conf/eccv/LeeLK24">
+<author>Hyunho Lee</author>
+<author orcid="0009-0004-5891-8081">Junhoo Lee</author>
+<author>Nojun Kwak</author>
+<title>Practical Dataset Distillation Based on Deep Support Vectors.</title>
+<pages>1-9</pages>
+<year>2024</year>
+<booktitle>ECCV Workshops (19)</booktitle>
+<ee>https://doi.org/10.1007/978-3-031-93806-1_1</ee>
+<crossref>conf/eccv/2024-w19</crossref>
+<url>db/conf/eccv/eccv2024-w19.html#LeeLK24</url>
+<stream>streams/conf/eccv</stream>
+</inproceedings>
+<inproceedings mdate="2026-04-26" key="conf/ecir/LionisJNTMY26">
+<author orcid="0009-0004-3931-9657">Emmanouil Georgios Lionis</author>
+<author orcid="0000-0003-2247-3370">Jia-Huei Ju</author>
+<author orcid="0000-0002-1505-4656">Angelos Nalmpantis</author>
+<author orcid="0009-0006-8602-9665">Casper Thuis</author>
+<author orcid="0000-0002-8914-2659">Sean MacAvaney</author>
+<author orcid="0000-0002-5970-880X">Andrew Yates</author>
+<title>To Case or Not to Case: An Empirical Study in Learned Sparse Retrieval.</title>
+<booktitle>ECIR (1)</booktitle>
+<year>2026</year>
+<pages>512-528</pages>
+<crossref>conf/ecir/2026-1</crossref>
+<ee>https://doi.org/10.1007/978-3-032-21289-4_33</ee>
+<url>db/conf/ecir/ecir2026-1.html#LionisJNTMY26</url>
+<stream>streams/conf/ecir</stream>
+</inproceedings>
+<inproceedings mdate="2022-10-02" key="conf/lifetech/HikaruKOHT22">
+<author>Hatta Hikaru</author>
+<author>Shimojo Keijiro</author>
+<author orcid="0000-0001-5076-8980">Shima Okada</author>
+<author>Koichiro Hiromatsu</author>
+<author>Nanako Takeda</author>
+<title>The Relaxation Effect of Music and Natural Sounds.</title>
+<pages>198-199</pages>
+<year>2022</year>
+<booktitle>LifeTech</booktitle>
+<ee>https://doi.org/10.1109/LifeTech53646.2022.9754777</ee>
+<crossref>conf/lifetech/2022</crossref>
+<url>db/conf/lifetech/lifetech2022.html#HikaruKOHT22</url>
+</inproceedings>
+<inproceedings mdate="2023-03-24" key="conf/hicss/DarcyM05">
+<author>David P. Darcy</author>
+<author>Meng (Jessie) Ma</author>
+<title>Exploring Individual Characteristics and Programming Performance: Implications for Programmer Selection.</title>
+<year>2005</year>
+<crossref>conf/hicss/2005</crossref>
+<booktitle>HICSS</booktitle>
+<ee>https://doi.org/10.1109/HICSS.2005.261</ee>
+<ee>https://doi.ieeecomputersociety.org/10.1109/HICSS.2005.261</ee>
+<url>db/conf/hicss/hicss2005.html#DarcyM05</url>
+</inproceedings>
+<inproceedings mdate="2026-02-19" key="conf/racs/JungCP16">
+<author>Sungbo Jung</author>
+<author>Dar-Jen Chang</author>
+<author>Juw Won Park</author>
+<title>Parallel Document Inversion using GPU.</title>
+<pages>236-242</pages>
+<year>2016</year>
+<booktitle>RACS</booktitle>
+<ee type="oa">https://doi.org/10.1145/2987386.2987438</ee>
+<ee>https://www.wikidata.org/entity/Q131123016</ee>
+<crossref>conf/racs/2016</crossref>
+<url>db/conf/racs/racs2016.html#JungCP16</url>
+</inproceedings>
+<inproceedings mdate="2024-07-24" key="conf/iwqos/YangLG21">
+<author>Qiuying Yang</author>
+<author>Xuan Liu 0001</author>
+<author>Song Guo 0001</author>
+<title>No Wait, No Waste: A Novel and Efficient Coordination Algorithm for Multiple readers in RFID Systems.</title>
+<pages>1-10</pages>
+<year>2021</year>
+<booktitle>IWQoS</booktitle>
+<ee>https://doi.org/10.1109/IWQOS52092.2021.9521273</ee>
+<crossref>conf/iwqos/2021</crossref>
+<url>db/conf/iwqos/iwqos2021.html#YangLG21</url>
+</inproceedings>
+<inproceedings mdate="2023-03-23" key="conf/icoin/ChuangchunsongKKEP14">
+<author>N. Chuangchunsong</author>
+<author orcid="0000-0002-9366-0256">Sinchai Kamolphiwong</author>
+<author>T. Kamolphiwong</author>
+<author>Robert Elz</author>
+<author>Panita Pongpaibool</author>
+<title>Performance evaluation of IPv4/IPv6 transition mechanisms: IPv4-in-IPv6 tunneling techniques.</title>
+<pages>238-243</pages>
+<year>2014</year>
+<booktitle>ICOIN</booktitle>
+<ee>https://doi.org/10.1109/ICOIN.2014.6799698</ee>
+<ee>https://doi.ieeecomputersociety.org/10.1109/ICOIN.2014.6799698</ee>
+<crossref>conf/icoin/2014</crossref>
+<url>db/conf/icoin/icoin2014.html#ChuangchunsongKKEP14</url>
+</inproceedings>
+<inproceedings mdate="2024-05-07" key="conf/icpads/ChiuehGNLSSCLJZHGD02">
+<author>Tzi-cker Chiueh</author>
+<author orcid="0000-0003-1078-4446">Kartik Gopalan</author>
+<author>Anindya Neogi</author>
+<author>Chang Li</author>
+<author>Srikant Sharma</author>
+<author>Sheng-Ming Shan</author>
+<author>Jiawu Chen</author>
+<author>Wei Li 0020</author>
+<author>Nikolai Joukov</author>
+<author>Jie Zhang</author>
+<author>Fu-Hau Hsu</author>
+<author>Fanglu Guo</author>
+<author>Sheng-I Doong</author>
+<title>Sago: A Network Resource Management System for Real-Time Content Distribution.</title>
+<pages>557-562</pages>
+<year>2002</year>
+<crossref>conf/icpads/2002</crossref>
+<booktitle>ICPADS</booktitle>
+<ee>https://doi.org/10.1109/ICPADS.2002.1183456</ee>
+<ee>https://doi.ieeecomputersociety.org/10.1109/ICPADS.2002.1183456</ee>
+<url>db/conf/icpads/icpads2002.html#ChiuehGNLSSCLJZHGD02</url>
+</inproceedings>
+<inproceedings mdate="2023-03-24" key="conf/vlsid/Jose018">
+<author orcid="0000-0002-0314-8778">John Jose</author>
+<author orcid="0000-0002-8912-9657">Abhijit Das 0002</author>
+<title>An Adaptive Deflection Router with Dual Injection and Ejection Units for Mesh NoCs.</title>
+<pages>374-379</pages>
+<year>2018</year>
+<booktitle>VLSID</booktitle>
+<ee>https://doi.org/10.1109/VLSID.2018.93</ee>
+<ee>https://doi.ieeecomputersociety.org/10.1109/VLSID.2018.93</ee>
+<crossref>conf/vlsid/2018</crossref>
+<url>db/conf/vlsid/vlsid2018.html#Jose018</url>
+</inproceedings>
+<inproceedings mdate="2018-11-06" key="conf/cikm/SongLGW13">
+<author>Chunyao Song</author>
+<author>Zheng Li</author>
+<author>Tingjian Ge</author>
+<author>Jie Wang 0002</author>
+<title>Query execution timing: taming real-time anytime queries on multicore processors.</title>
+<pages>2237-2242</pages>
+<year>2013</year>
+<booktitle>CIKM</booktitle>
+<ee>https://doi.org/10.1145/2505515.2505736</ee>
+<crossref>conf/cikm/2013</crossref>
+<url>db/conf/cikm/cikm2013.html#SongLGW13</url>
+</inproceedings>
+<inproceedings mdate="2026-07-21" key="conf/si3d/GodjeG26">
+<author orcid="0009-0008-0852-4892">Maryann Godje</author>
+<author orcid="0000-0001-6444-1858">Javier Gonzalez-Sanchez</author>
+<title>Exploring Real-Time EEG-Based Affective Responses in a Virtual Reality Horror Experience.</title>
+<pages>1-2</pages>
+<year>2026</year>
+<booktitle>I3D Companion</booktitle>
+<ee>https://doi.org/10.1145/3807895.3807924</ee>
+<crossref>conf/si3d/2026c</crossref>
+<url>db/conf/si3d/i3d2026c.html#GodjeG26</url>
+</inproceedings>
+<inproceedings mdate="2022-09-02" key="conf/lpnmr/BistarelliS22">
+<author>Stefano Bistarelli</author>
+<author>Francesco Santini 0001</author>
+<title>A Definition of Sceptical Semantics in the Constellations Approach.</title>
+<pages>62-74</pages>
+<year>2022</year>
+<booktitle>LPNMR</booktitle>
+<ee>https://doi.org/10.1007/978-3-031-15707-3_6</ee>
+<crossref>conf/lpnmr/2022</crossref>
+<url>db/conf/lpnmr/lpnmr2022.html#BistarelliS22</url>
+</inproceedings>
+<inproceedings mdate="2024-09-08" key="conf/iccai/AmadeaRFA24">
+<author orcid="0009-0001-5842-5007">Vania Amadea</author>
+<author orcid="0000-0003-3693-7228">Ema Rachmawati</author>
+<author orcid="0000-0002-7900-9053">Edward Ferdian</author>
+<author orcid="0009-0007-1957-541X">Muhammad Naufal Syawali Akbar</author>
+<title>Defect Detection in Arabica Green Coffee Beans Based on Grade Quality.</title>
+<pages>103-110</pages>
+<year>2024</year>
+<booktitle>ICCAI</booktitle>
+<ee>https://doi.org/10.1145/3669754.3669770</ee>
+<crossref>conf/iccai/2024</crossref>
+<url>db/conf/iccai/iccai2024.html#AmadeaRFA24</url>
+</inproceedings>
+<inproceedings mdate="2017-05-21" key="conf/cost/WildeFKP96">
+<author>Erik Wilde</author>
+<author>Pascal Freiburghaus</author>
+<author>Daniel Koller</author>
+<author>Bernhard Plattner</author>
+<title>A Group and Session Management System for Distributed Multimedia Applications.</title>
+<pages>1-22</pages>
+<year>1996</year>
+<crossref>conf/cost/1996</crossref>
+<booktitle>COST 237 Workshop</booktitle>
+<url>db/conf/cost/cost1996.html#WildeFKP96</url>
+<ee>https://doi.org/10.1007/BFb0020847</ee>
+</inproceedings>
+<inproceedings mdate="2025-07-16" key="conf/ecscw/IlliGM24">
+<author>Mikko Illi</author>
+<author orcid="0000-0003-0803-067X">Robin Gustafsson</author>
+<author>Masood Masoodian</author>
+<title>Collaboration planning using visual landscape metaphors in group meetings.</title>
+<year>2024</year>
+<booktitle>ECSCW</booktitle>
+<ee type="oa">https://doi.org/10.48340/ecscw2024_po03</ee>
+<crossref>conf/ecscw/2024</crossref>
+<url>db/conf/ecscw/ecscw2024.html#IlliGM24</url>
+</inproceedings>
+<inproceedings mdate="2020-11-25" key="conf/cvpr/HoshenLM19">
+<author>Yedid Hoshen</author>
+<author>Ke Li 0011</author>
+<author>Jitendra Malik</author>
+<title>Non-Adversarial Image Synthesis With Generative Latent Nearest Neighbors.</title>
+<pages>5811-5819</pages>
+<year>2019</year>
+<booktitle>CVPR</booktitle>
+<ee type="oa">http://openaccess.thecvf.com/content_CVPR_2019/html/Hoshen_Non-Adversarial_Image_Synthesis_With_Generative_Latent_Nearest_Neighbors_CVPR_2019_paper.html</ee>
+<ee>https://doi.org/10.1109/CVPR.2019.00596</ee>
+<crossref>conf/cvpr/2019</crossref>
+<url>db/conf/cvpr/cvpr2019.html#HoshenLM19</url>
+</inproceedings>
+<inproceedings mdate="2022-12-07" key="conf/iccsa/Abayomi-AlliAVO19">
+<author orcid="0000-0002-3875-1606">Adebayo Abayomi-Alli</author>
+<author orcid="0000-0003-2513-5318">Olusola Abayomi-Alli</author>
+<author orcid="0000-0001-5585-954X">Jeffrey S. Vipperman</author>
+<author>Modupe Odusami</author>
+<author orcid="0000-0002-3556-9331">Sanjay Misra</author>
+<title>Multi-class Classification of Impulse and Non-impulse Sounds Using Deep Convolutional Neural Network (DCNN).</title>
+<pages>359-371</pages>
+<year>2019</year>
+<booktitle>ICCSA (5)</booktitle>
+<ee>https://doi.org/10.1007/978-3-030-24308-1_30</ee>
+<crossref>conf/iccsa/2019-5</crossref>
+<url>db/conf/iccsa/iccsa2019-5.html#Abayomi-AlliAVO19</url>
+</inproceedings>
+<article mdate="2024-10-06" key="journals/tnn/NarendraP90">
+<author orcid="0009-0003-4826-3053">Kumpati S. Narendra</author>
+<author>Kannan Parthasarathy</author>
+<title>Identification and control of dynamical systems using neural networks.</title>
+<pages>4-27</pages>
+<year>1990</year>
+<volume>1</volume>
+<journal>IEEE Trans. Neural Networks</journal>
+<number>1</number>
+<ee>https://doi.org/10.1109/72.80202</ee>
+<ee>https://www.wikidata.org/entity/Q56851045</ee>
+<url>db/journals/tnn/tnn1.html#NarendraP90</url>
+</article>
+<article mdate="2020-05-30" key="journals/tnn/HuGCL19">
+<author>Bin Hu 0008</author>
+<author orcid="0000-0001-7997-0314">Zhi-Hong Guan</author>
+<author orcid="0000-0003-1381-7418">Guanrong Chen</author>
+<author orcid="0000-0003-4074-1615">Frank L. Lewis</author>
+<title>Multistability of Delayed Hybrid Impulsive Neural Networks With Application to Associative Memories.</title>
+<pages>1537-1551</pages>
+<year>2019</year>
+<volume>30</volume>
+<journal>IEEE Trans. Neural Networks Learn. Syst.</journal>
+<number>5</number>
+<ee>https://doi.org/10.1109/TNNLS.2018.2870553</ee>
+<ee>https://www.wikidata.org/entity/Q57180939</ee>
+<url>db/journals/tnn/tnn30.html#HuGCL19</url>
+</article>
+<article mdate="2021-07-25" key="journals/cn/TomassilliLGTSP21">
+<author>Andrea Tomassilli</author>
+<author>Giuseppe Di Lena</author>
+<author orcid="0000-0002-3727-051X">Fr&eacute;d&eacute;ric Giroire</author>
+<author>Issam Tahiri</author>
+<author>Damien Saucez</author>
+<author>St&eacute;phane P&eacute;rennes</author>
+<author orcid="0000-0002-0089-6340">Thierry Turletti</author>
+<author orcid="0000-0002-4862-2226">Ruslan Sadykov</author>
+<author>Fran&ccedil;ois Vanderbeck</author>
+<author orcid="0000-0002-6452-5645">Chidung Lac</author>
+<title>Design of robust programmable networks with bandwidth-optimal failure recovery scheme.</title>
+<pages>108043</pages>
+<year>2021</year>
+<volume>192</volume>
+<journal>Comput. Networks</journal>
+<ee>https://doi.org/10.1016/j.comnet.2021.108043</ee>
+<url>db/journals/cn/cn192.html#TomassilliLGTSP21</url>
+</article>
+<article mdate="2023-08-28" key="journals/appml/FigueiredoM21">
+<author>Giovany M. Figueiredo</author>
+<author>Marcelo Montenegro</author>
+<title>Fast decaying ground states for elliptic equations with exponential nonlinearity.</title>
+<pages>106779</pages>
+<year>2021</year>
+<volume>112</volume>
+<journal>Appl. Math. Lett.</journal>
+<ee>https://doi.org/10.1016/j.aml.2020.106779</ee>
+<ee>https://www.wikidata.org/entity/Q115597776</ee>
+<url>db/journals/appml/appml112.html#FigueiredoM21</url>
+</article>
+<article mdate="2021-05-21" key="journals/cm/NishioSTONKK93">
+<author>Makoto Nishio</author>
+<author>Shuji Suzuki</author>
+<author>Kazuo Takagi</author>
+<author>Ichiro Ogura</author>
+<author>Takahiro Numai</author>
+<author>Kenichi Kasahara</author>
+<author>Kazuhisa Kaede</author>
+<title>A new architecture of photonic ATM switches.</title>
+<pages>62-68</pages>
+<year>1993</year>
+<volume>31</volume>
+<journal>IEEE Commun. Mag.</journal>
+<number>4</number>
+<ee>https://doi.org/10.1109/35.210397</ee>
+<url>db/journals/cm/cm31.html#NishioSTONKK93</url>
+</article>
+<article mdate="2023-08-23" key="journals/iet-ipr/LiangSWWL13">
+<author>Yun Liang 0003</author>
+<author>Zhuo Su 0001</author>
+<author>Chuntao Wang</author>
+<author>Dong Wang 0041</author>
+<author>Xiaonan Luo</author>
+<title>Optimised image retargeting using aesthetic-based cropping and scaling.</title>
+<pages>61-69</pages>
+<year>2013</year>
+<volume>7</volume>
+<journal>IET Image Process.</journal>
+<number>1</number>
+<ee>https://doi.org/10.1049/iet-ipr.2012.0308</ee>
+<url>db/journals/iet-ipr/iet-ipr7.html#LiangSWWL13</url>
+</article>
+<article mdate="2022-03-13" key="journals/dsj/YazdaniCP20">
+<author orcid="0000-0003-2983-7069">Alireza Yazdani 0002</author>
+<author orcid="0000-0003-0513-6735">Eren B. &Ccedil;il</author>
+<author orcid="0000-0002-9356-8038">Michael S. Pangburn</author>
+<title>What if Hotelling's Firms Can Mass Customize?</title>
+<pages>395-422</pages>
+<year>2020</year>
+<volume>51</volume>
+<journal>Decis. Sci.</journal>
+<number>2</number>
+<ee>https://doi.org/10.1111/deci.12428</ee>
+<url>db/journals/dsj/dsj51.html#YazdaniCP20</url>
+</article>
+<article mdate="2020-03-13" key="journals/ijcv/SpetsakisA90">
+<author>Minas E. Spetsakis</author>
+<author>Yiannis Aloimonos</author>
+<title>Structure from motion using line correspondences.</title>
+<pages>171-183</pages>
+<year>1990</year>
+<volume>4</volume>
+<journal>Int. J. Comput. Vis.</journal>
+<number>3</number>
+<ee>https://doi.org/10.1007/BF00054994</ee>
+<url>db/journals/ijcv/ijcv4.html#SpetsakisA90</url>
+</article>
+<article mdate="2025-10-24" key="journals/logcom/MatusiewiczMOR17">
+<author>Andrew Matusiewicz</author>
+<author>Neil V. Murray</author>
+<author>Paul Olsen</author>
+<author>Erik Rosenthal</author>
+<title>Computing prime implicates by pruning the search space and accelerating subsumption.</title>
+<pages>961-983</pages>
+<year>2017</year>
+<volume>27</volume>
+<journal>J. Log. Comput.</journal>
+<number>4</number>
+<ee>https://doi.org/10.1093/logcom/exv071</ee>
+<url>db/journals/logcom/logcom27.html#MatusiewiczMOR17</url>
+</article>
+<article mdate="2021-04-09" key="journals/jscic/Garres-DiazFML21">
+<author orcid="0000-0003-2013-6127">Jos&eacute; Garres-D&iacute;az</author>
+<author>Enrique Domingo Fern&aacute;ndez-Nieto</author>
+<author>Anne Mangeney</author>
+<author orcid="0000-0001-7162-9672">Tom&aacute;s Morales de Luna</author>
+<title>A Weakly Non-hydrostatic Shallow Model for Dry Granular Flows.</title>
+<pages>25</pages>
+<year>2021</year>
+<volume>86</volume>
+<journal>J. Sci. Comput.</journal>
+<number>2</number>
+<ee>https://doi.org/10.1007/s10915-020-01377-9</ee>
+<url>db/journals/jscic/jscic86.html#Garres-DiazFML21</url>
+</article>
+<article mdate="2020-04-25" key="journals/ftdb/Hadjieleftheriou11">
+<author>Marios Hadjieleftheriou</author>
+<author>Divesh Srivastava</author>
+<title>Approximate String Processing.</title>
+<pages>267-402</pages>
+<year>2011</year>
+<volume>2</volume>
+<journal>Found. Trends Databases</journal>
+<number>4</number>
+<ee>https://doi.org/10.1561/1900000010</ee>
+<url>db/journals/ftdb/ftdb2.html#Hadjieleftheriou11</url>
+</article>
+<article mdate="2025-08-12" key="journals/mj/SunYXLWZPWN22">
+<author>Ting Sun</author>
+<author>Qi Yu 0002</author>
+<author>Daiguo Xu</author>
+<author>Jing Li 0022</author>
+<author>Kejun Wu</author>
+<author>Zhong Zhang 0002</author>
+<author>Yun Pang</author>
+<author>Yan Wang 0119</author>
+<author>Ning Ning 0002</author>
+<title>A 12bit 250 MS/s 5.43fJ/conversion-step SAR ADC with adaptive asynchronous logic in 28 nm CMOS.</title>
+<pages>105572</pages>
+<year>2022</year>
+<volume>128</volume>
+<journal>Microelectron. J.</journal>
+<ee>https://doi.org/10.1016/j.mejo.2022.105572</ee>
+<url>db/journals/mj/mj128.html#SunYXLWZPWN22</url>
+</article>
+<article mdate="2024-02-21" key="journals/systems/FordE24">
+<author>LynnDee Ford</author>
+<author>Atila Ertas</author>
+<title>Utilizing a Transdisciplinary (TD) Systems Engineering (SE) Process Model in the Concept Stage: A Case Study to Effectively Understand the Baseline Maturity for a TD SE Learning Program.</title>
+<pages>13</pages>
+<year>2024</year>
+<volume>12</volume>
+<journal>Syst.</journal>
+<number>1</number>
+<ee type="oa">https://doi.org/10.3390/systems12010013</ee>
+<url>db/journals/systems/systems12.html#FordE24</url>
+</article>
+<article mdate="2022-10-02" key="journals/ijpe/KarR21">
+<author orcid="0000-0003-0608-9141">Saurav Shekhar Kar</author>
+<author orcid="0000-0003-4209-6007">Lal Bahadur Roy</author>
+<title>Reliability Analysis of a Finite Slope Considering the Effects of Soil Uncertainty.</title>
+<pages>473-483</pages>
+<year>2021</year>
+<volume>17</volume>
+<journal>Int. J. Perform. Eng.</journal>
+<number>5</number>
+<ee>https://doi.org/10.23940/ijpe.21.05.p7.473483</ee>
+<url>db/journals/ijpe/ijpe17.html#KarR21</url>
+</article>
+<article mdate="2026-09-19" key="journals/at/BlankCDFKLMS14">
+<author>Marita Blank</author>
+<author>Mauro Calabria</author>
+<author>Rene Dietz</author>
+<author>Felix Fuchs</author>
+<author>Thole Klingenberg</author>
+<author orcid="0000-0003-2340-6807">Sebastian Lehnhoff</author>
+<author orcid="0000-0003-4894-357X">Axel Mertens</author>
+<author>Walter Schumacher</author>
+<title>Agentenbasierte Vorhaltung und Erbringung von Prim&auml;rregelleistung.</title>
+<pages>347-363</pages>
+<year>2014</year>
+<volume>62</volume>
+<journal>Autom.</journal>
+<number>5</number>
+<ee>https://doi.org/10.1515/auto-2014-1088</ee>
+<url>db/journals/at/at62.html#BlankCDFKLMS14</url>
+</article>
+<article mdate="2021-10-14" key="journals/jamris/NiewiadomskiK17">
+<author>Karol Niewiadomski</author>
+<author orcid="0000-0001-6128-0788">Grzegorz Kasprowicz</author>
+<title>Implementation of Micro Airborne Radio Relay.</title>
+<pages>77-81</pages>
+<year>2017</year>
+<volume>11</volume>
+<journal>J. Autom. Mob. Robotics Intell. Syst.</journal>
+<number>1</number>
+<ee type="oa">https://doi.org/10.14313/jamris_1-2017/10</ee>
+<url>db/journals/jamris/jamris11.html#NiewiadomskiK17</url>
+</article>
+<article mdate="2024-03-21" key="journals/siamjo/HangS24">
+<author>Nguyen Thi Van Hang</author>
+<author>M. Ebrahim Sarabi</author>
+<title>A Chain Rule for Strict Twice Epi-Differentiability and Its Applications.</title>
+<pages>918-945</pages>
+<year>2024</year>
+<month>March</month>
+<volume>34</volume>
+<journal>SIAM J. Optim.</journal>
+<number>1</number>
+<ee>https://doi.org/10.1137/22m1520025</ee>
+<url>db/journals/siamjo/siamjo34.html#HangS24</url>
+</article>
+<article mdate="2020-09-24" key="journals/complexity/SakthivelAM15">
+<author orcid="0000-0002-5528-2709">Rathinasamy Sakthivel</author>
+<author>Arumugham Arunkumar</author>
+<author orcid="0000-0003-2323-3328">Kalidass Mathiyalagan</author>
+<title>Robust sampled-data <i>H</i><sub>&#8734;</sub> control for mechanical systems.</title>
+<pages>19-29</pages>
+<year>2015</year>
+<volume>20</volume>
+<journal>Complex.</journal>
+<number>4</number>
+<ee>https://doi.org/10.1002/cplx.21509</ee>
+<url>db/journals/complexity/complexity20.html#SakthivelAM15</url>
+</article>
+<article mdate="2020-04-16" key="journals/qip/EspoukehP14">
+<author>Pakhshan Espoukeh</author>
+<author>Pouria Pedram</author>
+<title>Quantum teleportation through noisy channels with multi-qubit GHZ states.</title>
+<pages>1789-1811</pages>
+<year>2014</year>
+<volume>13</volume>
+<journal>Quantum Inf. Process.</journal>
+<number>8</number>
+<ee>https://doi.org/10.1007/s11128-014-0766-2</ee>
+<url>db/journals/qip/qip13.html#EspoukehP14</url>
+</article>
+<article mdate="2026-04-15" key="journals/corr/abs-2603-21466" publtype="informal">
+<author>Nakyung Lee</author>
+<author>Soobin Cho</author>
+<author>Jiwoong Park</author>
+<author>Gyuyeong Kim</author>
+<title>GateANN: I/O-Efficient Filtered Vector Search on SSDs.</title>
+<year>2026</year>
+<month>March</month>
+<volume>abs/2603.21466</volume>
+<journal>CoRR</journal>
+<ee type="oa">https://doi.org/10.48550/arXiv.2603.21466</ee>
+<url>db/journals/corr/corr2603.html#abs-2603-21466</url>
+<stream>streams/journals/corr</stream>
+</article>
+<article mdate="2022-06-14" key="journals/corr/abs-2206-04330" publtype="informal">
+<author>Jonathan Dunn</author>
+<author>Haipeng Li</author>
+<author>Damian Sastre</author>
+<title>Predicting Embedding Reliability in Low-Resource Settings Using Corpus Similarity Measures.</title>
+<year>2022</year>
+<volume>abs/2206.04330</volume>
+<journal>CoRR</journal>
+<ee type="oa">https://doi.org/10.48550/arXiv.2206.04330</ee>
+<url>db/journals/corr/corr2206.html#abs-2206-04330</url>
+</article>
+<article mdate="2026-10-01" key="journals/corr/abs-2111-07153" publtype="informal">
+<author>Karthika Subramani</author>
+<author>Jordan Jueckstock</author>
+<author>Alexandros Kapravelos</author>
+<author>Roberto Perdisci</author>
+<title>Categorizing Service Worker Attacks and Mitigations.</title>
+<year>2021</year>
+<volume>abs/2111.07153</volume>
+<journal>CoRR</journal>
+<ee type="oa">https://doi.org/10.48550/arXiv.2111.07153</ee>
+<url>db/journals/corr/corr2111.html#abs-2111-07153</url>
+</article>
+<article mdate="2024-10-21" key="journals/corr/abs-2409-16450" publtype="informal">
+<author>Talha Bozkus</author>
+<author>Urbashi Mitra</author>
+<title>A Multi-Agent Multi-Environment Mixed Q-Learning for Partially Decentralized Wireless Network Optimization.</title>
+<year>2024</year>
+<volume>abs/2409.16450</volume>
+<journal>CoRR</journal>
+<ee type="oa">https://doi.org/10.48550/arXiv.2409.16450</ee>
+<url>db/journals/corr/corr2409.html#abs-2409-16450</url>
+<stream>streams/journals/corr</stream>
+</article>
+<article mdate="2025-10-16" key="journals/corr/abs-2509-14602" publtype="informal">
+<author>Krishna Yamanappa Poojara</author>
+<author>Sabhrant Sachan</author>
+<author>Ambuj Pandey</author>
+<title>Decay of Chebyshev coefficients and error estimates of associated quadrature on shrinking intervals.</title>
+<year>2025</year>
+<month>September</month>
+<volume>abs/2509.14602</volume>
+<journal>CoRR</journal>
+<ee type="oa">https://doi.org/10.48550/arXiv.2509.14602</ee>
+<url>db/journals/corr/corr2509.html#abs-2509-14602</url>
+<stream>streams/journals/corr</stream>
+</article>
+<article mdate="2026-10-01" key="journals/corr/ChoiMS15" publtype="informal">
+<author>Heejin Choi</author>
+<author>Ofer Meshi</author>
+<author>Nathan Srebro</author>
+<title>Fast and Scalable Structural SVM with Slack Rescaling.</title>
+<year>2015</year>
+<volume>abs/1510.06002</volume>
+<journal>CoRR</journal>
+<ee type="oa">https://doi.org/10.48550/arXiv.1510.06002</ee>
+<url>db/journals/corr/corr1510.html#ChoiMS15</url>
+</article>
+<article mdate="2026-10-01" key="journals/corr/abs-2103-02993" publtype="informal">
+<author>Panagiotis Tzirakis</author>
+<author>Anh Nguyen 0003</author>
+<author>Stefanos Zafeiriou</author>
+<author>Bj&ouml;rn W. Schuller</author>
+<title>Speech Emotion Recognition using Semantic Information.</title>
+<year>2021</year>
+<volume>abs/2103.02993</volume>
+<journal>CoRR</journal>
+<ee type="oa">https://doi.org/10.48550/arXiv.2103.02993</ee>
+<url>db/journals/corr/corr2103.html#abs-2103-02993</url>
+</article>
+<article mdate="2026-10-01" key="journals/corr/abs-1910-03798" publtype="informal">
+<author>Hossein Esfandiari</author>
+<author>Mohammad Taghi Hajiaghayi</author>
+<author>Brendan Lucier</author>
+<author>Michael Mitzenmacher</author>
+<title>Prophets, Secretaries, and Maximizing the Probability of Choosing the Best.</title>
+<year>2019</year>
+<volume>abs/1910.03798</volume>
+<journal>CoRR</journal>
+<ee type="oa">https://doi.org/10.48550/arXiv.1910.03798</ee>
+<url>db/journals/corr/corr1910.html#abs-1910-03798</url>
+</article>
+</dblp>

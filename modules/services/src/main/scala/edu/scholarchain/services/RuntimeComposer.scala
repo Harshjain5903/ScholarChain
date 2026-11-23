@@ -11,8 +11,8 @@ object RuntimeComposer:
     val stubWorkflow = new WorkflowPort:
 
       def execute(
-          question: String,
-          constraints: Map[String, String]
+        question: String,
+        constraints: Map[String, String]
       ): WorkflowResult =
         val now     = java.time.Instant.now().toString
         val queryId = s"q-${java.util.UUID.randomUUID()}"
@@ -36,8 +36,7 @@ object RuntimeComposer:
           queryId = queryId,
           claims = Vector.empty,
           evidenceBundle = bundle,
-          generatedText =
-            s"Stub answer for: $question",
+          generatedText = s"Stub answer for: $question",
           provenance = prov
         )
         val audit = AuditRecord(
@@ -55,10 +54,10 @@ object RuntimeComposer:
     val stubGraph = new ServiceGraphStore:
 
       def getNeighbors(
-          nodeId: String,
-          edgeTypes: Vector[String],
-          depth: Int,
-          limit: Int
+        nodeId: String,
+        edgeTypes: Vector[String],
+        depth: Int,
+        limit: Int
       ): Vector[GraphNode] = Vector.empty
 
     val stubAudit = new ServiceAuditStore:

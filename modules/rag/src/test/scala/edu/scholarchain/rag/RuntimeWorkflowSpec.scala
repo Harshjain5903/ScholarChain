@@ -6,6 +6,8 @@ import org.scalatest.matchers.should.Matchers
 
 class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
 
+  private val TestGenerationModel = "test-generation-model"
+
   private val testProv =
     Provenance("test", "rec-1", "run-1", "v1", "2026-01-01T00:00:00Z")
 
@@ -503,11 +505,17 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
       metricsAgent = new CollaborationMetricsAgent(metricsStore),
       pathFinder = new PathFinderAgent(graphStore),
       community = new CommunityAnalystAgent(metricsStore, graphStore),
-      semantic = new SemanticContextAgent(vectorStore, textStore),
+      semantic = new SemanticContextAgent(
+        vectorStore,
+        textStore,
+        new TestEmbedders.FakeQueryEmbedder(),
+        TestEmbedders.defaultEmbeddingConfig
+      ),
       evidenceBuilder = new EvidenceBuilderAgent,
       synthesis = new AnswerSynthesisAgent(llmClient),
       verification = new ClaimVerificationAgent,
-      audit = auditStore
+      audit = auditStore,
+      generationModelId = TestGenerationModel
     )
 
     val result = workflow.execute(
@@ -537,11 +545,17 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
       metricsAgent = new CollaborationMetricsAgent(metricsStore),
       pathFinder = new PathFinderAgent(graphStore),
       community = new CommunityAnalystAgent(metricsStore, graphStore),
-      semantic = new SemanticContextAgent(vectorStore, textStore),
+      semantic = new SemanticContextAgent(
+        vectorStore,
+        textStore,
+        new TestEmbedders.FakeQueryEmbedder(),
+        TestEmbedders.defaultEmbeddingConfig
+      ),
       evidenceBuilder = new EvidenceBuilderAgent,
       synthesis = new AnswerSynthesisAgent(llmClient),
       verification = new ClaimVerificationAgent,
-      audit = auditStore
+      audit = auditStore,
+      generationModelId = TestGenerationModel
     )
 
     val result = workflow.execute(
@@ -551,4 +565,61 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
 
     result.response.claims should not be empty
     result.auditRecord.resolvedIds shouldBe empty
+  }
+
+  private def workflowWith(
+    semantic: SemanticContextAgent,
+    auditStore: FakeAuditStore
+  ): RuntimeWorkflow =
+    val lookup       = new FakeResearcherLookup(Map("Alice Smith" -> Vector(aliceResearcher)))
+    val metricsStore = new FakeMetricsStore(Map("R001" -> aliceMetrics))
+    val graphStore   = new FakeGraphStore(members = Map("comm-1" -> Vector("R001")))
+    val validJson =
+      """[{"claimId":"c1","statement":"Alice has 42 publications.","confidence":0.95,"supportingEvidence":["ev-metric-R001"]}]"""
+    new RuntimeWorkflow(
+      planner = new QueryPlannerAgent,
+      resolver = new ResearcherResolverAgent(lookup),
+      metricsAgent = new CollaborationMetricsAgent(metricsStore),
+      pathFinder = new PathFinderAgent(graphStore),
+      community = new CommunityAnalystAgent(metricsStore, graphStore),
+      semantic = semantic,
+      evidenceBuilder = new EvidenceBuilderAgent,
+      synthesis = new AnswerSynthesisAgent(new FakeLlmClient(validJson)),
+      verification = new ClaimVerificationAgent,
+      audit = auditStore,
+      generationModelId = TestGenerationModel
+    )
+
+  it should "record the configured generation model id in the audit record" in {
+    val auditStore = new FakeAuditStore
+    val semantic = new SemanticContextAgent(
+      new FakeVectorStore,
+      new FakeTextStore,
+      new TestEmbedders.FakeQueryEmbedder(),
+      TestEmbedders.defaultEmbeddingConfig
+    )
+    val result = workflowWith(semantic, auditStore)
+      .execute("How many coauthors does \"Alice Smith\" have?", Map.empty)
+    result.auditRecord.modelVersion shouldBe TestGenerationModel
+    result.auditRecord.verificationSummary should not include "semanticAbstained"
+  }
+
+  it should "exclude vector neighbours and audit the reason on embedding model mismatch" in {
+    val auditStore  = new FakeAuditStore
+    val vectorStore = new TestEmbedders.RecordingVectorStore
+    val semantic = new SemanticContextAgent(
+      vectorStore,
+      new FakeTextStore,
+      new TestEmbedders.FakeQueryEmbedder(),
+      TestEmbedders.config(queryModel = "voyage-x")
+    )
+    val result = workflowWith(semantic, auditStore)
+      .execute("How many coauthors does \"Alice Smith\" have?", Map.empty)
+
+    vectorStore.queries shouldBe empty
+    result.response.evidenceBundle.items
+      .map(_.evidenceType) should not contain EvidenceType.TextChunk
+    result.auditRecord.verificationSummary should include(
+      "semanticAbstained=EMBEDDING_MODEL_MISMATCH"
+    )
   }

@@ -86,20 +86,20 @@ class QueryPlannerAgent:
       "\\{",
       "\\}"
     )
-    dangerousPatterns.foldLeft(input) { (text, pattern) =>
-      text.replaceAll(pattern, " ")
-    }.trim
+    dangerousPatterns
+      .foldLeft(input) { (text, pattern) =>
+        text.replaceAll(pattern, " ")
+      }
+      .trim
 
   private def extractYearFilters(
-      years: Vector[Int],
-      constraints: Map[String, String]
+    years: Vector[Int],
+    constraints: Map[String, String]
   ): Map[String, String] =
-    if years.size >= 2 then
-      Map("yearFrom" -> years.head.toString, "yearTo" -> years.last.toString)
+    if years.size >= 2 then Map("yearFrom" -> years.head.toString, "yearTo" -> years.last.toString)
     else if years.size == 1 then
-      if constraints.contains("yearTo") then
-        Map("yearFrom" -> years.head.toString)
-      else Map("yearFrom" -> years.head.toString)
+      if constraints.contains("yearTo") then Map("yearFrom" -> years.head.toString)
+      else Map("yearFrom"                                   -> years.head.toString)
     else Map.empty
 
   private val quotedNamePattern = "\"([^\"]+)\"".r

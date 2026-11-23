@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE dblp SYSTEM "dblp.dtd">
+<dblp>
+<article mdate="2024-01-02" key="journals/syn/Good1">
+<author>Anna K&ouml;nig</author>
+<author>Bo Café</author>
+<title>K&ouml;ln <i>graphs</i> café.</title>
+<year>2020</year>
+<journal>J. Synth.</journal>
+<ee>https://doi.org/10.1000/ABC%2F1</ee>
+</article><inproceedings mdate="2025-03-04" key="conf/syn/Good2">
+<author>C One</author>
+<author>D Two</author>
+<author>E Three</author>
+<title>Second paper.</title>
+<year>2021</year>
+<booktitle>SYNCONF</booktitle>
+<ee>http://dx.doi.org/10.2000/Conf.2</ee>
+</inproceedings>
+<proceedings mdate="2020-01-01" key="conf/syn/2021">
+<title>Proceedings.</title>
+<year>2021</year>
+<ee>https://doi.org/10.2000/proc</ee>
+</proceedings>
+<article mdate="2020-01-01">
+<author>A</author>
+<author>B</author>
+<title>No key.</title>
+<year>2020</year>
+<ee>https://doi.org/10.1000/nokey</ee>
+</article>
+<article mdate="2020-01-01" key="journals/syn/Dup">
+<author>A</author>
+<author>B</author>
+<title>Dup one.</title>
+<year>2020</year>
+<ee>https://doi.org/10.1000/dup1</ee>
+</article>
+<article mdate="2020-01-01" key="journals/syn/Dup">
+<author>A</author>
+<title></title>
+<year>2020</year>
+</article>
+<article mdate="2020-01-01" key="journals/syn/NoTitle">
+<author>A</author>
+<title>  </title>
+<year>2020</year>
+</article>
+<article mdate="2020-01-01" key="journals/syn/BadYear">
+<author>A</author>
+<title>Bad year.</title>
+<year>19xx</year>
+</article>
+<article mdate="2020-01-01" key="journals/syn/OneAuthor">
+<author>A</author>
+<title>One author.</title>
+<year>2020</year>
+</article>
+<article mdate="2020-01-01" key="journals/syn/NoDoi">
+<author>A</author>
+<author>B</author>
+<title>No DOI.</title>
+<year>2020</year>
+<ee>https://arxiv.org/abs/2001.00001</ee>
+</article>
+<article mdate="2020-01-01" key="journals/syn/BadDoi">
+<author>A</author>
+<author>B</author>
+<title>Bad DOI.</title>
+<year>2020</year>
+<ee>https://doi.org/abc/def</ee>
+</article>
+<www mdate="2026-11-10" key="homepages/syn/a">
+<author>A</author>
+<title>Home Page</title>
+</www>
+<article mdate="2020-01-01" key="journals/syn/Good3">
+<author>A</author>
+<author>B</author>
+<title>Third.</title>
+<year>2022</year>
+<journal>J. Synth.</journal>
+<ee>https://doi.org/not-a-doi</ee>
+<ee>http://www.doi.org/10.3000/XYZ</ee>
+</article>
+<article mdate="2020-01-01" key="journals/syn/Good1b">
+<author>A</author>
+<author>B</author>
+<title>Same DOI as Good1.</title>
+<year>2020</year>
+<journal>J. Synth.</journal>
+<ee>https://doi.org/10.1000/abc/1</ee>
+</article>
+</dblp>

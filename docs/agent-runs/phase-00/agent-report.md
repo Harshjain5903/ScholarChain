@@ -31,3 +31,31 @@ I made both edits to factory-engineer.md and changed nothing else. The file isn'
 ```
 
 One side effect: the next sentence calls everything in that list a "constitutional file," so the README now counts as one too. That means every change to it will need your approval.
+
+
+## 14-field report (RECONSTRUCTED 2026-11-23 from transcripts and Git; Phase 0 had no subagent)
+
+Phase 0 was carried out by the plain orchestrator session, as the professor's Phase 0 work order requires, so no
+subagent report exists. The fields below are filled only from recorded sources; anything not recorded says so.
+
+```text
+STATUS: COMPLETE (per the human gate; accepted after repair-01)
+OWNER: orchestrator (plain Claude Code session; seed phase)
+WORK ORDER: create exactly one file, .claude/agents/factory-engineer.md (prompt.md, "Original prompt"), then repair per "Repair prompt"
+FILES CREATED: .claude/agents/factory-engineer.md
+FILES MODIFIED: .claude/agents/factory-engineer.md (repair-01, two lines)
+COMMANDS RUN: git add -N / git diff to display the new file (session c97c6199-fabf-4818-b587-901559a847e8, 2026-11-17T14:25Z)
+TEST RESULTS: none (no build exists in Phase 0)
+VALIDATION RESULTS: human line-by-line review (human-gate.md); no automated validation recorded
+ASSUMPTIONS: NOT RECORDED
+RISKS: law 9 is a written rule until hooks exist; docs/agent-runs/README.md became constitutional (human-gate.md)
+MANUAL ACTION REQUIRED: human review, commit, restart before Phase 1 (recorded in the first reply above)
+BLOCKED-ON OWNER: none
+BLOCKED-ON EVIDENCE: none
+NEXT GATE: human ratification, commit 482bc6bb90acbc83f91d81879051056975d8c4c3, restart
+```
+
+Earlier attempt, disclosed: session `a91f884d-6031-4e4a-97a5-5c48fe36543a` (2026-11-16T22:45Z) also wrote a factory-engineer.md and edited
+it; at 2026-11-17T12:42Z the human asked to remove that work and start over. Session `157095c4-e9d5-42db-a74d-7f679ac7492c` (12:46Z) wrote
+the file again; at 2026-11-17T13:00:12Z the human asked that session to remove everything, and it ran `rm -rf docs` and
+deleted its memory files at 13:00:21Z. Session `c97c6199-fabf-4818-b587-901559a847e8` holds the prompt and repair recorded in `prompt.md`.

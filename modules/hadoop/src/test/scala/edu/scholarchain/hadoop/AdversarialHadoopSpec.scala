@@ -152,7 +152,7 @@ class AdversarialHadoopSpec extends AnyFlatSpec with Matchers:
       provenance = prov
     )
 
-    val pairs = PairExpansionJob.expandPairs(team, runId, schemaVer, ts)
+    val pairs         = PairExpansionJob.expandPairs(team, runId, schemaVer, ts)
     val expectedCount = n * (n - 1) / 2
     pairs.size shouldBe expectedCount
   }

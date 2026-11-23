@@ -58,3 +58,11 @@ No blocking findings. No critical or major defects.
 **APPROVE**
 
 No production code edits made. All findings are non-blocking nits.
+
+
+## Review provenance (RECONSTRUCTED 2026-11-23)
+
+No code-reviewer invocation for Phase 7 appears in any saved session transcript, and no reviewer verdict text appears
+in the orchestrator's messages. The evidence commit `0c3f9f5` that added this file is authored by "Claude" with a
++0000 timezone and was not created by any saved local session. **Who produced this review, and whether it was
+independent, is NOT RECORDED.**

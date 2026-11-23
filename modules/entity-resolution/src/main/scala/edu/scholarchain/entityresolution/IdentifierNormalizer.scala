@@ -60,12 +60,50 @@ object IdentifierNormalizer:
    * punctuation.
    */
   def normalizeName(raw: String): String =
-    val nfkd     = java.text.Normalizer.normalize(raw, java.text.Normalizer.Form.NFKD)
+    val transliterated = transliterate(raw.toLowerCase)
+    val nfkd     = java.text.Normalizer.normalize(transliterated, java.text.Normalizer.Form.NFKD)
     val stripped = nfkd.replaceAll("\\p{M}", "")
-    stripped.toLowerCase
+    stripped
       .replaceAll("[^a-z0-9\\s]", " ")
       .trim
       .replaceAll("\\s+", " ")
+
+  /**
+   * Latin letters that Unicode NFKD does not decompose into base letter + combining mark. Without
+   * this table they would be erased by the ASCII filter (e.g. "Fjaer" written with ae-ligature
+   * would become "fj r").
+   */
+  private val NonDecomposingLetters: Map[Char, String] = Map(
+    'æ' -> "ae", // ae ligature
+    'ø' -> "o",  // o with stroke
+    'œ' -> "oe", // oe ligature
+    'ß' -> "ss", // sharp s
+    'ł' -> "l",  // l with stroke
+    'đ' -> "d",  // d with stroke
+    'ð' -> "d",  // eth
+    'þ' -> "th", // thorn
+    'ı' -> "i"   // dotless i
+  )
+
+  /** True if the name contains a letter that needs explicit transliteration (see table above). */
+  def hasNonDecomposingLetters(raw: String): Boolean =
+    raw.toLowerCase.exists(NonDecomposingLetters.contains)
+
+  private def transliterate(lower: String): String =
+    if !lower.exists(NonDecomposingLetters.contains) then lower
+    else lower.flatMap(c => NonDecomposingLetters.getOrElse(c, c.toString))
+
+  private val DblpHomonymSuffix = "^(.*\\S)\\s+(\\d{4})$".r
+
+  /**
+   * Split a DBLP person name into (base name, homonym suffix). DBLP disambiguates homonymous
+   * persons by appending a four-digit number (e.g. "Wei Wang 0001"); two names with different
+   * suffixes are, by DBLP curation, different persons.
+   */
+  def splitDblpHomonymSuffix(rawName: String): (String, Option[String]) =
+    rawName.trim match
+      case DblpHomonymSuffix(base, suffix) => (base.trim, Some(suffix))
+      case other                           => (other, None)
 
   /** Normalize a title for comparison: lowercase, strip punctuation, collapse whitespace. */
   def normalizeTitle(raw: String): String =

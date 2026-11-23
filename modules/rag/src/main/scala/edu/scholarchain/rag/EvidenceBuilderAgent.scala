@@ -8,13 +8,13 @@ class EvidenceBuilderAgent:
   private val defaultMaxItems = 100
 
   def build(
-      queryId: String,
-      metrics: Vector[ResearcherMetrics],
-      paths: Vector[PathResult],
-      communities: Vector[CommunityInfo],
-      semanticContext: SemanticContextBundle,
-      resolvedResearchers: Vector[ResolvedResearcher],
-      runId: String
+    queryId: String,
+    metrics: Vector[ResearcherMetrics],
+    paths: Vector[PathResult],
+    communities: Vector[CommunityInfo],
+    semanticContext: SemanticContextBundle,
+    resolvedResearchers: Vector[ResolvedResearcher],
+    runId: String
   ): EvidenceBundle =
     build(
       queryId,
@@ -28,14 +28,14 @@ class EvidenceBuilderAgent:
     )
 
   def build(
-      queryId: String,
-      metrics: Vector[ResearcherMetrics],
-      paths: Vector[PathResult],
-      communities: Vector[CommunityInfo],
-      semanticContext: SemanticContextBundle,
-      resolvedResearchers: Vector[ResolvedResearcher],
-      runId: String,
-      maxItems: Int
+    queryId: String,
+    metrics: Vector[ResearcherMetrics],
+    paths: Vector[PathResult],
+    communities: Vector[CommunityInfo],
+    semanticContext: SemanticContextBundle,
+    resolvedResearchers: Vector[ResolvedResearcher],
+    runId: String,
+    maxItems: Int
   ): EvidenceBundle =
     val now = java.time.Instant.now().toString
 
@@ -93,8 +93,8 @@ class EvidenceBuilderAgent:
       )
     }.toVector
 
-    val allItems    = (metricItems ++ pathItems ++ textItems).take(maxItems)
-    val totalScore  = if allItems.nonEmpty then allItems.map(_.score).sum / allItems.size else 0.0
+    val allItems     = (metricItems ++ pathItems ++ textItems).take(maxItems)
+    val totalScore   = if allItems.nonEmpty then allItems.map(_.score).sum / allItems.size else 0.0
     val clampedScore = math.max(0.0, math.min(1.0, totalScore))
 
     EvidenceBundle(

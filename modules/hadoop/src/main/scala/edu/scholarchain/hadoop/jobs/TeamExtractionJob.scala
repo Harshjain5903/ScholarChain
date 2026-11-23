@@ -145,6 +145,9 @@ class TeamExtractionMapper extends Mapper[LongWritable, Text, Text, NullWritable
         context
           .getCounter(HadoopCounters.SharedGroup, HadoopCounters.Rejected)
           .increment(1)
+        context
+          .getCounter(HadoopCounters.RejectReasonGroup, "UNPARSEABLE_WORK_RECORD")
+          .increment(1)
 
 class TeamExtractionTool extends Configured with Tool:
 
@@ -182,4 +185,4 @@ class TeamExtractionTool extends Configured with Tool:
       new org.apache.hadoop.fs.Path(args(1))
     )
 
-    if job.waitForCompletion(true) then 0 else 1
+    edu.scholarchain.hadoop.driver.JobCompletion.waitAndReport(job)

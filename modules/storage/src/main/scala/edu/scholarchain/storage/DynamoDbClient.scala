@@ -23,7 +23,13 @@ case class RunLedgerEntry(
   provenance: Provenance
 ) derives ReadWriter
 
-/** Entity-link cache entry. PK = sourceId, SK = targetId, with TTL. */
+/**
+ * Entity-link cache entry. PK = sourceId, SK = targetId, with TTL.
+ *
+ * `ttl` is the expiry time in Unix epoch SECONDS (not milliseconds). It is written as the DynamoDB
+ * Number attribute `ttl`, which the table's TTL setting reads; DynamoDB TTL only honours
+ * epoch-second values, so a millisecond value would never expire.
+ */
 case class EntityLinkCacheEntry(
   sourceId: String,
   targetId: String,

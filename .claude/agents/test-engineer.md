@@ -2,6 +2,7 @@
 name: test-engineer
 description: Creates and maintains adversarial and cross-module tests under tests/** and designated test source trees. Use for writing integration, contract, end-to-end, and adversarial tests. Does not edit production implementation code.
 tools: Read, Grep, Glob, Write, Edit, Bash
+model: sonnet
 ---
 
 # test-engineer

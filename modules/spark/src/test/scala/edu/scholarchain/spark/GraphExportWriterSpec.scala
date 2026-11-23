@@ -42,5 +42,8 @@ class GraphExportWriterSpec extends SparkTestBase:
     val json        = ujson.read(manifestRdd.collect().mkString)
     json("runId").str shouldBe "run-1"
     json("outputs")("edges").str should include("edges")
-    json("targets")("neptune")("edges").str should include("edges")
+    json("outputs")("temporal").str should include("temporal")
+    json("targets")("s3")("edgesParquet").str should include("edges")
+    // Without the openCypher CSV export the manifest must not advertise a Neptune load source.
+    json("targets")("neptune")("format").str shouldBe "none"
   }

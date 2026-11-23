@@ -79,6 +79,9 @@ class OrcidNormalizationMapper extends Mapper[LongWritable, Text, Text, NullWrit
         context
           .getCounter(HadoopCounters.SharedGroup, HadoopCounters.Rejected)
           .increment(1)
+        context
+          .getCounter(HadoopCounters.RejectReasonGroup, code)
+          .increment(1)
         if code == "MISSING_NAME" || code == "MISSING_SOURCE_ID"
           || code == "INVALID_ORCID"
         then
@@ -167,4 +170,4 @@ class OrcidNormalizationTool extends Configured with Tool:
       classOf[NullWritable]
     )
 
-    if job.waitForCompletion(true) then 0 else 1
+    edu.scholarchain.hadoop.driver.JobCompletion.waitAndReport(job)

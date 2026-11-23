@@ -8,11 +8,22 @@ import upickle.default.*
 
 /**
  * Utility for writing rejected records to a side output using Hadoop's MultipleOutputs. All rejects
- * are serialized as JSON lines to a named output called "rejects".
+ * are serialized as JSON lines to a named output called "rejects", written under the `_rejects/`
+ * subdirectory of the job output (files `_rejects/part-m-NNNNN`).
+ *
+ * The leading underscore makes Hadoop's and Spark's FileInputFormat hidden-file filter skip the
+ * rejects when the job output directory is consumed downstream, so reject lines are never parsed as
+ * accepted records (e.g. as WorkRecord). Read rejects explicitly from `<output>/_rejects`.
  */
 object RejectWriter:
 
   val RejectOutputName = "rejects"
+
+  /** Subdirectory (relative to the job output directory) that holds reject files. */
+  val RejectDirectory = "_rejects"
+
+  /** MultipleOutputs base output path for rejects. */
+  val RejectBaseOutputPath = s"$RejectDirectory/part"
 
   /**
    * Write a reject record to the side output.
@@ -53,5 +64,6 @@ object RejectWriter:
     mos.write(
       RejectOutputName,
       new Text(json),
-      NullWritable.get()
+      NullWritable.get(),
+      RejectBaseOutputPath
     )

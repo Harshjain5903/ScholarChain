@@ -54,3 +54,22 @@
 ## Decision
 
 **ACCEPTED.** Phase 1 is ratified. Restart Claude Code before Phase 2.
+
+
+## Gate audit addendum (RECONSTRUCTED 2026-11-23; prepared by the orchestrator, not a human decision)
+
+The human decision above is preserved unchanged. This table compares it with the professor's required human-gate contents and with the repository and transcript evidence.
+
+| Required item | Recorded above | Audit finding |
+|---|---|---|
+| What was reviewed | All control-plane files | – |
+| Decision | Ratified | – |
+| Manual changes | settings.json converted manually (167b68c) | The edits behind `167b68c` were made by two plain Claude Code sessions (2da85d5e, 0fa24335), not by you by hand and not by factory-engineer; `d6b0357`'s source is not recorded. |
+| Remaining risk | Listed | Probe 1 did not test a refusal; probe 5's Stop hook did not block; no code review recorded. |
+| Accepted commit | f5719ca, 167b68c | `f5719ca7c65f0b2f63308a8d4e7fe543690d33dc` and `167b68c80daf12cbb6e607808dafd066d59f5fe6` exist and are on GitHub `main`. Later Phase 1 commits `f481b00` and `09d728f` change the guard hook and this file. |
+
+### Questions for the human architect (PENDING until answered)
+
+- PENDING — Should the accepted commit set for Phase 1 also name `d6b0357`, `f481b00` and `09d728f`?
+- PENDING — Should probe 1 (non-owner refusal) and probe 5 (Stop hook, which did not block) be re-run after a hook fix and recorded?
+- PENDING — Do you ratify the direct settings.json edits made by sessions 2da85d5e and 0fa24335?

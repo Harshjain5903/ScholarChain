@@ -1,6 +1,6 @@
 package edu.scholarchain.core
 
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{Config, ConfigException, ConfigFactory}
 import scala.jdk.CollectionConverters.*
 
 case class StorageConfig(
@@ -15,11 +15,69 @@ case class NeptuneConfig(
   region: String
 )
 
+/** Distance metric of an S3 Vectors index. `configValue` is the HOCON/env spelling. */
+enum DistanceMetric(val configValue: String):
+  case Cosine    extends DistanceMetric("cosine")
+  case Euclidean extends DistanceMetric("euclidean")
+
+object DistanceMetric:
+
+  /** Parse a config value (case-sensitive, exact match). */
+  def parse(value: String): Either[String, DistanceMetric] =
+    DistanceMetric.values.find(_.configValue == value) match
+      case Some(m) => Right(m)
+      case None =>
+        Left(
+          s"invalid s3-vectors.distance-metric '$value'; expected one of " +
+            DistanceMetric.values.map(_.configValue).mkString(", ")
+        )
+
+/**
+ * Index contract shared by every ScholarChain S3 Vectors index.
+ *
+ * @param dimensions
+ *   vector dimension of every index (1..4096)
+ * @param distanceMetric
+ *   distance metric of every index
+ * @param embeddingModelId
+ *   identity of the model that populated the indexes
+ */
 case class S3VectorsConfig(
-  endpoint: String,
-  indexName: String,
-  dimensions: Int
-)
+  dimensions: Int,
+  distanceMetric: DistanceMetric,
+  embeddingModelId: String
+):
+
+  /** True when vectors from `queryModelId` may be queried against or written to these indexes. */
+  def isCompatibleModel(queryModelId: String): Boolean =
+    queryModelId == embeddingModelId
+
+  /** True when a vector has exactly the index dimension. */
+  def isCompatibleVector(vectorLength: Int): Boolean =
+    vectorLength == dimensions
+
+object S3VectorsConfig:
+  val MinDimensions: Int = 1
+  val MaxDimensions: Int = 4096
+
+  /** Validated constructor: rejects out-of-range dimensions and blank model ids. */
+  def validated(
+    dimensions: Int,
+    distanceMetric: String,
+    embeddingModelId: String
+  ): Either[String, S3VectorsConfig] =
+    for
+      dims <-
+        if dimensions >= MinDimensions && dimensions <= MaxDimensions then Right(dimensions)
+        else
+          Left(
+            s"invalid s3-vectors.dimensions $dimensions; expected $MinDimensions..$MaxDimensions"
+          )
+      metric <- DistanceMetric.parse(distanceMetric)
+      model <-
+        if embeddingModelId.trim.nonEmpty then Right(embeddingModelId)
+        else Left("invalid s3-vectors.embedding-model-id: must be non-empty")
+    yield S3VectorsConfig(dims, metric, model)
 
 case class EntityResolutionConfig(
   blockingKeyFields: Vector[String],
@@ -76,11 +134,7 @@ object AppConfig:
         port = sc.getInt("neptune.port"),
         region = sc.getString("neptune.region")
       ),
-      s3Vectors = S3VectorsConfig(
-        endpoint = sc.getString("s3-vectors.endpoint"),
-        indexName = sc.getString("s3-vectors.index-name"),
-        dimensions = sc.getInt("s3-vectors.dimensions")
-      ),
+      s3Vectors = loadS3Vectors(sc),
       entityResolution = EntityResolutionConfig(
         blockingKeyFields =
           sc.getStringList("entity-resolution.blocking-key-fields").asScala.toVector,
@@ -104,3 +158,13 @@ object AppConfig:
         retryCount = sc.getInt("operations.retry-count")
       )
     )
+
+  /** Reads and validates `scholarchain.s3-vectors`; throws ConfigException.BadValue if invalid. */
+  private def loadS3Vectors(sc: Config): S3VectorsConfig =
+    S3VectorsConfig.validated(
+      dimensions = sc.getInt("s3-vectors.dimensions"),
+      distanceMetric = sc.getString("s3-vectors.distance-metric"),
+      embeddingModelId = sc.getString("s3-vectors.embedding-model-id")
+    ) match
+      case Right(c)  => c
+      case Left(err) => throw new ConfigException.BadValue("scholarchain.s3-vectors", err)

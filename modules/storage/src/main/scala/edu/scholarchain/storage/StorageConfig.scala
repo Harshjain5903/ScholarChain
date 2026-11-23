@@ -1,6 +1,6 @@
 package edu.scholarchain.storage
 
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{Config, ConfigFactory, ConfigResolveOptions}
 
 /** S3 bucket configuration for all storage tiers. */
 case class S3BucketConfig(
@@ -33,19 +33,43 @@ case class S3VectorsStorageConfig(
   retryBaseDelayMs: Long
 )
 
-/** Top-level storage configuration container. */
+/**
+ * Top-level storage configuration container.
+ *
+ * @param embeddingQueueUrl
+ *   `scholarchain.storage.embedding-queue-url` (env `SCHOLARCHAIN_EMBEDDING_QUEUE_URL`); `None`
+ *   when blank
+ */
 case class StorageModuleConfig(
   s3: S3BucketConfig,
   neptune: NeptuneStorageConfig,
   dynamoDb: DynamoDbStorageConfig,
-  s3Vectors: S3VectorsStorageConfig
+  s3Vectors: S3VectorsStorageConfig,
+  embeddingQueueUrl: Option[String] = None
 )
 
 /** Loads storage configuration from HOCON with environment variable overrides. */
 object StorageModuleConfig:
 
+  /** Environment variable that overrides `scholarchain.storage.embedding-queue-url`. */
+  val EmbeddingQueueUrlEnv: String = "SCHOLARCHAIN_EMBEDDING_QUEUE_URL"
+
   /** Load from the default ConfigFactory resolution chain. */
   def load(): StorageModuleConfig = load(ConfigFactory.load())
+
+  /**
+   * Load `reference.conf` resolving `${?VAR}` overrides from `env` only, not from the process
+   * environment. Used to test env overrides deterministically.
+   */
+  def loadWithEnv(env: Map[String, String]): StorageModuleConfig =
+    val envConfig = ConfigFactory.parseMap(
+      scala.jdk.CollectionConverters.MapHasAsJava(env).asJava,
+      "injected environment"
+    )
+    val resolved = envConfig
+      .withFallback(ConfigFactory.parseResources("reference.conf"))
+      .resolve(ConfigResolveOptions.defaults().setUseSystemEnvironment(false))
+    load(resolved)
 
   /** Load from an explicit Config instance (useful for testing). */
   def load(config: Config): StorageModuleConfig =
@@ -73,5 +97,9 @@ object StorageModuleConfig:
         batchSize = sc.getInt("s3-vectors.batch-size"),
         maxRetries = sc.getInt("s3-vectors.max-retries"),
         retryBaseDelayMs = sc.getLong("s3-vectors.retry-base-delay-ms")
-      )
+      ),
+      embeddingQueueUrl =
+        if sc.hasPath("embedding-queue-url") then
+          Some(sc.getString("embedding-queue-url").trim).filter(_.nonEmpty)
+        else None
     )

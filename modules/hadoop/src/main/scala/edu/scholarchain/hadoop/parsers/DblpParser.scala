@@ -53,8 +53,12 @@ object DblpParser:
         "http://xml.org/sax/features/external-parameter-entities",
         false
       )
-      val builder  = factory.newDocumentBuilder()
-      val doc      = builder.parse(new InputSource(new StringReader(xml)))
+      val builder = factory.newDocumentBuilder()
+      // Suppress the JDK parser's default stderr "[Fatal Error]" lines; errors surface as Left.
+      builder.setErrorHandler(SilentErrorHandler)
+      // DBLP encodes non-ASCII characters as DTD-declared named entities (e.g. &eacute;).
+      val resolved = DblpEntities.resolveNamedEntities(xml)
+      val doc      = builder.parse(new InputSource(new StringReader(resolved)))
       val elem     = doc.getDocumentElement
       val elemName = elem.getTagName
 
@@ -147,6 +151,12 @@ object DblpParser:
         Left(("MALFORMED_XML", s"XML error: ${e.getMessage}"))
       case e: Exception =>
         Left(("PARSE_ERROR", s"Unexpected error: ${e.getMessage}"))
+
+  /** Error handler that rethrows fatal errors/errors without printing them to stderr. */
+  private object SilentErrorHandler extends org.xml.sax.ErrorHandler:
+    def warning(e: org.xml.sax.SAXParseException): Unit    = ()
+    def error(e: org.xml.sax.SAXParseException): Unit      = throw e
+    def fatalError(e: org.xml.sax.SAXParseException): Unit = throw e
 
   /** Get the text content of the first child element with the given tag. */
   private def getChildText(parent: Element, tag: String): String =

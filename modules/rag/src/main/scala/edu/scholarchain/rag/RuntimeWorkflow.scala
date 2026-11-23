@@ -4,27 +4,34 @@ import edu.scholarchain.core.*
 import upickle.default.*
 
 case class WorkflowResult(
-    response: AnswerResponse,
-    auditRecord: AuditRecord
+  response: AnswerResponse,
+  auditRecord: AuditRecord
 ) derives ReadWriter
 
-/** Orchestrates the full collaboration-analysis workflow from question to verified answer. */
+/**
+ * Orchestrates the full collaboration-analysis workflow from question to verified answer.
+ *
+ * @param generationModelId
+ *   generation model recorded in the audit record; supply from core config
+ *   (`AppConfig.models.generationModelId`, env `SCHOLARCHAIN_GENERATION_MODEL_ID`)
+ */
 class RuntimeWorkflow(
-    planner: QueryPlannerAgent,
-    resolver: ResearcherResolverAgent,
-    metricsAgent: CollaborationMetricsAgent,
-    pathFinder: PathFinderAgent,
-    community: CommunityAnalystAgent,
-    semantic: SemanticContextAgent,
-    evidenceBuilder: EvidenceBuilderAgent,
-    synthesis: AnswerSynthesisAgent,
-    verification: ClaimVerificationAgent,
-    audit: AuditStore
+  planner: QueryPlannerAgent,
+  resolver: ResearcherResolverAgent,
+  metricsAgent: CollaborationMetricsAgent,
+  pathFinder: PathFinderAgent,
+  community: CommunityAnalystAgent,
+  semantic: SemanticContextAgent,
+  evidenceBuilder: EvidenceBuilderAgent,
+  synthesis: AnswerSynthesisAgent,
+  verification: ClaimVerificationAgent,
+  audit: AuditStore,
+  generationModelId: String
 ):
 
   def execute(
-      question: String,
-      constraints: Map[String, String]
+    question: String,
+    constraints: Map[String, String]
   ): WorkflowResult =
     val startTime = System.currentTimeMillis()
     val runId     = IdGen.runId()
@@ -89,7 +96,8 @@ class RuntimeWorkflow(
     val latencyMs = System.currentTimeMillis() - startTime
     val now       = java.time.Instant.now().toString
 
-    val verificationSummary = summarizeVerification(verifiedClaims)
+    val verificationSummary =
+      summarizeVerification(verifiedClaims) + semanticSummary(semanticResult)
 
     val response = AnswerResponse(
       responseId = s"resp-$queryId",
@@ -111,7 +119,7 @@ class RuntimeWorkflow(
       resolvedIds = resolvedIds,
       evidenceIds = evidenceBundle.items.map(_.evidenceId),
       promptVersion = "synthesis-v1",
-      modelVersion = "bedrock-v1",
+      modelVersion = generationModelId,
       latencyMs = latencyMs,
       verificationSummary = verificationSummary,
       timestamp = now
@@ -120,6 +128,10 @@ class RuntimeWorkflow(
     audit.persistAudit(auditRecord)
 
     WorkflowResult(response = response, auditRecord = auditRecord)
+
+  /** Records a semantic-retrieval abstention reason code in the audit summary. */
+  private def semanticSummary(bundle: SemanticContextBundle): String =
+    bundle.failure.fold("")(f => s"; semanticAbstained=${f.reason.code}")
 
   private def summarizeVerification(claims: Vector[AnswerClaim]): String =
     val grouped = claims.groupBy(_.verificationStatus)

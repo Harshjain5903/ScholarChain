@@ -50,7 +50,79 @@ object TemporalAnalysisJob:
       .filter(w => w.startYear <= globalEnd)
 
   /**
+   * Compute temporal snapshots from canonical pair-level occurrences (the pipeline entry point).
+   *
+   * Unlike [[compute]], which approximates a window by the span of each aggregated edge, every
+   * metric here counts only collaborations whose publication year lies inside the window:
+   *   - `distinctCoauthorCount`: distinct coauthors with at least one shared work in the window
+   *   - `weightedDegree`: sum over those coauthors of the number of distinct shared works in the
+   *     window
+   *   - `publicationCount`: distinct works of the researcher in the window
+   *
+   * All windows are evaluated in one pass: each occurrence is assigned to every window containing
+   * its year (windows are a small driver-side list), then reduced by (window, researcher).
+   * Researchers with neither a work nor a collaboration in a window have no snapshot for it.
+   */
+  def computeFromPairs(
+    sc: SparkContext,
+    pairs: RDD[CanonicalGraphBuilder.CanonicalPair],
+    authorships: RDD[CanonicalGraphBuilder.CanonicalAuthorship],
+    windows: Seq[TimeWindow],
+    runId: String,
+    schemaVersion: String,
+    timestamp: String
+  ): RDD[TemporalSnapshot] =
+    if windows.isEmpty then return sc.emptyRDD[TemporalSnapshot]
+    val ws = windows.toVector
+    def windowsOf(year: Int): Iterator[TimeWindow] =
+      ws.iterator.filter(w => year >= w.startYear && year <= w.endYear)
+
+    // ((window, a, b), distinct works in window) -> per researcher (distinct coauthors, weight).
+    val edgeMetrics: RDD[((TimeWindow, String), (Int, Double))] = pairs
+      .flatMap(p =>
+        windowsOf(p.year).map(w => ((w, p.researcherA, p.researcherB), p.workId))
+      )
+      .distinct()
+      .mapValues(_ => 1)
+      .reduceByKey(_ + _)
+      .flatMap { case ((w, a, b), works) =>
+        Iterator(((w, a), (1, works.toDouble)), ((w, b), (1, works.toDouble)))
+      }
+      .reduceByKey { case ((c1, w1), (c2, w2)) => (c1 + c2, w1 + w2) }
+
+    val pubCounts: RDD[((TimeWindow, String), Int)] = authorships
+      .flatMap(a => windowsOf(a.year).map(w => ((w, a.researcherId), a.workId)))
+      .distinct()
+      .mapValues(_ => 1)
+      .reduceByKey(_ + _)
+
+    pubCounts
+      .fullOuterJoin(edgeMetrics)
+      .map { case ((w, rid), (pubsOpt, edgeOpt)) =>
+        val pubs                             = pubsOpt.getOrElse(0)
+        val (distinctCoauthors, weightedDeg) = edgeOpt.getOrElse((0, 0.0))
+        TemporalSnapshot(
+          researcherId = rid,
+          windowStartYear = w.startYear,
+          windowEndYear = w.endYear,
+          publicationCount = pubs,
+          distinctCoauthorCount = distinctCoauthors,
+          weightedDegree = weightedDeg,
+          provenance = GraphUtils.makeProv(
+            runId,
+            schemaVersion,
+            s"$rid:${w.startYear}-${w.endYear}",
+            timestamp
+          )
+        )
+      }
+
+  /**
    * Compute temporal snapshots for all researchers across all specified time windows.
+   *
+   * Approximation: an aggregated edge counts in every window its [first, last] collaboration span
+   * overlaps, with its whole joint publication count. Prefer [[computeFromPairs]] when pair-level
+   * occurrences are available (the pipeline does).
    *
    * @param allEdges
    *   the full (unfiltered by time) CoauthorEdge RDD; each edge carries year range

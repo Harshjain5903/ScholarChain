@@ -1,0 +1,46 @@
+{
+  "code_version": "753c499+uncommitted",
+  "counts": {
+    "lines": 45
+  },
+  "description": "real OpenAlex works (trimmed) for the DBLP sample works",
+  "development_run_note": "derived from the 10K DEVELOPMENT selection",
+  "generated_at_utc": "2026-11-23T16:58:09Z",
+  "inputs": [
+    {
+      "path": "datasets/samples/dblp/dblp-sample-50.xml",
+      "sha256": "1e968376f50084f1b8b731418b73aba0f77e72ce425a6603b2da063d16c481d4",
+      "size_bytes": 28312
+    },
+    {
+      "path": "datasets/derived/enrichment/crossref-doi-status.tsv",
+      "sha256": "de77f7c1946645116f61af361592ed43ae3c18fc1ad12d5eebd3ca7e07bf2f36",
+      "size_bytes": 10022427
+    },
+    {
+      "path": "datasets/derived/enrichment/openalex-doi-status.tsv",
+      "sha256": "c659575914115a9efa07f7bbfa03787030dd08f910a5e841ad213dc85ad496c6",
+      "size_bytes": 8496366
+    },
+    {
+      "path": "datasets/derived/enrichment/orcid-candidate-links.tsv",
+      "sha256": "db26cfe3fdf79ba95f2ef412227cf8b2e9f902972e0c5c198de0e840aa7d5ca5",
+      "size_bytes": 40817814
+    }
+  ],
+  "license": "OpenAlex data: CC0 1.0 (https://openalex.org/about). abstract_inverted_index excluded.",
+  "output": {
+    "path": "datasets/samples/enrichment/openalex-sample.jsonl",
+    "sha256": "007ab6a3e7f2a19ec58ea1f3aa6a3035a670541c06c074cdc63ea99bf3c3abf9",
+    "size_bytes": 106149
+  },
+  "producer": "dataset-engineer",
+  "script": {
+    "name": "enrich_sample.py",
+    "version": "1.0.0"
+  },
+  "selection_rule": "DBLP works = every record of datasets/samples/dblp/dblp-sample-50.xml (the 50 records of selection-10k with the smallest sha256(seed|key), seed scholarchain-dblp-2026-11-16); for each, the DOI-verified Crossref response and DOI-verified OpenAlex work(s) from the 2026-11-22 retrieval; lines sorted by dblp_key",
+  "source_dataset": "openalex",
+  "synthetic": false,
+  "trim_rule": "OpenAlex work fields kept: id, doi, title, publication_year, cited_by_count, ids; authorships[] reduced to author_position, raw_author_name, author{id,display_name,orcid}, institutions[]{id,display_name,ror,country_code}; primary_location reduced to source{id,display_name,issn_l}; everything else dropped (notably abstract_inverted_index and topics)."
+}

@@ -1,5 +1,10 @@
 # Crossref Schema Notes
 
+> **Status: PENDING verification against retrieved data.** These notes were written from
+> public documentation, not from data ScholarChain has retrieved. No field, type or
+> count below has been observed yet. They will be checked against the bounded
+> DOI-driven retrieval for the DBLP 50K selection (next work order).
+
 Owner: dataset-engineer
 Source: https://www.crossref.org/documentation/
 License: Public domain (metadata facts)
@@ -86,3 +91,12 @@ Crossref Work.reference[] -> Citation {
 7. **Abstract restrictions**: Abstracts, when present, are in JATS XML format and may carry publisher licensing restrictions. ScholarChain does not ingest abstracts from Crossref.
 8. **Unstructured references**: When a cited work lacks a DOI, the reference is an unstructured text string requiring parsing (by entity-resolution-engineer) to extract title, authors, and year.
 9. **Duplicate DOIs**: Rare but possible. Some DOIs have been registered multiple times with slightly different metadata.
+
+## Observed in the 2026-11-22 retrieval (offline reconciliation 2026-11-23)
+
+- Envelope: `{"status": "ok", "message-type": "work", "message-version": "1.0.0", "message": {...}}`; one file per requested DOI, named `sha256(requested DOI).json`.
+- All 42,910 saved responses parse, have `status: ok` and a `message.DOI` that canonicalises (trim, lowercase) to the requested DOI.
+- `message.author[]` carries `given`, `family`, `sequence`, optional `ORCID` (URL form `https://orcid.org/...` or `http://orcid.org/...`) and `authenticated-orcid`; 10,315 records have at least one author ORCID.
+- `message.reference[]` is present in 38,718 records (1,168,771 entries).
+- Requests for alias DOIs answer HTTP 301 to the primary DOI; follow redirects and expect `message.DOI` to differ from the request.
+- Counts, rejects and coverage: `datasets/dataset-manifest.yaml` (crossref) and `datasets/derived/enrichment/reconcile-summary.json`.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: superseded by datasets/scripts/enrich_fetch.py crossref (bounded, resumable, redirect-following; dry run by default). Do not use.
 # download-crossref-sample.sh
 # Owner: dataset-engineer
 # Provenance: ScholarChain dataset acquisition pipeline

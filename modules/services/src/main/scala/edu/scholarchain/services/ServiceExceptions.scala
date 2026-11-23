@@ -1,7 +1,6 @@
 package edu.scholarchain.services
 
-sealed abstract class ServiceException(msg: String)
-    extends RuntimeException(msg)
+sealed abstract class ServiceException(msg: String) extends RuntimeException(msg)
 
 case class BadRequestException(msg: String) extends ServiceException(msg)
 

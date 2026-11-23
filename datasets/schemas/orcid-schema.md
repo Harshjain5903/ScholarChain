@@ -1,5 +1,10 @@
 # ORCID Schema Notes
 
+> **Status: PENDING verification against retrieved data.** These notes were written from
+> public documentation, not from data ScholarChain has retrieved. No field, type or
+> count below has been observed yet. They will be checked against the bounded
+> DOI-driven retrieval for the DBLP 50K selection (next work order).
+
 Owner: dataset-engineer
 Source: https://info.orcid.org/documentation/
 License: CC0 (public data)
@@ -87,3 +92,9 @@ ORCID Work -> (cross-reference to Publication) {
 6. **Affiliation strings**: Organization names are free text. "MIT", "Massachusetts Institute of Technology", and "M.I.T." are all possible. The organization may include a ROR or GRID identifier for disambiguation.
 7. **Date precision**: Dates may be year-only, year-month, or full dates. Some are null.
 8. **Coverage bias**: ORCID adoption is higher in biomedical sciences, Europe, and among early-career researchers. Coverage in computer science is growing but uneven.
+
+## Candidate list derived 2026-11-23 (no ORCID records fetched yet)
+
+- Source: `datasets/derived/enrichment/orcid-candidates.{tsv,txt}` and `orcid-candidate-links.tsv`, written by `datasets/scripts/enrich_reconcile.py` from DOI-verified Crossref (`author[].ORCID`) and OpenAlex (`authorships[].author.orcid`) records of the DBLP 50K selection.
+- Normal form `dddd-dddd-dddd-dddX`, validated with ISO 7064 MOD 11-2; 107,438 distinct valid iDs and 0 invalid.
+- Planned raw layout: `datasets/raw/orcid/retrieved=<date>/<orcid>.json` from `https://pub.orcid.org/v3.0/<orcid>/record`, fetched by `datasets/scripts/enrich_fetch.py orcid` (bounded, resumable).

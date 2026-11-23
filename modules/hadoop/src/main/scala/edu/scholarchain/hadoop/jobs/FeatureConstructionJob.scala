@@ -248,4 +248,4 @@ class FeatureConstructionTool extends Configured with Tool:
       new org.apache.hadoop.fs.Path(args(1))
     )
 
-    if job.waitForCompletion(true) then 0 else 1
+    edu.scholarchain.hadoop.driver.JobCompletion.waitAndReport(job)

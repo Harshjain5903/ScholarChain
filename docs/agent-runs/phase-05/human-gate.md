@@ -32,3 +32,21 @@ None.
 ## Accepted commit
 
 `cdf0e5d`
+
+
+## Gate audit addendum (RECONSTRUCTED 2026-11-23; prepared by the orchestrator, not a human decision)
+
+The human decision above is preserved unchanged. This table compares it with the professor's required human-gate contents and with the repository and transcript evidence.
+
+| Required item | Recorded above | Audit finding |
+|---|---|---|
+| What was reviewed | As listed | The review you saw was written by the orchestrator, not an independent reviewer. |
+| Decision | ACCEPTED | – |
+| Manual changes | None | `cdf0e5d` also reformats 34 hadoop files, done inline by the orchestrator (`sbt scalafmtAll Test/scalafmtAll`, 2026-11-19T02:06:17Z); formatting fix `1b36f31` came later. |
+| Remaining risk | Synthetic gold set, uncalibrated weights | Retro `sbt check` of `cdf0e5d` fails at scalafmt; `1b36f31` passes. |
+| Accepted commit | cdf0e5d | `cdf0e5d8e40c86a4990b67722bdbc469fb065cd1` exists and is on GitHub `main`; the passing state is `1b36f31f51d56ade95eb6af8f050fd045d897064`. |
+
+### Questions for the human architect (PENDING until answered)
+
+- PENDING — Should a real independent code-reviewer review of Phase 5 be requested?
+- PENDING — Should the accepted commit stay `cdf0e5d`, or become `1b36f31` (the first commit that passes `sbt check` on a fresh checkout)?

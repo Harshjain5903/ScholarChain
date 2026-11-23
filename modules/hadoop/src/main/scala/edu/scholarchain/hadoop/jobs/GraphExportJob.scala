@@ -46,6 +46,20 @@ object GraphExportJob:
   val InstitutionsOutput   = "institutions"
   val MalformedOutput      = "malformed"
 
+  /**
+   * MultipleOutputs base path for a named output: each record type is written to its own
+   * subdirectory (`<output>/<name>/part-m-NNNNN.gz`), which is the layout Spark's DataLoader reads
+   * (e.g. `<hadoop-output>/pair_candidates`).
+   */
+  def basePath(outputDir: String): String = s"$outputDir/part"
+
+  /**
+   * Hadoop MultipleOutputs named-output token for an output directory. Named outputs may only
+   * contain letters and digits, so the underscore in directory names such as `pair_candidates` is
+   * removed (`paircandidates`); the subdirectory name itself is set by [[basePath]].
+   */
+  def namedOutput(outputDir: String): String = outputDir.filter(_.isLetterOrDigit)
+
   /** Determine record type from JSON content using proper parsing. */
   def detectRecordType(json: String): String =
     try
@@ -104,9 +118,10 @@ class GraphExportMapper extends Mapper[LongWritable, Text, Text, NullWritable]:
           )
           .increment(1)
         mos.write(
-          GraphExportJob.WorkRecordsOutput,
+          GraphExportJob.namedOutput(GraphExportJob.WorkRecordsOutput),
           outText,
-          NullWritable.get()
+          NullWritable.get(),
+          GraphExportJob.basePath(GraphExportJob.WorkRecordsOutput)
         )
       case "author_mentions" =>
         context
@@ -116,9 +131,10 @@ class GraphExportMapper extends Mapper[LongWritable, Text, Text, NullWritable]:
           )
           .increment(1)
         mos.write(
-          GraphExportJob.AuthorMentionsOutput,
+          GraphExportJob.namedOutput(GraphExportJob.AuthorMentionsOutput),
           outText,
-          NullWritable.get()
+          NullWritable.get(),
+          GraphExportJob.basePath(GraphExportJob.AuthorMentionsOutput)
         )
       case "teams" =>
         context
@@ -128,9 +144,10 @@ class GraphExportMapper extends Mapper[LongWritable, Text, Text, NullWritable]:
           )
           .increment(1)
         mos.write(
-          GraphExportJob.TeamsOutput,
+          GraphExportJob.namedOutput(GraphExportJob.TeamsOutput),
           outText,
-          NullWritable.get()
+          NullWritable.get(),
+          GraphExportJob.basePath(GraphExportJob.TeamsOutput)
         )
       case "pair_candidates" =>
         context
@@ -140,33 +157,38 @@ class GraphExportMapper extends Mapper[LongWritable, Text, Text, NullWritable]:
           )
           .increment(1)
         mos.write(
-          GraphExportJob.PairCandidatesOutput,
+          GraphExportJob.namedOutput(GraphExportJob.PairCandidatesOutput),
           outText,
-          NullWritable.get()
+          NullWritable.get(),
+          GraphExportJob.basePath(GraphExportJob.PairCandidatesOutput)
         )
       case "author_paper" =>
         mos.write(
-          GraphExportJob.AuthorPaperOutput,
+          GraphExportJob.namedOutput(GraphExportJob.AuthorPaperOutput),
           outText,
-          NullWritable.get()
+          NullWritable.get(),
+          GraphExportJob.basePath(GraphExportJob.AuthorPaperOutput)
         )
       case "topics" =>
         mos.write(
-          GraphExportJob.TopicsOutput,
+          GraphExportJob.namedOutput(GraphExportJob.TopicsOutput),
           outText,
-          NullWritable.get()
+          NullWritable.get(),
+          GraphExportJob.basePath(GraphExportJob.TopicsOutput)
         )
       case "institutions" =>
         mos.write(
-          GraphExportJob.InstitutionsOutput,
+          GraphExportJob.namedOutput(GraphExportJob.InstitutionsOutput),
           outText,
-          NullWritable.get()
+          NullWritable.get(),
+          GraphExportJob.basePath(GraphExportJob.InstitutionsOutput)
         )
       case "malformed" =>
         mos.write(
-          GraphExportJob.MalformedOutput,
+          GraphExportJob.namedOutput(GraphExportJob.MalformedOutput),
           outText,
-          NullWritable.get()
+          NullWritable.get(),
+          GraphExportJob.basePath(GraphExportJob.MalformedOutput)
         )
       case _ =>
         // Write unknown types to main output
@@ -187,7 +209,7 @@ class GraphExportTool extends Configured with Tool:
   override def run(args: Array[String]): Int =
     if args.length < 2 then
       System.err.println(
-        "Usage: GraphExportTool <input> <output>"
+        "Usage: GraphExportTool <input[,input...]> <output>"
       )
       return 1
 
@@ -206,10 +228,8 @@ class GraphExportTool extends Configured with Tool:
     FileOutputFormat.setCompressOutput(job, true)
     FileOutputFormat.setOutputCompressorClass(job, classOf[GzipCodec])
 
-    FileInputFormat.addInputPath(
-      job,
-      new org.apache.hadoop.fs.Path(args(0))
-    )
+    // Comma-separated list of input directories (work records, teams, pair candidates, ...)
+    FileInputFormat.addInputPaths(job, args(0))
     FileOutputFormat.setOutputPath(
       job,
       new org.apache.hadoop.fs.Path(args(1))
@@ -229,11 +249,11 @@ class GraphExportTool extends Configured with Tool:
     namedOutputs.foreach { name =>
       MultipleOutputs.addNamedOutput(
         job,
-        name,
+        GraphExportJob.namedOutput(name),
         classOf[TextOutputFormat[?, ?]],
         classOf[Text],
         classOf[NullWritable]
       )
     }
 
-    if job.waitForCompletion(true) then 0 else 1
+    edu.scholarchain.hadoop.driver.JobCompletion.waitAndReport(job)

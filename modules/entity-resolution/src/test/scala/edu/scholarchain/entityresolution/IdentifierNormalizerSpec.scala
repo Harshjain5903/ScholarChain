@@ -93,4 +93,25 @@ class IdentifierNormalizerSpec extends AnyFlatSpec with Matchers {
     IdentifierNormalizer.extractSurnameAndInitial("einstein") shouldBe Some(("einstein", 'e'))
     IdentifierNormalizer.extractSurnameAndInitial("") shouldBe None
   }
+
+  "normalizeName" should "transliterate letters NFKD does not decompose instead of dropping them" in {
+    IdentifierNormalizer.normalizeName("Håvard Fjær Grip") shouldBe "havard fjaer grip"
+    IdentifierNormalizer.normalizeName("Pål Løkstad") shouldBe "pal lokstad"
+    IdentifierNormalizer.normalizeName("ÆSIR Straße Łukasz") shouldBe
+      "aesir strasse lukasz"
+  }
+
+  "hasNonDecomposingLetters" should "flag ae/o-stroke names only" in {
+    IdentifierNormalizer.hasNonDecomposingLetters("FjÆr") shouldBe true
+    IdentifierNormalizer.hasNonDecomposingLetters("José") shouldBe false
+  }
+
+  "splitDblpHomonymSuffix" should "separate a trailing four-digit DBLP suffix" in {
+    IdentifierNormalizer.splitDblpHomonymSuffix("Wei Wang 0001") shouldBe ("Wei Wang", Some("0001"))
+    IdentifierNormalizer.splitDblpHomonymSuffix(" Andreas Geiger 0001 ") shouldBe
+      ("Andreas Geiger", Some("0001"))
+    IdentifierNormalizer.splitDblpHomonymSuffix("Wei Wang") shouldBe ("Wei Wang", None)
+    IdentifierNormalizer.splitDblpHomonymSuffix("Team 42") shouldBe ("Team 42", None)
+    IdentifierNormalizer.splitDblpHomonymSuffix("2001") shouldBe ("2001", None)
+  }
 }

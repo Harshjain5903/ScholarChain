@@ -86,6 +86,9 @@ class DblpExtractionMapper extends Mapper[LongWritable, Text, Text, Text]:
         context
           .getCounter(HadoopCounters.SharedGroup, HadoopCounters.Rejected)
           .increment(1)
+        context
+          .getCounter(HadoopCounters.RejectReasonGroup, code)
+          .increment(1)
         val sourceId = extractSourceId(xmlStr)
         val provenance = Provenance(
           sourceDataset = "dblp",
@@ -173,4 +176,4 @@ class DblpExtractionTool extends Configured with Tool:
       classOf[NullWritable]
     )
 
-    if job.waitForCompletion(true) then 0 else 1
+    edu.scholarchain.hadoop.driver.JobCompletion.waitAndReport(job)

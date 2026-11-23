@@ -7,14 +7,11 @@ import java.net.URI
 import java.net.http.{HttpClient, HttpRequest, HttpResponse}
 import upickle.default.*
 
-class AdversarialServiceSpec
-    extends AnyFlatSpec
-    with Matchers
-    with BeforeAndAfterAll:
+class AdversarialServiceSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll:
 
   private var server: com.sun.net.httpserver.HttpServer = _
   private var baseUrl: String                           = _
-  private val client = HttpClient.newHttpClient()
+  private val client                                    = HttpClient.newHttpClient()
 
   override def beforeAll(): Unit =
     val config = ServiceConfig(
@@ -35,9 +32,9 @@ class AdversarialServiceSpec
     if server != null then server.stop(0)
 
   private def post(
-      path: String,
-      body: String,
-      headers: Map[String, String] = Map.empty
+    path: String,
+    body: String,
+    headers: Map[String, String] = Map.empty
   ): HttpResponse[String] =
     val builder = HttpRequest
       .newBuilder()
@@ -48,9 +45,9 @@ class AdversarialServiceSpec
     client.send(builder.build(), HttpResponse.BodyHandlers.ofString())
 
   private def postRaw(
-      path: String,
-      body: String,
-      contentType: Option[String] = None
+    path: String,
+    body: String,
+    contentType: Option[String] = None
   ): HttpResponse[String] =
     val builder = HttpRequest
       .newBuilder()

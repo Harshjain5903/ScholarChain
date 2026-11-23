@@ -1,0 +1,47 @@
+{
+  "code_version": "753c499+uncommitted",
+  "counts": {
+    "distinct_orcids": 114,
+    "rows": 137
+  },
+  "description": "ORCID candidate links (from enrich_reconcile.py) restricted to the DBLP sample DOIs; surname heuristic is QA only",
+  "development_run_note": "derived from the 10K DEVELOPMENT selection",
+  "generated_at_utc": "2026-11-23T16:58:09Z",
+  "inputs": [
+    {
+      "path": "datasets/samples/dblp/dblp-sample-50.xml",
+      "sha256": "1e968376f50084f1b8b731418b73aba0f77e72ce425a6603b2da063d16c481d4",
+      "size_bytes": 28312
+    },
+    {
+      "path": "datasets/derived/enrichment/crossref-doi-status.tsv",
+      "sha256": "de77f7c1946645116f61af361592ed43ae3c18fc1ad12d5eebd3ca7e07bf2f36",
+      "size_bytes": 10022427
+    },
+    {
+      "path": "datasets/derived/enrichment/openalex-doi-status.tsv",
+      "sha256": "c659575914115a9efa07f7bbfa03787030dd08f910a5e841ad213dc85ad496c6",
+      "size_bytes": 8496366
+    },
+    {
+      "path": "datasets/derived/enrichment/orcid-candidate-links.tsv",
+      "sha256": "db26cfe3fdf79ba95f2ef412227cf8b2e9f902972e0c5c198de0e840aa7d5ca5",
+      "size_bytes": 40817814
+    }
+  ],
+  "license": "ORCID iDs and names as published in the Crossref/OpenAlex records above (public metadata).",
+  "output": {
+    "path": "datasets/samples/enrichment/orcid-candidate-links-sample.tsv",
+    "sha256": "7ccf96b15fadfed5c3b54ef52170b08a1f2b9ae5c5a20d34248c7039bf5757d9",
+    "size_bytes": 35490
+  },
+  "producer": "dataset-engineer",
+  "script": {
+    "name": "enrich_sample.py",
+    "version": "1.0.0"
+  },
+  "selection_rule": "DBLP works = every record of datasets/samples/dblp/dblp-sample-50.xml (the 50 records of selection-10k with the smallest sha256(seed|key), seed scholarchain-dblp-2026-11-16); for each, the DOI-verified Crossref response and DOI-verified OpenAlex work(s) from the 2026-11-22 retrieval; lines sorted by dblp_key",
+  "source_dataset": "orcid",
+  "synthetic": false,
+  "trim_rule": "rows copied verbatim"
+}

@@ -18,6 +18,10 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
     timestamp = "2026-01-01T00:00:00Z"
   )
 
+  /** Index contract used by writer tests (mirrors the 2026-11-22 human decision). */
+  private val titanIndex =
+    S3VectorsConfig(1024, DistanceMetric.Cosine, "amazon.titan-embed-text-v2:0")
+
   // ---- 1. RunLedgerEntry serialization round-trip ----
 
   "RunLedgerEntry" should "serialize and deserialize via upickle" in {
@@ -622,7 +626,8 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       s3Vectors = null,
       s3 = null,
       vectorBucket = "test-bucket",
-      ragBucket = "test-rag"
+      ragBucket = "test-rag",
+      indexConfig = titanIndex
     )
     writer.IndexNames("researcher-profile") shouldBe "researcher-profile-v1"
     writer.IndexNames(
@@ -656,7 +661,8 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       "us-east-1",
       0,
       0L,
-      java.net.http.HttpClient.newBuilder().build()
+      StorageTestAws.NoNetwork,
+      StorageTestAws.dummyCredentials
     ) {
       override def putVectors(
         vectorBucket: String,
@@ -671,6 +677,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       s3 = null,
       vectorBucket = "test-bucket",
       ragBucket = "test-rag",
+      indexConfig = titanIndex,
       maxRetries = 0
     )
     val result = writer.writeBatch(Vector(emptyRecord), "paper-abstract-v1")
@@ -692,18 +699,21 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       institutionId = None,
       textS3Uri = "s3://bucket/text.txt",
       textHash = "h1",
-      embeddingModel = "amazon.titan-embed-text-v2",
+      // Fixture updated 2026-11-22: must match the index model to pass write validation.
+      embeddingModel = "amazon.titan-embed-text-v2:0",
       runId = "run-001"
     )
-    val validRecord  = VectorRecord("k1", Vector(0.1f, 0.2f), meta)
-    val validRecord2 = VectorRecord("k2", Vector(0.3f, 0.4f), meta)
+    // Fixture updated 2026-11-22: vectors must have the index dimension (1024) to be written.
+    val validRecord  = VectorRecord("k1", Vector.fill(1024)(0.1f), meta)
+    val validRecord2 = VectorRecord("k2", Vector.fill(1024)(0.3f), meta)
     val emptyRecord  = VectorRecord("k3", Vector.empty[Float], meta)
 
     val stubVectors = new S3VectorsStorageClient(
       "us-east-1",
       0,
       0L,
-      java.net.http.HttpClient.newBuilder().build()
+      StorageTestAws.NoNetwork,
+      StorageTestAws.dummyCredentials
     ) {
       override def putVectors(
         vectorBucket: String,
@@ -723,6 +733,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       s3 = null,
       vectorBucket = "test-bucket",
       ragBucket = "test-rag",
+      indexConfig = titanIndex,
       maxRetries = 0
     )
     val result =

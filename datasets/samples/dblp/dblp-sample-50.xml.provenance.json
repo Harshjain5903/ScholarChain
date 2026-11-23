@@ -1,0 +1,46 @@
+{
+  "code_version": "7638fde+uncommitted",
+  "counts": {
+    "records": 50
+  },
+  "description": "real DBLP records (original bytes, ISO-8859-1): the 50 records of selection-10k with the smallest sha256(seed|key), in dump order",
+  "generated_at_utc": "2026-11-22T20:05:11Z",
+  "inputs": [
+    {
+      "path": "datasets/derived/dblp/selection-10k.xml",
+      "sha256": "ac7434050ecc4418d485ea6e20782ad48f1729d986d2b7e7cd98ce557d6e567a",
+      "size_bytes": 5704452
+    },
+    {
+      "path": "datasets/derived/dblp/selection-10k.tsv",
+      "sha256": "c29e6994ddfb3f3549575b09c2fa165cd2c7107012ffa00486ab934062445a21",
+      "size_bytes": 1649829
+    },
+    {
+      "gzip_header_mtime_utc": "2026-11-16T22:34:13Z",
+      "path": "datasets/raw/dblp/snapshot=2026-11-16/dblp.xml.gz",
+      "sha256": "082538149e7217dd51dbcc19d7b9d3c40193c9b0e6235fef61be7ca905cdfa8d",
+      "size_bytes": 1120703993
+    },
+    {
+      "path": "datasets/raw/dblp/snapshot=2026-11-16/dblp.dtd",
+      "sha256": "2d864498f9eef9298662df11e3874171ff24cd4a21ab5974f1369c90acdb1ef6",
+      "size_bytes": 13134
+    }
+  ],
+  "license": "CC0 1.0 (dblp metadata)",
+  "output": {
+    "path": "datasets/samples/dblp/dblp-sample-50.xml",
+    "sha256": "1e968376f50084f1b8b731418b73aba0f77e72ce425a6603b2da063d16c481d4",
+    "size_bytes": 28312
+  },
+  "producer": "dataset-engineer",
+  "rule": "Eligibility (fixed order, first failing reason counted): (1) top-level record type is article or inproceedings; (2) key attribute present and non-empty; (3) key unique among all top-level records in the dump; (4) title text (all character data inside <title>, inline markup flattened, entities resolved) non-empty after trimming; (5) first <year> is all ASCII digits; (6) at least 2 <author> children; (7) at least one <ee> whose value is an http(s)://[www.][dx.]doi.org/ URL (else no_doi_org_ee); (8) for the first such <ee> in document order yielding a valid DOI: canonical DOI = strip URL prefix, percent-decode, trim, lowercase; it must start with '10.' and contain no whitespace (else doi_invalid). DOI de-duplication: among eligible records sharing a canonical DOI, keep only the record with the smallest rank (rank = sha256(seed + '|' + key) hex); the others leave the pool. Selection: for each size N, allocate N across publication years in proportion to the de-duplicated pool counts using the largest-remainder method (remainder ties broken by ascending year); each smaller size is additionally capped per year by the allocation of the next larger size. Within each year take the a(year) records with the smallest rank. Never 'first N records'. Smaller selections are subsets of larger ones.",
+  "sample_rule": "n smallest sha256(seed + '|' + key) among selection-10k keys",
+  "script": {
+    "name": "dblp_sample.py",
+    "version": "1.0.0"
+  },
+  "seed": "scholarchain-dblp-2026-11-16",
+  "source_dataset": "dblp"
+}

@@ -14,6 +14,9 @@ object HadoopCounters:
   val Rejected              = "rejected"
   val MissingRequiredFields = "missing_required_fields"
 
+  /** Per-reason reject counts; counter name is the reject reason code (e.g. MALFORMED_XML). */
+  val RejectReasonGroup = "RejectReasons"
+
   // -- DBLP extraction --
   val DblpGroup          = "DblpExtraction"
   val ArticleCount       = "article_count"
@@ -55,6 +58,9 @@ object HadoopCounters:
   val PapersProcessed       = "papers_processed"
   val LargeTeamExpansions   = "large_team_expansions"
   val SkippedSingletonTeams = "skipped_singleton_teams"
+
+  /** Author-paper lines co-located with team records in J06 output; skipped, not rejected. */
+  val SkippedAuthorPaperRecords = "skipped_author_paper_records"
 
   // -- Graph export --
   val ExportGroup       = "GraphExport"

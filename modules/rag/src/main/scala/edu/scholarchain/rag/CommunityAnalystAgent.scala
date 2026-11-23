@@ -4,19 +4,19 @@ import edu.scholarchain.core.*
 import upickle.default.*
 
 case class CommunityInfo(
-    communityId: String,
-    memberCount: Int,
-    researcherIds: Vector[String],
-    crossCommunityEdges: Int
+  communityId: String,
+  memberCount: Int,
+  researcherIds: Vector[String],
+  crossCommunityEdges: Int
 ) derives ReadWriter
 
 /** Analyzes community membership for a set of researchers. */
 class CommunityAnalystAgent(metrics: MetricsStore, graph: GraphStore):
 
   def analyze(
-      researcherIds: Vector[String],
-      windowStart: Int,
-      windowEnd: Int
+    researcherIds: Vector[String],
+    windowStart: Int,
+    windowEnd: Int
   ): Vector[CommunityInfo] =
     val grouped = researcherIds
       .flatMap { rid =>
@@ -41,10 +41,10 @@ class CommunityAnalystAgent(metrics: MetricsStore, graph: GraphStore):
     }.toVector
 
   private def countCrossEdges(
-      members: Vector[String],
-      communityId: String,
-      windowStart: Int,
-      windowEnd: Int
+    members: Vector[String],
+    communityId: String,
+    windowStart: Int,
+    windowEnd: Int
   ): Int =
     members.map { rid =>
       val coauthors = graph.getDirectCoauthors(rid, 100)

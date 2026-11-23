@@ -53,8 +53,9 @@ object SemanticContextJob:
       }
       .groupByKey()
       .mapValues { coauthors =>
+        // Highest joint publication count first; ties by researcher ID (deterministic).
         coauthors.toSeq
-          .sortBy(-_._2)
+          .sortBy { case (rid, weight) => (-weight, rid) }
           .take(topN)
           .map(_._1)
       }
@@ -95,31 +96,31 @@ object SemanticContextJob:
     schemaVersion: String,
     timestamp: String
   ): RDD[SemanticSummary] =
-    val withCommunity = metrics.filter(_.communityId.isDefined)
+    // Bridge scores are joined onto members (distributed); no driver-side score map.
+    val members: RDD[(String, (String, Int, Double))] = metrics
+      .filter(_.communityId.isDefined)
+      .map(m => (m.researcherId, (m.communityId.get, m.publicationCount)))
+      .leftOuterJoin(bridgeScores)
+      .map { case (rid, ((commId, pubs), score)) => (commId, (rid, pubs, score.getOrElse(0.0))) }
 
-    val communityMembers: RDD[(String, Iterable[ResearcherMetrics])] =
-      withCommunity.map(m => (m.communityId.get, m)).groupByKey()
+    // Per community: (member count, publication sum, top bridges). Top bridges are kept bounded at
+    // `topBridgeCount` while aggregating: highest score first, ties by researcher ID.
+    val k = math.max(0, topBridgeCount)
+    def top(xs: Vector[(String, Double)]): Vector[(String, Double)] =
+      xs.sortBy { case (rid, score) => (-score, rid) }.take(k)
+    val aggregated = members.aggregateByKey((0L, 0L, Vector.empty[(String, Double)]))(
+      { case ((n, pubs, best), (rid, p, score)) => (n + 1, pubs + p, top(best :+ (rid, score))) },
+      { case ((n1, p1, b1), (n2, p2, b2)) => (n1 + n2, p1 + p2, top(b1 ++ b2)) }
+    )
 
-    val bridgeMap = bridgeScores.collectAsMap()
-    val bcBridge  = sc.broadcast(bridgeMap)
-
-    val summaries = communityMembers.map { case (commId, members) =>
-      val memberList = members.toSeq
-      val count      = memberList.size
-      val topBridges = memberList
-        .sortBy(m => -bcBridge.value.getOrElse(m.researcherId, 0.0))
-        .take(topBridgeCount)
-        .map(_.researcherId)
-      val avgPubs =
-        if count > 0 then memberList.map(_.publicationCount).sum.toDouble / count else 0.0
+    aggregated.map { case (commId, (count, pubSum, topBridges)) =>
+      val avgPubs = if count > 0 then pubSum.toDouble / count.toDouble else 0.0
       val summary = s"Community $commId has $count members. " +
-        s"Average publications per member: ${"%.1f".format(avgPubs)}. " +
-        s"Key bridge researchers: ${topBridges.mkString(", ")}."
-      val prov = GraphUtils.makeProv(runId, schemaVersion, s"community:$commId", timestamp)
+        s"Average publications per member: ${"%.1f".formatLocal(java.util.Locale.ROOT, avgPubs)}. " +
+        s"Key bridge researchers: ${topBridges.map(_._1).mkString(", ")}."
+      val prov = GraphUtils.makeProv(runId, schemaVersion, commId, timestamp)
       SemanticSummary(commId, "community-summary", summary, prov)
     }
-
-    summaries
 
   /**
    * Generate collaboration-path summaries for specified researcher pairs.

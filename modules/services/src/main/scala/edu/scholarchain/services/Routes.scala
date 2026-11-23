@@ -11,10 +11,10 @@ import edu.scholarchain.rag.{AuditRecord, WorkflowResult}
 
 /** HTTP route definitions for the ScholarChain REST API. */
 class Routes(
-    workflow: WorkflowPort,
-    graphStore: ServiceGraphStore,
-    auditStore: ServiceAuditStore,
-    config: ServiceConfig
+  workflow: WorkflowPort,
+  graphStore: ServiceGraphStore,
+  auditStore: ServiceAuditStore,
+  config: ServiceConfig
 ):
 
   private val idempotencyCache = new ConcurrentHashMap[String, String]()
@@ -38,9 +38,9 @@ class Routes(
     server
 
   private def readBody(exchange: HttpExchange): String =
-    val is  = exchange.getRequestBody
-    val buf = new ByteArrayOutputStream()
-    val tmp = new Array[Byte](4096)
+    val is    = exchange.getRequestBody
+    val buf   = new ByteArrayOutputStream()
+    val tmp   = new Array[Byte](4096)
     var total = 0
     var n     = is.read(tmp)
     while n >= 0 do
@@ -56,10 +56,10 @@ class Routes(
     buf.toString("UTF-8")
 
   private def sendJson(
-      exchange: HttpExchange,
-      status: Int,
-      body: String,
-      tid: String
+    exchange: HttpExchange,
+    status: Int,
+    body: String,
+    tid: String
   ): Unit =
     exchange.getResponseHeaders.add("Content-Type", "application/json")
     exchange.getResponseHeaders.add("X-Trace-Id", tid)
@@ -72,7 +72,7 @@ class Routes(
   private def newTraceId(): String = s"trace-${UUID.randomUUID()}"
 
   private def parseQueryParams(
-      query: String
+    query: String
   ): Map[String, String] =
     if query == null || query.isEmpty then Map.empty
     else
@@ -95,8 +95,7 @@ class Routes(
       exchange.getRequestMethod match
         case "POST" =>
           val body = readBody(exchange)
-          if body.trim.isEmpty then
-            throw BadRequestException("Request body must not be empty")
+          if body.trim.isEmpty then throw BadRequestException("Request body must not be empty")
 
           val request =
             try read[QueryRequest](body)
@@ -116,9 +115,7 @@ class Routes(
           val idempotencyKey = Option(
             exchange.getRequestHeaders.getFirst("Idempotency-Key")
           )
-          val cached = idempotencyKey.flatMap(key =>
-            Option(idempotencyCache.get(key))
-          )
+          val cached = idempotencyKey.flatMap(key => Option(idempotencyCache.get(key)))
 
           cached match
             case Some(cachedJson) =>
@@ -135,8 +132,7 @@ class Routes(
                   claimId = c.claimId,
                   text = c.statement,
                   evidenceIds = c.supportingEvidence,
-                  verificationStatus =
-                    c.verificationStatus.toString,
+                  verificationStatus = c.verificationStatus.toString,
                   uncertainty = None
                 )
               }
@@ -160,9 +156,7 @@ class Routes(
               )
 
               val json = write(response)
-              idempotencyKey.foreach(key =>
-                idempotencyCache.put(key, json)
-              )
+              idempotencyKey.foreach(key => idempotencyCache.put(key, json))
               sendJson(exchange, 200, json, tid)
 
         case _ =>
@@ -176,16 +170,14 @@ class Routes(
         sendJson(exchange, status, write(err), tid)
 
   private def buildConstraints(
-      request: QueryRequest
+    request: QueryRequest
   ): Map[String, String] =
     val b = Map.newBuilder[String, String]
     request.constraints.foreach { c =>
       c.yearFrom.foreach(v => b += ("yearFrom" -> v.toString))
       c.yearTo.foreach(v => b += ("yearTo" -> v.toString))
       c.topics.foreach(v => b += ("topics" -> v.mkString(",")))
-      c.institutions.foreach(v =>
-        b += ("institutions" -> v.mkString(","))
-      )
+      c.institutions.foreach(v => b += ("institutions" -> v.mkString(",")))
       c.venues.foreach(v => b += ("venues" -> v.mkString(",")))
     }
     b.result()
@@ -197,11 +189,9 @@ class Routes(
         case "GET" =>
           val path  = exchange.getRequestURI.getPath
           val jobId = path.stripPrefix("/v1/jobs/")
-          if jobId.isEmpty then
-            throw BadRequestException("Job ID must not be empty")
+          if jobId.isEmpty then throw BadRequestException("Job ID must not be empty")
           val job = jobStore.get(jobId)
-          if job == null then
-            throw NotFoundException(s"Job $jobId not found")
+          if job == null then throw NotFoundException(s"Job $jobId not found")
           sendJson(exchange, 200, write(job), tid)
         case _ =>
           throw BadRequestException("Only GET is supported on /v1/jobs/")
@@ -220,10 +210,9 @@ class Routes(
         case "GET" =>
           val path       = exchange.getRequestURI.getPath
           val evidenceId = path.stripPrefix("/v1/evidence/")
-          if evidenceId.isEmpty then
-            throw BadRequestException("Evidence ID must not be empty")
+          if evidenceId.isEmpty then throw BadRequestException("Evidence ID must not be empty")
 
-          val found = queryResults.values().iterator()
+          val found                        = queryResults.values().iterator()
           var result: Option[EvidenceItem] = None
           while found.hasNext && result.isEmpty do
             val wr = found.next()
@@ -328,8 +317,7 @@ class Routes(
         case "GET" =>
           val path    = exchange.getRequestURI.getPath
           val queryId = path.stripPrefix("/v1/explain/")
-          if queryId.isEmpty then
-            throw BadRequestException("Query ID must not be empty")
+          if queryId.isEmpty then throw BadRequestException("Query ID must not be empty")
 
           val audit = auditStore.getAudit(queryId)
           audit match

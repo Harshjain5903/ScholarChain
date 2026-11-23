@@ -6,9 +6,9 @@ import org.scalatest.matchers.should.Matchers
 
 class AdversarialEntityResolutionSpec extends AnyFlatSpec with Matchers:
 
-  private val policy     = ScoringPolicy.default
+  private val policy      = ScoringPolicy.default
   private val adjudicator = new StubLlmAdjudicator()
-  private val engine     = new EntityResolutionEngine(policy, adjudicator, llmEnabled = false)
+  private val engine      = new EntityResolutionEngine(policy, adjudicator, llmEnabled = false)
 
   // --- 1. Common name collision ("Wei Wang" appearing many times) ---
 

@@ -1,0 +1,13 @@
+<configuration>
+  <!-- Storage tests only. The AWS SDK signer logs canonical requests at DEBUG, which
+       include x-amz-security-token for session credentials; keep the SDK at INFO. -->
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{36} -- %msg%n</pattern>
+    </encoder>
+  </appender>
+  <logger name="software.amazon.awssdk" level="INFO"/>
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>

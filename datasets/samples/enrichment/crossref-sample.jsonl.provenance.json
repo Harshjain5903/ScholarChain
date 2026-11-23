@@ -1,0 +1,46 @@
+{
+  "code_version": "753c499+uncommitted",
+  "counts": {
+    "lines": 41
+  },
+  "description": "real Crossref records (trimmed) for the DBLP sample works",
+  "development_run_note": "derived from the 10K DEVELOPMENT selection",
+  "generated_at_utc": "2026-11-23T16:58:09Z",
+  "inputs": [
+    {
+      "path": "datasets/samples/dblp/dblp-sample-50.xml",
+      "sha256": "1e968376f50084f1b8b731418b73aba0f77e72ce425a6603b2da063d16c481d4",
+      "size_bytes": 28312
+    },
+    {
+      "path": "datasets/derived/enrichment/crossref-doi-status.tsv",
+      "sha256": "de77f7c1946645116f61af361592ed43ae3c18fc1ad12d5eebd3ca7e07bf2f36",
+      "size_bytes": 10022427
+    },
+    {
+      "path": "datasets/derived/enrichment/openalex-doi-status.tsv",
+      "sha256": "c659575914115a9efa07f7bbfa03787030dd08f910a5e841ad213dc85ad496c6",
+      "size_bytes": 8496366
+    },
+    {
+      "path": "datasets/derived/enrichment/orcid-candidate-links.tsv",
+      "sha256": "db26cfe3fdf79ba95f2ef412227cf8b2e9f902972e0c5c198de0e840aa7d5ca5",
+      "size_bytes": 40817814
+    }
+  ],
+  "license": "Crossref metadata: Crossref states bibliographic metadata are facts free to reuse without restriction; abstracts may be publisher copyright and are excluded here. Terms to be re-confirmed by the human at https://www.crossref.org/documentation/retrieve-metadata/rest-api/",
+  "output": {
+    "path": "datasets/samples/enrichment/crossref-sample.jsonl",
+    "sha256": "5309d593de83cdbc23bdbaa2b7ac7cd516ee0b7a01cbd5a7ef3451cfa4c72d4a",
+    "size_bytes": 47031
+  },
+  "producer": "dataset-engineer",
+  "script": {
+    "name": "enrich_sample.py",
+    "version": "1.0.0"
+  },
+  "selection_rule": "DBLP works = every record of datasets/samples/dblp/dblp-sample-50.xml (the 50 records of selection-10k with the smallest sha256(seed|key), seed scholarchain-dblp-2026-11-16); for each, the DOI-verified Crossref response and DOI-verified OpenAlex work(s) from the 2026-11-22 retrieval; lines sorted by dblp_key",
+  "source_dataset": "crossref",
+  "synthetic": false,
+  "trim_rule": "Crossref message fields kept: DOI, type, title, container-title, short-container-title, publisher, member, prefix, issued, published, ISSN, ISBN, volume, issue, page, reference-count, is-referenced-by-count, author; author[] fields kept: given, family, name, sequence, ORCID, authenticated-orcid; everything else dropped (notably abstract, reference, license, link, relation, assertion)."
+}

@@ -35,7 +35,7 @@ credentials.json
 *.tfstate
 *.tfstate.*
 .terraform/
-.terraform.lock.hcl
+# .terraform.lock.hcl is intentionally tracked to pin provider versions/hashes (human architect decision).
 
 # Logs
 *.log
@@ -49,3 +49,17 @@ docker-compose.override.yml
 
 # Node (if any tooling)
 node_modules/
+
+# Datasets and local pipeline outputs — never commit
+# Raw source snapshots (e.g. DBLP dblp.xml.gz / dblp.dtd under
+# datasets/raw/dblp/<snapshot>/, Crossref/OpenAlex/ORCID API envelopes
+# under datasets/raw/<source>/). Manifests, scripts, schema notes and
+# license records elsewhere under datasets/ remain tracked.
+datasets/raw/
+datasets/cache/
+datasets/derived/
+# Local Hadoop/Spark run output roots
+local-runs/
+# Terraform plan files (may embed sensitive values)
+*.tfplan
+# Note: .DS_Store is already ignored at every depth by the macOS rule above.

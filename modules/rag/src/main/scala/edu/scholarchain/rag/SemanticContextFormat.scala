@@ -16,6 +16,37 @@ case class SemanticContext(
   provenance: Provenance
 ) derives ReadWriter
 
+/** Why semantic retrieval abstained. `code` is the stable reason code. */
+enum SemanticFailureReason(val code: String):
+  /** Query model id differs from the model that populated the indexes. */
+  case EmbeddingModelMismatch extends SemanticFailureReason("EMBEDDING_MODEL_MISMATCH")
+
+  /** Query vector length differs from the index dimension. */
+  case EmbeddingDimensionMismatch extends SemanticFailureReason("EMBEDDING_DIMENSION_MISMATCH")
+
+  /** The embedding backend failed; no vector was produced. */
+  case EmbeddingUnavailable extends SemanticFailureReason("EMBEDDING_UNAVAILABLE")
+
+object SemanticFailureReason:
+
+  def fromCode(code: String): Option[SemanticFailureReason] =
+    SemanticFailureReason.values.find(_.code == code)
+
+  given ReadWriter[SemanticFailureReason] =
+    readwriter[String].bimap(
+      _.code,
+      c =>
+        fromCode(c).getOrElse(
+          throw new IllegalArgumentException(s"unknown semantic failure reason '$c'")
+        )
+    )
+
+/** Typed abstention of semantic retrieval; no vector index was queried when this is present. */
+case class SemanticRetrievalFailure(
+  reason: SemanticFailureReason,
+  detail: String
+) derives ReadWriter
+
 case class SemanticContextBundle(
   queryId: String,
   researcherContexts: List[SemanticContext],
@@ -24,8 +55,12 @@ case class SemanticContextBundle(
   paperContexts: List[SemanticContext],
   topicContexts: List[SemanticContext],
   totalTokenEstimate: Int,
-  truncated: Boolean
-) derives ReadWriter
+  truncated: Boolean,
+  failure: Option[SemanticRetrievalFailure] = None
+) derives ReadWriter:
+
+  /** True when retrieval abstained (contexts are empty by construction). */
+  def abstained: Boolean = failure.isDefined
 
 object SemanticContextFormat:
 

@@ -1,0 +1,6 @@
+<!-- Synthetic test DTD for datasets/scripts/tests. Not the real dblp.dtd. -->
+<!ELEMENT dblp (article|inproceedings|proceedings|www)*>
+<!ENTITY % titlecontents "#PCDATA|sub|sup|i">
+<!ELEMENT i (%titlecontents;)*>
+<!ENTITY ouml   "&#246;">
+<!ENTITY eacute "&#233;">
