@@ -58,7 +58,10 @@ class LineageContractSpec extends AnyFlatSpec with Matchers {
     val obj = writeJs(fullProvenance).obj
     obj("transformationStep").str shouldBe "entity-resolution"
     obj("producer").str shouldBe "EntityResolutionRunner"
-    obj("upstreamRunIds").arr.map(_.str).toVector shouldBe Vector("run:hadoop-001", "run:hadoop-002")
+    obj("upstreamRunIds").arr.map(_.str).toVector shouldBe Vector(
+      "run:hadoop-001",
+      "run:hadoop-002"
+    )
     obj("policyVersion").str shouldBe "er-mention-v1-uncalibrated"
   }
 
@@ -134,14 +137,20 @@ class LineageContractSpec extends AnyFlatSpec with Matchers {
 
   it should "be accepted empty when maximumCoauthorsOnOnePaper is 0 (solo author)" in {
     noException should be thrownBy
-      sampleResearcherMetrics.copy(maximumCoauthorsOnOnePaper = 0, maximumTeamWorkIds = Vector.empty)
+      sampleResearcherMetrics.copy(
+        maximumCoauthorsOnOnePaper = 0,
+        maximumTeamWorkIds = Vector.empty
+      )
     noException should be thrownBy
       read[ResearcherMetrics](legacyMetricsJson(maxCoauthors = 0, bridgeScore = 0.0))
   }
 
   it should "be allowed empty when maximumCoauthorsOnOnePaper is positive (legacy data)" in {
     noException should be thrownBy
-      sampleResearcherMetrics.copy(maximumCoauthorsOnOnePaper = 5, maximumTeamWorkIds = Vector.empty)
+      sampleResearcherMetrics.copy(
+        maximumCoauthorsOnOnePaper = 5,
+        maximumTeamWorkIds = Vector.empty
+      )
   }
 
   // --- ResearcherMetrics.bridgeScoreMethod (Pass 6 N52) ---
@@ -195,7 +204,10 @@ class LineageContractSpec extends AnyFlatSpec with Matchers {
 
   it should "require the 0.0 placeholder when not computed" in {
     an[IllegalArgumentException] should be thrownBy
-      sampleResearcherMetrics.copy(bridgeScore = 0.5, bridgeScoreMethod = BridgeScoreMethod.NotComputed)
+      sampleResearcherMetrics.copy(
+        bridgeScore = 0.5,
+        bridgeScoreMethod = BridgeScoreMethod.NotComputed
+      )
   }
 }
 
