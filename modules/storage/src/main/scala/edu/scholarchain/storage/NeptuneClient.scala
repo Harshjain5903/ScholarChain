@@ -230,8 +230,8 @@ object NeptuneStorageClient:
 
   /**
    * Relationship types a shortest path traverses when the caller passes none. Restricting to the
-   * coauthorship type (the `COAUTHOR` label also used by
-   * [[NeptuneStorageClient.getDirectCoauthors]]) bounds the fan-out of the undirected
+   * coauthorship type ([[GraphSchema.EdgeType.Coauthor]], wire label `COAUTHORED_WITH`, also used
+   * by [[NeptuneStorageClient.getDirectCoauthors]]) bounds the fan-out of the undirected
    * variable-length match; an unrestricted `-[*1..d]-` over every edge type grows exponentially
    * with depth (review finding N35).
    */
@@ -253,7 +253,7 @@ object NeptuneStorageClient:
   /**
    * openCypher text and parameters for a bounded shortest-path lookup without `shortestPath()`:
    * {{{
-   * MATCH p = (a:Researcher {researcherId: $fromId})-[:COAUTHOR*1..d]-(b:Researcher {researcherId: $toId})
+   * MATCH p = (a:Researcher {researcherId: $fromId})-[:COAUTHORED_WITH*1..d]-(b:Researcher {researcherId: $toId})
    * WITH p ORDER BY length(p) ASC LIMIT 1
    * RETURN [n IN nodes(p) | n.researcherId] AS path
    * }}}

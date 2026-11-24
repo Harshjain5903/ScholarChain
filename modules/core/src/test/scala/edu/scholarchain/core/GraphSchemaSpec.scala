@@ -20,9 +20,15 @@ class GraphSchemaSpec extends AnyFlatSpec with Matchers {
   }
 
   "GraphSchema.EdgeType" should "pin the exact edge type values" in {
-    EdgeType.Coauthor shouldBe "COAUTHOR"
+    EdgeType.Coauthor shouldBe "COAUTHORED_WITH"
     EdgeType.Authored shouldBe "AUTHORED"
-    EdgeType.All shouldBe Vector("COAUTHOR", "AUTHORED")
+    EdgeType.All shouldBe Vector("COAUTHORED_WITH", "AUTHORED")
+  }
+
+  it should "no longer declare the retired COAUTHOR value (DOM-P12-R08)" in {
+    EdgeType.All should not contain "COAUTHOR"
+    isDeclaredEdgeType("COAUTHOR") shouldBe false
+    an[IllegalArgumentException] should be thrownBy requireDeclaredEdgeType("COAUTHOR")
   }
 
   "GraphSchema.PropertyKey" should "pin the exact vertex key values" in {
@@ -33,7 +39,7 @@ class GraphSchemaSpec extends AnyFlatSpec with Matchers {
     PropertyKey.VertexKeys shouldBe Vector("nodeId", "researcherId", "componentId", "workId")
   }
 
-  it should "pin the exact COAUTHOR edge key values" in {
+  it should "pin the exact COAUTHORED_WITH edge key values" in {
     PropertyKey.ResearcherA shouldBe "researcherA"
     PropertyKey.ResearcherB shouldBe "researcherB"
     PropertyKey.JointPublicationCount shouldBe "jointPublicationCount"
@@ -52,9 +58,41 @@ class GraphSchemaSpec extends AnyFlatSpec with Matchers {
     )
   }
 
-  it should "list every declared key exactly once in All" in {
-    PropertyKey.All shouldBe (PropertyKey.VertexKeys ++ PropertyKey.CoauthorEdgeKeys)
-    PropertyKey.All.size shouldBe 11
+  it should "pin the exact descriptive vertex property key values (N41)" in {
+    PropertyKey.DisplayName shouldBe "displayName"
+    PropertyKey.Title shouldBe "title"
+    PropertyKey.Year shouldBe "year"
+    PropertyKey.Venue shouldBe "venue"
+    PropertyKey.ResearcherDescriptiveKeys shouldBe Vector("displayName")
+    PropertyKey.WorkDescriptiveKeys shouldBe Vector("title", "year", "venue")
+  }
+
+  it should "list every declared key exactly once in All, grouped vertex then edge" in {
+    PropertyKey.All shouldBe Vector(
+      "nodeId",
+      "researcherId",
+      "componentId",
+      "workId",
+      "displayName",
+      "title",
+      "year",
+      "venue",
+      "researcherA",
+      "researcherB",
+      "jointPublicationCount",
+      "firstCollaborationYear",
+      "lastCollaborationYear",
+      "representativeWorkIds",
+      "provenance"
+    )
+    PropertyKey.All.distinct shouldBe PropertyKey.All
+    PropertyKey.All.size shouldBe 15
+  }
+
+  it should "keep descriptive keys disjoint from identity and edge keys" in {
+    val descriptive = PropertyKey.ResearcherDescriptiveKeys ++ PropertyKey.WorkDescriptiveKeys
+    (descriptive.toSet intersect PropertyKey.VertexKeys.toSet) shouldBe empty
+    (descriptive.toSet intersect PropertyKey.CoauthorEdgeKeys.toSet) shouldBe empty
   }
 
   "GraphSchema declared names" should "be unique within each category" in {
@@ -62,6 +100,7 @@ class GraphSchemaSpec extends AnyFlatSpec with Matchers {
     EdgeType.All.distinct shouldBe EdgeType.All
     PropertyKey.VertexKeys.distinct shouldBe PropertyKey.VertexKeys
     PropertyKey.CoauthorEdgeKeys.distinct shouldBe PropertyKey.CoauthorEdgeKeys
+    PropertyKey.WorkDescriptiveKeys.distinct shouldBe PropertyKey.WorkDescriptiveKeys
   }
 
   it should "not collide between vertex labels and edge types (case-insensitively)" in {
@@ -88,6 +127,9 @@ class GraphSchemaSpec extends AnyFlatSpec with Matchers {
     writeJs(sampleGraphNode).obj.keySet should contain(PropertyKey.NodeId)
     writeJs(sampleResearcherMetrics).obj.keySet should contain(PropertyKey.ComponentId)
     writeJs(sampleCanonicalResearcher).obj.keySet should contain(PropertyKey.Provenance)
+    writeJs(sampleCanonicalResearcher).obj.keySet should contain(PropertyKey.DisplayName)
+    writeJs(sampleWorkRecord).obj.keySet should contain(PropertyKey.Title)
+    writeJs(sampleWorkRecord).obj.keySet should contain(PropertyKey.Year)
   }
 
   "isValidEdgeTypeIdentifier" should "accept every declared edge type" in {
@@ -140,7 +182,17 @@ class GraphSchemaSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "reject well-formed but undeclared or differently-cased types" in {
-    Vector("coauthor", "Coauthor", "CO_AUTHOR", "COAUTHORED", "authored", "KNOWS", "Researcher")
+    Vector(
+      "coauthor",
+      "Coauthor",
+      "CO_AUTHOR",
+      "COAUTHORED",
+      "COAUTHOR",
+      "coauthored_with",
+      "authored",
+      "KNOWS",
+      "Researcher"
+    )
       .foreach(t => isDeclaredEdgeType(t) shouldBe false)
   }
 
@@ -151,14 +203,14 @@ class GraphSchemaSpec extends AnyFlatSpec with Matchers {
   }
 
   "requireDeclaredEdgeType" should "return a declared type unchanged" in {
-    requireDeclaredEdgeType("COAUTHOR") shouldBe "COAUTHOR"
+    requireDeclaredEdgeType("COAUTHORED_WITH") shouldBe "COAUTHORED_WITH"
     requireDeclaredEdgeType(EdgeType.Authored) shouldBe EdgeType.Authored
   }
 
   it should "throw IllegalArgumentException naming the declared types for anything else" in {
     val ex = intercept[IllegalArgumentException](requireDeclaredEdgeType("KNOWS"))
     ex.getMessage should include("KNOWS")
-    ex.getMessage should include("COAUTHOR")
+    ex.getMessage should include("COAUTHORED_WITH")
     ex.getMessage should include("AUTHORED")
     an[IllegalArgumentException] should be thrownBy requireDeclaredEdgeType("COAUTHOR]-()")
   }

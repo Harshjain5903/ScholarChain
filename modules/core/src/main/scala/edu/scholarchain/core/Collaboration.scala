@@ -148,7 +148,45 @@ object CoauthorEdge:
         )
     )
 
-/** Per-researcher collaboration metrics for a time window. */
+/**
+ * Allowed values of [[ResearcherMetrics.bridgeScoreMethod]]: how a researcher's `bridgeScore`
+ * (betweenness centrality) was obtained (review finding Pass 6 N52).
+ *
+ * The values are plain strings rather than an enum so that the field stays a primitive in JSON and
+ * Spark rows and existing `ResearcherMetrics(...)` call sites keep compiling unchanged.
+ */
+object BridgeScoreMethod:
+
+  /** Exact betweenness over the full graph (or component). */
+  val Exact: String = "exact"
+
+  /** Approximate betweenness from a sample of source vertices. */
+  val Sampled: String = "sampled"
+
+  /**
+   * Betweenness was skipped (for example, the graph exceeded the size budget). `bridgeScore` is
+   * then a 0.0 placeholder, not a measured zero, and must not be ranked or reported as a value.
+   */
+  val NotComputed: String = "not-computed"
+
+  /** Every allowed value, in declaration order. */
+  val All: Vector[String] = Vector(Exact, Sampled, NotComputed)
+
+  /** True when `method` is one of [[All]] (exact, case-sensitive match). */
+  def isValid(method: String): Boolean = All.contains(method)
+
+/**
+ * Per-researcher collaboration metrics for a time window.
+ *
+ * @param maximumTeamWorkIds
+ *   work IDs of the paper(s) on which this researcher had `maximumCoauthorsOnOnePaper` coauthors
+ *   (the evidence behind M_r). Defaults to empty so JSON written before this field existed still
+ *   reads; it must be empty when `maximumCoauthorsOnOnePaper` is 0. Producers may cap its length.
+ * @param bridgeScoreMethod
+ *   how `bridgeScore` was obtained; one of [[BridgeScoreMethod.All]]. Defaults to
+ *   [[BridgeScoreMethod.Exact]] so JSON written before this field existed still reads. When it is
+ *   [[BridgeScoreMethod.NotComputed]], `bridgeScore` must be the 0.0 placeholder.
+ */
 case class ResearcherMetrics(
   researcherId: String,
   publicationCount: Int,
@@ -163,10 +201,27 @@ case class ResearcherMetrics(
   coreness: Int,
   windowStartYear: Int,
   windowEndYear: Int,
-  provenance: Provenance
+  provenance: Provenance,
+  maximumTeamWorkIds: Vector[String] = Vector.empty,
+  bridgeScoreMethod: String = BridgeScoreMethod.Exact
 ) derives ReadWriter:
 
   require(
     windowStartYear <= windowEndYear,
     s"windowStartYear ($windowStartYear) must be <= windowEndYear ($windowEndYear)"
+  )
+
+  require(
+    maximumCoauthorsOnOnePaper != 0 || maximumTeamWorkIds.isEmpty,
+    s"maximumTeamWorkIds must be empty when maximumCoauthorsOnOnePaper is 0, got $maximumTeamWorkIds"
+  )
+
+  require(
+    BridgeScoreMethod.isValid(bridgeScoreMethod),
+    s"bridgeScoreMethod '$bridgeScoreMethod' must be one of ${BridgeScoreMethod.All.mkString(", ")}"
+  )
+
+  require(
+    bridgeScoreMethod != BridgeScoreMethod.NotComputed || bridgeScore == 0.0,
+    s"bridgeScore must be the 0.0 placeholder when bridgeScoreMethod is not-computed, got $bridgeScore"
   )

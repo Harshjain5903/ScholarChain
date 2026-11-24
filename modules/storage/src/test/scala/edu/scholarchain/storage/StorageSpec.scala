@@ -370,7 +370,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       edgeId = "edge-001",
       sourceNodeId = "node-a",
       targetNodeId = "node-b",
-      edgeType = "COAUTHOR",
+      edgeType = GraphSchema.EdgeType.Coauthor,
       properties = Map("weight" -> "5"),
       provenance = testProvenance
     )
@@ -385,7 +385,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
         edgeId = "edge-002",
         sourceNodeId = "node-a",
         targetNodeId = "node-b",
-        edgeType = "COAUTHOR",
+        edgeType = GraphSchema.EdgeType.Coauthor,
         properties = Map.empty,
         provenance = Provenance(
           sourceDataset = "",

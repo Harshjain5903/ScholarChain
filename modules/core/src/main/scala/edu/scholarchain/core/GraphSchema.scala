@@ -30,8 +30,12 @@ object GraphSchema:
     /**
      * Undirected collaboration between two `Researcher` vertices; mirrors [[CoauthorEdge]]. Stored
      * once per ordered pair (`researcherA` < `researcherB`) and matched without direction.
+     *
+     * Wire value is `COAUTHORED_WITH` (human-approved 2026-11-23, work order DOM-P12-R08, to match
+     * the course README). It was previously `COAUTHOR`; the Scala identifier is unchanged so call
+     * sites do not churn, but stored graphs and query text using the old value no longer match.
      */
-    val Coauthor: String = "COAUTHOR"
+    val Coauthor: String = "COAUTHORED_WITH"
 
     /** Directed `Researcher` -> `Work` authorship; mirrors [[AuthorshipRecord]]. */
     val Authored: String = "AUTHORED"
@@ -54,33 +58,60 @@ object GraphSchema:
     /** `Work` identity; mirrors [[WorkRecord.workId]]. */
     val WorkId: String = "workId"
 
-    /** `COAUTHOR` edge: lexicographically smaller researcher ID. */
+    /** `COAUTHORED_WITH` edge: lexicographically smaller researcher ID. */
     val ResearcherA: String = "researcherA"
 
-    /** `COAUTHOR` edge: lexicographically larger researcher ID. */
+    /** `COAUTHORED_WITH` edge: lexicographically larger researcher ID. */
     val ResearcherB: String = "researcherB"
 
-    /** `COAUTHOR` edge: number of shared works; also the ordering key for direct coauthors. */
+    /**
+     * `COAUTHORED_WITH` edge: number of shared works; also the ordering key for direct coauthors.
+     */
     val JointPublicationCount: String = "jointPublicationCount"
 
-    /** `COAUTHOR` edge: earliest shared publication year. */
+    /** `COAUTHORED_WITH` edge: earliest shared publication year. */
     val FirstCollaborationYear: String = "firstCollaborationYear"
 
-    /** `COAUTHOR` edge: latest shared publication year. */
+    /** `COAUTHORED_WITH` edge: latest shared publication year. */
     val LastCollaborationYear: String = "lastCollaborationYear"
 
-    /** `COAUTHOR` edge: sample of shared work IDs. */
+    /** `COAUTHORED_WITH` edge: sample of shared work IDs. */
     val RepresentativeWorkIds: String = "representativeWorkIds"
 
     /** Provenance metadata carried by every vertex and edge. */
     val Provenance: String = "provenance"
 
+    /**
+     * `Researcher` descriptive property: human-readable name; mirrors
+     * [[CanonicalResearcher.displayName]].
+     */
+    val DisplayName: String = "displayName"
+
+    /** `Work` descriptive property: title; mirrors [[WorkRecord.title]]. */
+    val Title: String = "title"
+
+    /** `Work` descriptive property: publication year; mirrors [[WorkRecord.year]]. */
+    val Year: String = "year"
+
+    /**
+     * `Work` descriptive property: venue. Note the key is `venue`, not `venueId`: there is no
+     * same-named core field. Exporters derive it from [[WorkRecord.venueId]] (or [[Venue.name]]
+     * when resolved) and should omit the property when the venue is unknown.
+     */
+    val Venue: String = "venue"
+
     /** Vertex identity and lookup keys, in declaration order. */
     val VertexKeys: Vector[String] = Vector(NodeId, ResearcherId, ComponentId, WorkId)
 
+    /** Descriptive `Researcher` vertex properties (not identity keys), in declaration order. */
+    val ResearcherDescriptiveKeys: Vector[String] = Vector(DisplayName)
+
+    /** Descriptive `Work` vertex properties (not identity keys), in declaration order. */
+    val WorkDescriptiveKeys: Vector[String] = Vector(Title, Year, Venue)
+
     /**
-     * Properties a stored `COAUTHOR` edge must carry; storage parses an edge as a [[CoauthorEdge]],
-     * which requires every one of these keys.
+     * Properties a stored `COAUTHORED_WITH` edge must carry; storage parses an edge as a
+     * [[CoauthorEdge]], which requires every one of these keys.
      */
     val CoauthorEdgeKeys: Vector[String] = Vector(
       ResearcherA,
@@ -93,7 +124,8 @@ object GraphSchema:
     )
 
     /** Every declared property key, without duplicates, in declaration order. */
-    val All: Vector[String] = (VertexKeys ++ CoauthorEdgeKeys).distinct
+    val All: Vector[String] =
+      (VertexKeys ++ ResearcherDescriptiveKeys ++ WorkDescriptiveKeys ++ CoauthorEdgeKeys).distinct
 
   /**
    * Identifier pattern a relationship type must match to be placed in openCypher query text

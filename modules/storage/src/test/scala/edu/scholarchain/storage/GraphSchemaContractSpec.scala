@@ -89,23 +89,25 @@ class GraphSchemaContractSpec extends AnyFlatSpec with Matchers:
       }
     }
 
-  it should "keep the pre-N36 query text byte-identical" in {
+  it should "keep the query text byte-identical apart from the COAUTHORED_WITH relabel" in {
+    // Pinned wire text: the only change since pre-N36 is the human-approved COAUTHOR ->
+    // COAUTHORED_WITH edge-type rename (STO-P12-R08), which flows from GraphSchema.
     NeptuneStorageClient.getResearcherQuery shouldBe
       "MATCH (r:Researcher {researcherId: $rid}) RETURN r"
     NeptuneStorageClient.getWorkQuery shouldBe "MATCH (w:Work {workId: $wid}) RETURN w"
     NeptuneStorageClient.directCoauthorsQuery shouldBe
-      "MATCH (r:Researcher {researcherId: $rid})-[e:COAUTHOR]-(other:Researcher)\n" +
+      "MATCH (r:Researcher {researcherId: $rid})-[e:COAUTHORED_WITH]-(other:Researcher)\n" +
       "RETURN e ORDER BY e.jointPublicationCount DESC LIMIT $lim"
     NeptuneStorageClient.componentMembersQuery shouldBe
       "MATCH (r:Researcher {componentId: $cid}) RETURN r.researcherId AS rid LIMIT $lim"
-    NeptuneStorageClient.neighborsQuery(Vector("COAUTHOR"), 2) shouldBe
-      "MATCH (start {nodeId: $nid})-[e:COAUTHOR*1..2]-(neighbor)\n" +
+    NeptuneStorageClient.neighborsQuery(Vector(GraphSchema.EdgeType.Coauthor), 2) shouldBe
+      "MATCH (start {nodeId: $nid})-[e:COAUTHORED_WITH*1..2]-(neighbor)\n" +
       "RETURN DISTINCT neighbor LIMIT $lim"
     NeptuneStorageClient.neighborsQuery(Vector.empty, 9) shouldBe
       "MATCH (start {nodeId: $nid})-[e*1..3]-(neighbor)\n" +
       "RETURN DISTINCT neighbor LIMIT $lim"
     NeptuneStorageClient.shortestPathQuery("a", "b", 4)._1 shouldBe
-      "MATCH p = (a:Researcher {researcherId: $fromId})-[:COAUTHOR*1..4]-" +
+      "MATCH p = (a:Researcher {researcherId: $fromId})-[:COAUTHORED_WITH*1..4]-" +
       "(b:Researcher {researcherId: $toId})\n" +
       "WITH p ORDER BY length(p) ASC LIMIT 1\n" +
       "RETURN [n IN nodes(p) | n.researcherId] AS path"
@@ -128,13 +130,24 @@ class GraphSchemaContractSpec extends AnyFlatSpec with Matchers:
     )
   }
 
-  "NeptuneStorageClient edge types" should "default path traversal to GraphSchema COAUTHOR" in {
+  "NeptuneStorageClient edge types" should "default path traversal to GraphSchema EdgeType.Coauthor" in {
     NeptuneStorageClient.DefaultPathEdgeTypes shouldBe Vector(GraphSchema.EdgeType.Coauthor)
   }
 
   it should "delegate identifier validation to GraphSchema.isValidEdgeTypeIdentifier" in {
     val samples =
-      Vector("COAUTHOR", "AUTHORED", "AFFILIATED_WITH", "_x1", "1BAD", "A-B", "A]-()", "", "a b")
+      Vector(
+        GraphSchema.EdgeType.Coauthor,
+        "COAUTHOR",
+        "AUTHORED",
+        "AFFILIATED_WITH",
+        "_x1",
+        "1BAD",
+        "A-B",
+        "A]-()",
+        "",
+        "a b"
+      )
     samples.foreach { s =>
       NeptuneStorageClient.isValidEdgeType(s) shouldBe GraphSchema.isValidEdgeTypeIdentifier(s)
     }
@@ -154,7 +167,23 @@ class GraphSchemaContractSpec extends AnyFlatSpec with Matchers:
 
   it should "reject a well-formed but undeclared edge type in getNeighbors before sending" in {
     an[IllegalArgumentException] should be thrownBy
-      neptuneClient(NoNetwork).getNeighbors("n1", Vector("COAUTHOR", "CITES"), 1, 10)
+      neptuneClient(NoNetwork).getNeighbors(
+        "n1",
+        Vector(GraphSchema.EdgeType.Coauthor, "CITES"),
+        1,
+        10
+      )
+  }
+
+  it should "reject the retired COAUTHOR edge type before any HTTP call" in {
+    // STO-P12-R08: COAUTHOR was renamed to COAUTHORED_WITH and is no longer declared.
+    GraphSchema.EdgeType.All should not contain "COAUTHOR"
+    val viaPath = the[IllegalArgumentException] thrownBy
+      neptuneClient(NoNetwork).shortestPath("a", "b", 3, Vector("COAUTHOR"))
+    viaPath.getMessage should include("undeclared edge type 'COAUTHOR'")
+    val viaNeighbors = the[IllegalArgumentException] thrownBy
+      neptuneClient(NoNetwork).getNeighbors("n1", Vector("COAUTHOR"), 1, 10)
+    viaNeighbors.getMessage should include("undeclared edge type 'COAUTHOR'")
   }
 
   it should "reject a wrong-case declared edge type before sending" in {
@@ -191,7 +220,7 @@ class GraphSchemaContractSpec extends AnyFlatSpec with Matchers:
       "results" -> ujson.Arr(ujson.Obj(NeptuneResponseParser.Column.Edge -> ujson.Obj.from(props)))
     )
 
-  "NeptuneResponseParser" should "parse a COAUTHOR edge stored under the GraphSchema keys" in {
+  "NeptuneResponseParser" should "parse a coauthor edge stored under the GraphSchema keys" in {
     NeptuneResponseParser.parseCoauthorEdges(edgeRow()) shouldBe Vector(edge)
   }
 
@@ -203,7 +232,7 @@ class GraphSchemaContractSpec extends AnyFlatSpec with Matchers:
     node.hasDeclaredVertexLabel shouldBe true
   }
 
-  it should "fail on a COAUTHOR edge whose property uses a non-GraphSchema key" in {
+  it should "fail on a coauthor edge whose property uses a non-GraphSchema key" in {
     val renamed = edgeRow(Map(GraphSchema.PropertyKey.JointPublicationCount -> "joint_count"))
     an[Exception] should be thrownBy NeptuneResponseParser.parseCoauthorEdges(renamed)
   }

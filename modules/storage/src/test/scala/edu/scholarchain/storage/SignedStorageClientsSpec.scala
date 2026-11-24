@@ -5,6 +5,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.sun.net.httpserver.HttpServer
 import com.typesafe.config.ConfigFactory
+import edu.scholarchain.core.GraphSchema
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.slf4j.LoggerFactory
@@ -458,7 +459,12 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
     // N11: Neptune openCypher has no shortestPath(); the query orders bounded paths by length.
     val transport = RecordingTransport(ok("""{"results":[{"path":["r1","r2","r3"]}]}"""))
     val hostile   = "r9'}) MATCH (n) DETACH DELETE n //"
-    neptuneClient(transport).shortestPath("r1", hostile, 4, Vector("COAUTHOR")) shouldBe
+    neptuneClient(transport).shortestPath(
+      "r1",
+      hostile,
+      4,
+      Vector(GraphSchema.EdgeType.Coauthor)
+    ) shouldBe
       Some(Vector("r1", "r2", "r3"))
 
     transport.calls should have size 1
@@ -466,7 +472,7 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
     val query = form("query")
     query should not include "shortestPath"
     query should include(
-      "MATCH p = (a:Researcher {researcherId: $fromId})-[:COAUTHOR*1..4]-" +
+      "MATCH p = (a:Researcher {researcherId: $fromId})-[:COAUTHORED_WITH*1..4]-" +
         "(b:Researcher {researcherId: $toId})"
     )
     // N35: order and limit while p is in scope (WITH), then project in RETURN.
@@ -479,21 +485,26 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
 
   it should "clamp shortest-path depth to 1..10 and allow several explicit edge types" in {
     val (deep, _) = NeptuneStorageClient.shortestPathQuery("a", "b", 50)
-    deep should include("-[:COAUTHOR*1..10]-")
+    deep should include("-[:COAUTHORED_WITH*1..10]-")
     val (shallow, _) = NeptuneStorageClient.shortestPathQuery("a", "b", 0)
-    shallow should include("-[:COAUTHOR*1..1]-")
+    shallow should include("-[:COAUTHORED_WITH*1..1]-")
     val (multi, params) =
-      NeptuneStorageClient.shortestPathQuery("a", "b", 3, Vector("COAUTHOR", "AUTHORED"))
-    multi should include("-[:COAUTHOR|AUTHORED*1..3]-")
+      NeptuneStorageClient.shortestPathQuery(
+        "a",
+        "b",
+        3,
+        Vector(GraphSchema.EdgeType.Coauthor, GraphSchema.EdgeType.Authored)
+      )
+    multi should include("-[:COAUTHORED_WITH|AUTHORED*1..3]-")
     params shouldBe Map("fromId" -> ujson.Str("a"), "toId" -> ujson.Str("b"))
   }
 
   it should "default shortest-path traversal to coauthorship edges, never an untyped match" in {
     // N35: an untyped undirected *1..d match over every edge type is unbounded in practice.
-    NeptuneStorageClient.DefaultPathEdgeTypes shouldBe Vector("COAUTHOR")
+    NeptuneStorageClient.DefaultPathEdgeTypes shouldBe Vector(GraphSchema.EdgeType.Coauthor)
     NeptuneStorageClient.MaxPathDepth shouldBe 10
     val (query, params) = NeptuneStorageClient.shortestPathQuery("a", "b", 6)
-    query should include("-[:COAUTHOR*1..6]-")
+    query should include("-[:COAUTHORED_WITH*1..6]-")
     query should not include "-[*"
     params shouldBe Map("fromId" -> ujson.Str("a"), "toId" -> ujson.Str("b"))
 
@@ -501,7 +512,7 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
     val transport = RecordingTransport(ok("""{"results":[]}"""))
     neptuneClient(transport).shortestPath("a", "b", 6) shouldBe None
     val sent = formParams(transport.calls.head.bodyString)("query")
-    sent should include("-[:COAUTHOR*1..6]-")
+    sent should include("-[:COAUTHORED_WITH*1..6]-")
     sent should include("WITH p ORDER BY length(p) ASC LIMIT 1")
   }
 
