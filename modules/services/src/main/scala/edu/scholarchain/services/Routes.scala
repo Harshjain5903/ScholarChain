@@ -14,12 +14,14 @@ class Routes(
   workflow: WorkflowPort,
   graphStore: ServiceGraphStore,
   auditStore: ServiceAuditStore,
-  config: ServiceConfig
+  config: ServiceConfig,
+  idempotencyStore: Option[IdempotencyStore] = None
 ):
 
-  private val idempotencyCache = new ConcurrentHashMap[String, String]()
-  private val queryResults     = new ConcurrentHashMap[String, WorkflowResult]()
-  private val jobStore         = new ConcurrentHashMap[String, JobResponse]()
+  private val idempotency =
+    idempotencyStore.getOrElse(IdempotencyStore(config.syncDeadlineMs))
+  private val queryResults = new ConcurrentHashMap[String, WorkflowResult]()
+  private val jobStore     = new ConcurrentHashMap[String, JobResponse]()
 
   def start(): HttpServer =
     val server = HttpServer.create(
@@ -115,49 +117,49 @@ class Routes(
           val idempotencyKey = Option(
             exchange.getRequestHeaders.getFirst("Idempotency-Key")
           )
-          val cached = idempotencyKey.flatMap(key => Option(idempotencyCache.get(key)))
 
-          cached match
-            case Some(cachedJson) =>
-              sendJson(exchange, 200, cachedJson, tid)
-            case None =>
-              val constraints = buildConstraints(request)
-              val result =
-                workflow.execute(request.question, constraints)
-              val queryId = result.response.queryId
-              queryResults.put(queryId, result)
+          def executeQuery(): String =
+            val constraints = buildConstraints(request)
+            val result =
+              workflow.execute(request.question, constraints)
+            val queryId = result.response.queryId
+            queryResults.put(queryId, result)
 
-              val claims = result.response.claims.map { c =>
-                ClaimPayload(
-                  claimId = c.claimId,
-                  text = c.statement,
-                  evidenceIds = c.supportingEvidence,
-                  verificationStatus = c.verificationStatus.toString,
-                  uncertainty = None
+            val claims = result.response.claims.map { c =>
+              ClaimPayload(
+                claimId = c.claimId,
+                text = c.statement,
+                evidenceIds = c.supportingEvidence,
+                verificationStatus = c.verificationStatus.toString,
+                uncertainty = None
+              )
+            }
+
+            val response = QueryResponse(
+              queryId = queryId,
+              mode = "synchronous",
+              answer = Some(
+                AnswerPayload(
+                  summary = result.response.generatedText,
+                  researchers = Vector.empty
                 )
-              }
-
-              val response = QueryResponse(
-                queryId = queryId,
-                mode = "synchronous",
-                answer = Some(
-                  AnswerPayload(
-                    summary = result.response.generatedText,
-                    researchers = Vector.empty
-                  )
-                ),
-                claims = Some(claims),
-                links = Some(
-                  LinksPayload(
-                    evidence = s"/v1/evidence/$queryId",
-                    explain = s"/v1/explain/$queryId"
-                  )
+              ),
+              claims = Some(claims),
+              links = Some(
+                LinksPayload(
+                  evidence = s"/v1/evidence/$queryId",
+                  explain = s"/v1/explain/$queryId"
                 )
               )
+            )
 
-              val json = write(response)
-              idempotencyKey.foreach(key => idempotencyCache.put(key, json))
-              sendJson(exchange, 200, json, tid)
+            write(response)
+
+          // Atomic single-flight: concurrent duplicates await the first request's result.
+          val json = idempotencyKey match
+            case Some(key) => idempotency.getOrCompute(key)(executeQuery())
+            case None      => executeQuery()
+          sendJson(exchange, 200, json, tid)
 
         case _ =>
           throw BadRequestException("Only POST is supported on /v1/query")
