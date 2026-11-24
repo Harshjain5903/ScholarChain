@@ -671,3 +671,118 @@ All are in the accepted classes. The new data-SG prefix-list egress is not flagg
 - Assumptions from documentation: readonly init on platforms without an h1 hash, Neptune loader S3 endpoint use, and stale-plan rejection.
 
 No files were modified by this review.
+
+## Pass 6 — 2026-11-23 — VERDICT: repair-07 APPROVE (conditional); real-data path REQUEST_CHANGES
+
+**RECONSTRUCTED.** The orchestrator could not extract Pass 6's full text from the session log, so this section was rebuilt from the orchestrator's summary of the hand-back. Finding IDs, severities and owners are as reported; the wording is condensed.
+
+**Scope:** repair-07 (N36, N37, N39) and the 500-record local real-data run `rs-20261123-dblp10k-first500`.
+
+**Verdicts**
+- repair-07: APPROVE on two conditions:
+  - `sbt check` passes after formatting.
+  - N41 and N43 are routed before any Neptune load or service exposure.
+- Real-data path: REQUEST_CHANGES.
+  - The reported numbers matched the artifacts.
+  - The 12 uncommitted Spark files were formatting-only.
+
+| ID | Severity | Finding | Owner(s) |
+|---|---|---|---|
+| N44 | Required | Provenance does not trace to DBLP or the ER run. The `policyVersion` default "v1" is wrong; the real policy is `er-mention-v1-uncalibrated`. Mixed policies are not refused. Hadoop pairs use `sourceDataset` "scholarchain". | spark, hadoop, domain |
+| N45 | Required | `enrich_fetch.py` `--max-records` counts records, not requests. Retries go up to 6×. OpenAlex page 1 is unbounded. Redirects can go to any host while carrying the contact header. | dataset |
+| N41 | HIGH | `NeptuneResponseParser` cannot parse Neptune's `~id`/`~labels`/`~properties` shape. The export lacks fields the parser requires. | storage, spark, domain, test |
+| N42 | HIGH | `run-bounded-pipeline.sh` and `emr/main.tf` call `hadoop.Main` and `spark.Main`, which don't exist, with stale arguments. The hadoop jar has no `mainClass`. | infra, build, hadoop |
+| N43 | MED | An undeclared `edgeTypes` value throws IllegalArgumentException and returns 500 instead of 400. | service |
+| N46 | LOW | The `~/.terraformrc` `plugin_cache_dir` keys are not checked. | infra |
+| N47 | LOW | In `cleanup.sh`, an s3vectors `list-indexes` error is swallowed. | infra |
+| N48 | LOW | `deploy.sh` does not check it is at the repo toplevel and does not refuse `GIT_CONFIG_*`. | infra |
+| N49 | LOW | Empty part files at the export root; gaps in the verifier. | hadoop |
+| N50 | LOW | Work IDs carry a doubled `work:dblp:dblp:` prefix. | hadoop, domain (human decision) |
+| N51 | LOW | The DBLP person-key rule uses the normalized name instead of the exact `baseName`. | entity-resolution |
+| N52 | LOW | Betweenness is written as 0.0 when it was skipped. `RealDataRegressionSpec` is misnamed. | spark |
+| N53 | LOW | `RUN-SUMMARY` records a dirty HEAD, and `repair-07.md` is missing. | orchestrator, producers |
+
+## Pass 7 — 2026-11-24 — VERDICT: APPROVE (repair-08 scope), on two conditions
+
+**Reviewer:** code-reviewer on Opus, read-only. It ran no sbt.
+
+**Conditions**
+1. The orchestrator's concurrent `sbt -batch check` exits 0. **Met:** exit 0, 828 tests per pass, marker `2026-11-24T11:06:11.093784Z`.
+2. Before the Phase 06 gate, commit, then rerun the slice from the committed SHA using the assembly jars and a unique run ID per stage (N54, N55).
+
+**Verified independently**
+- **Formatting split:** of the 27 files, 17 are formatting-only and 9 also carry repair-08 changes. `RealDataRegressionSpec` is deleted (renamed). No entity-resolution code changed.
+- **Label:** no live use of `COAUTHOR` remains outside `docs/agent-runs`. The only occurrences left are retired-label rejection tests and injection strings.
+- **Neptune CSV recount:**
+  - 1,901 Researcher, 500 Work, 3,531 `COAUTHORED_WITH`, 1,907 `AUTHORED`.
+  - All 7,839 rows carry `sourceDataset=dblp`, `policyVersion=er-mention-v1-uncalibrated`, upstream run IDs and a per-job producer.
+  - Descriptive properties are 100% populated.
+- **Hadoop export:**
+  - Every output has `sourceDataset=dblp`, the fixed timestamp and a J01, J06 or J07 producer.
+  - 414 mentions carry an ORCID.
+  - No files at the export root.
+  - r08 and r08b are identical: 10 of 10 part files.
+- **Spark manifest:**
+  - Linkage verified; 0 decisions without an input run; the policy is derived from the decisions.
+  - Betweenness exact; k-core converged in 14 of 5,000 iterations; LPA converged.
+  - Input sha256 values match the Hadoop part files.
+- **ORCID merges:**
+  - All 6 Accepted decisions are true persons.
+  - No ORCID maps to two names.
+  - The 8 `orcid_mismatch` rejections are true negatives.
+  - No false merge. The node count drops from 1,905 to 1,901, matching the 4 new merges.
+- **Leakage scan:** no emails, keys, user name or institution domain in the diff or untracked files.
+- **Not independently verified:** the Parquet metric and summary claims, because pyarrow is unavailable. These rest on the orchestrator's Spark-reader check.
+
+**Prior findings**
+
+| Finding | Status |
+|---|---|
+| N44 | CLOSED (code); evidence caveat N54 |
+| N45 | CLOSED |
+| N49 | CLOSED |
+| N52 | CLOSED |
+| N53 | UNVERIFIABLE by the reviewer at the time, because Pass 6 was not in this file. This file now carries Pass 6; `repair-07.md` is added as a reconstruction. |
+
+| Spark-review item | Status |
+|---|---|
+| M_r work IDs | CLOSED |
+| Bridge labels | CLOSED; wording note N62 |
+| Skipped betweenness vs zero | CLOSED |
+| k-core cap | CLOSED |
+| Run manifest | CLOSED; caveats N54, N55 |
+| `toLong`/`toStr` exposure | CLOSED |
+| Betweenness seed | CLOSED |
+| LPA convergence | CLOSED |
+| ER→Hadoop run check | CLOSED; teams are not checked (N57) |
+
+**New findings**
+
+| ID | Severity | Finding | Owner |
+|---|---|---|---|
+| N54 | MED | `rerun-r08.sh` reuses one run ID for every Hadoop run, ER input, Spark `--run-id`, and the baseline. `erLinkage=verified` therefore cannot tell runs apart. Lineage is still traceable through sha256 values. Fix: unique run IDs per stage and execution. Optionally, Spark refuses a `--run-id` that appears among its upstream run IDs. | orchestrator/human; spark (guard) |
+| N55 | LOW | The rerun used sbt class directories, not the assembly jars. The manifest has `jar.sha256=null` and `gitDirty=true`. | orchestrator/human |
+| N56 | LOW | Under a single run ID, Hadoop `upstreamRunIds` just repeat the record's own run ID. J05 cross-source candidates still say "scholarchain"; a `dblp+crossref` style would be clearer. | hadoop |
+| N57 | LOW | `checkErLinkage` does not compare team run IDs with pair run IDs. | spark |
+| N58 | MED | Idempotency (pre-existing, not a regression): (a) no TTL or size cap; (b) the key is not bound to a request fingerprint or caller, so a different body replays the first answer (the IETF draft returns 422); (c) the leader has no deadline, so waiting followers can starve the 10-thread pool. Needs a separate work order. | service |
+| N59 | LOW | Document that legacy metrics JSON reads back as `bridgeScoreMethod=exact`. | domain |
+| N60 | LOW | DBLP ORCID validation checks the pattern only, with no ISO 7064 checksum, so a mistyped shared ORCID would force a merge. 0 conflicts in this run. | hadoop |
+| N61 | LOW | `BudgetExhausted` exits 0, so it can't be told apart from a completed run without reading the run log. | dataset |
+| N62 | LOW | Positive betweenness inside one community means brokerage, not a cross-community bridge. Report wording must not conflate the two. | spark (documentation-engineer for reports) |
+| N63 | PROCESS | Pass 6 was missing from this file. Resolved by this append. | orchestrator |
+| N64 | ER (separate) | 13 of 19 cross-paper persons are still unlinked, and Vitrià–Radeva is not consolidated. The policy is uncalibrated and LLM adjudication is disabled. Tetsuya Iwasaki has an ORCID on only one of his two mentions. | entity-resolution; calibration needs human review |
+
+**Ownership:** every substantive edit is inside its owner's tree, and no constitutional files were touched.
+
+**Commit-boundary recommendation, on top of `b52988e`**
+- C1: formatting only (`fmt-only.diff`, 27 files).
+- C2: core and storage together, as one atomic label change.
+- C3: Hadoop.
+- C4: Spark.
+- C5: services idempotency.
+- C6: dataset N45.
+- C7: evidence (`docs/agent-runs/**`).
+
+If staging hunks for C1 is impractical, fold C1–C4 into one commit and keep C5–C7 separate. Run `sbt check` at each intermediate commit.
+
+No files were modified by this review.

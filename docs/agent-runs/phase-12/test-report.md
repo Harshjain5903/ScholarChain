@@ -87,6 +87,23 @@ Infra-engineer's local refusal tests for N3, N6, N16, N24 and N25 (`repair-05.md
 | 30 | `sbt -batch check` | passed. Per module 118, 116, 133, 98, 65, 32, 63 = 625 per pass (storage +1). 0 failed, 0 `[error]`. Marker went from `2026-11-23T12:18:01.910164Z` to `2026-11-23T14:50:02.946911Z`. | 0 |
 | 31 | `trivy config`, dev and prod | 37 each: 4 CRITICAL, 3 HIGH, 4 MEDIUM, 26 LOW. Unchanged; all in accepted classes. | 0 |
 
+## Results — local, after repair-07 and repair-08 (orchestrator reruns, 2026-11-24)
+
+| # | Command | Result | Exit |
+|---|---|---|---|
+| 32 | `sbt -batch check` (2026-11-23, before formatting) | **FAILED** at `scalafmtCheckAll` on 15 files. Tests passed when run directly. Marker unchanged at `2026-11-23T17:08:10.437874Z`. | 1 |
+| 33 | `sbt -batch check`, after the human's `sbt -batch scalafmtAll` | passed. Per module 138, 32, 138, 65, 111, 148, 104 = 736 per pass. Marker `2026-11-24T02:46:32.340770Z`. | 0 |
+| 34 | `sbt -batch check` (storage-engineer, mid-repair) | **FAILED** twice on `AdversarialServiceSpec` "concurrent duplicate Idempotency-Key" (`2 was not equal to 1`), an intermittent race. Fixed by service-engineer (SVC-P12-R08). | 1 |
+| 35 | `/usr/bin/python3 -I -B -m unittest discover -s datasets/scripts/tests -p 'test_*.py'` | 55 tests OK (was 46) | 0 |
+| 36 | `/usr/bin/python3 -I -B datasets/scripts/validate_manifest.py` | `status=PASS pass=106 fail=0 skip=0` | 0 |
+| 37 | Hadoop chain on the 500-record slice, twice (`hadoop-r08`, `hadoop-r08b`), fixed timestamp | every job and ExportVerifier returned 0; 10 of 10 part files byte-identical | 0 |
+| 38 | `EntityResolutionRunner` (`entity-resolution-r08`) | 6 Accepted, 275 Rejected, 17 Unresolved | 0 |
+| 39 | `ScholarChainPipeline` (`spark-r08`) | 1,901 Researcher, 500 Work, 3,531 COAUTHORED_WITH, 1,907 AUTHORED; linkage verified | 0 |
+| 40 | `sbt -batch packageJobs` | hadoop assembly sha256 `4ae66e75…`; spark assembly sha256 `c2ca7022…` | 0 |
+| 41 | `sbt -batch check` (final) | passed. Per module 37, 138, 65, 162, 112, 166, 148 = 828 per pass, both passes. 0 `[error]`. Marker `2026-11-24T11:06:11.093784Z`. | 0 |
+
+Rows 37–40 are LOCAL REAL-DATA, a development slice. They ran from the uncommitted tree using sbt class directories, not jars (N54, N55). Details are in `repair-08.md` §4.
+
 ## Results — cloud (not run)
 
 | Check | Status | Reason |
