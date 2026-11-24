@@ -11,6 +11,7 @@ Run with:
 """
 
 import contextlib
+import email.message
 import io
 import json
 import os
@@ -474,9 +475,11 @@ class FakeGetter(object):
         return 404, b'{"SYNTHETIC": "not found"}', url, None
 
 
-class FetchTest(TempDirCase):
+class FetchCase(TempDirCase):
+    """Shared fixture for enrich_fetch tests (no test methods of its own)."""
+
     def setUp(self):
-        super(FetchTest, self).setUp()
+        super(FetchCase, self).setUp()
         self.env_before = os.environ.get(ef.CONTACT_ENV)
         os.environ[ef.CONTACT_ENV] = SYN_CONTACT
         self.inp = os.path.join(self.tmp, "in.txt")
@@ -486,7 +489,7 @@ class FetchTest(TempDirCase):
             os.environ.pop(ef.CONTACT_ENV, None)
         else:
             os.environ[ef.CONTACT_ENV] = self.env_before
-        super(FetchTest, self).tearDown()
+        super(FetchCase, self).tearDown()
 
     def common(self, cmd):
         return [cmd, "--input", self.inp, "--out-root", os.path.join(self.tmp, "raw", cmd),
@@ -501,6 +504,8 @@ class FetchTest(TempDirCase):
                 return e.exit_code
         return quiet(go)
 
+
+class FetchTest(FetchCase):
     def test_dry_run_makes_no_request(self):
         write(self.inp, "10.9999/synthetic.1\n")
         for cmd in ("crossref", "openalex"):
@@ -599,6 +604,227 @@ class FetchTest(TempDirCase):
         self.assertEqual(len(g.calls), 1)
         self.assertTrue(g.calls[0][0].endswith("/v3.0/%s/record" % VALID_ORCID))
         self.assertTrue(os.path.isfile(os.path.join(self.tmp, "raw/orcid/retrieved=%s/%s.json" % (SYN_DATE, VALID_ORCID))))
+
+
+class FetchSafetyTest(FetchCase):
+    """N45: hard request budget (retries, redirects, every page) and redirect allowlist."""
+
+    CR_1 = "https://api.crossref.org/works/10.9999%2Fsynthetic.1"
+
+    def run_events(self):
+        p = os.path.join(self.tmp, "logs", ef.RUN_LOG % SYN_DATE)
+        if not os.path.isfile(p):
+            return []
+        with open(p, encoding="utf-8") as f:
+            return [l.rstrip("\n").split("\t") for l in f]
+
+    def source_log(self, source):
+        p = os.path.join(self.tmp, "logs/%s-%s.tsv" % (source, SYN_DATE))
+        if not os.path.isfile(p):
+            return []
+        with open(p, encoding="utf-8") as f:
+            return [l.rstrip("\n").split("\t") for l in f]
+
+    def assert_contact_only_to_allowlisted_https(self, g):
+        for u, headers in g.calls:
+            parts = ef.urllib.parse.urlsplit(u)
+            self.assertEqual(parts.scheme, "https", u)
+            self.assertIn(parts.hostname, ef.ALLOWED_REDIRECT_HOSTS, u)
+
+    def assert_contact_not_on_disk(self):
+        for dirpath, _, files in os.walk(self.tmp):
+            for n in files:
+                with open(os.path.join(dirpath, n), "rb") as f:
+                    self.assertNotIn(SYN_CONTACT.encode(), f.read(), n)
+
+    # -- budget -------------------------------------------------------------
+
+    def test_default_budget_is_derived_and_bounded(self):
+        self.assertEqual(ef.default_max_requests(2), 7)
+        self.assertEqual(ef.default_max_requests(100), 125)
+        args = ef.parse_args(self.common("crossref") + ["--max-records", "40"])
+        self.assertEqual(args.max_requests, 50)
+        for bad in ("0", "-1"):
+            with self.assertRaises(ef.UsageError):
+                ef.parse_args(self.common("crossref") + ["--max-requests", bad])
+
+    def test_budget_counts_retries(self):
+        dois = ["10.9999/synthetic.1", "10.9999/synthetic.2", "10.9999/synthetic.3"]
+        write(self.inp, "".join(d + "\n" for d in dois))
+        g = FakeGetter({"synthetic": [(503, "busy", None, 0.0)]})
+        # 3 records x (1 + 5 retries) = 18 attempts without a budget; the budget caps at 4
+        code, out, err = self.run_fetch(self.common("crossref") + ["--confirm-network", "--max-records", "3",
+                                                                   "--max-requests", "4", "--retries", "5"], g)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g.calls), 4)
+        self.assertIn("STOPPED: request budget exhausted", out)
+        ev = self.run_events()
+        self.assertEqual([e[2] for e in ev], ["budget-exhausted"])
+        self.assertEqual((ev[0][1], ev[0][3], ev[0][4], ev[0][5]), ("crossref", "4", "4", "3"))
+        self.assertEqual(self.source_log("crossref"), [])  # nothing marked done -> fully resumable
+        # default budget (max_records=2 -> 7) also bounds retries: 2 x 6 = 12 attempts would be possible
+        g2 = FakeGetter({"synthetic": [(503, "busy", None, 0.0)]})
+        code, out, err = self.run_fetch(self.common("crossref") + ["--confirm-network", "--max-records", "2"], g2)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g2.calls), 7)
+        # resume: the unfinished DOI is requested again
+        g3 = FakeGetter({"synthetic": [(200, cr_body("10.9999/synthetic.1"), None, None)]})
+        code, _, err = self.run_fetch(self.common("crossref") + ["--confirm-network", "--max-records", "1"], g3)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g3.calls), 1)
+        self.assertTrue(g3.calls[0][0].endswith("synthetic.1"))
+        self.assert_contact_not_on_disk()
+
+    def test_budget_counts_redirect_hops(self):
+        write(self.inp, "10.9999/synthetic.1\n")
+        g = FakeGetter({"synthetic.1": [(301, "", "https://api.crossref.org/works/10.9999%2FSYNTHETIC.1X", None)]})
+        code, out, err = self.run_fetch(self.common("crossref") + ["--confirm-network", "--max-requests", "1"], g)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g.calls), 1)
+        self.assertEqual([e[2] for e in self.run_events()], ["budget-exhausted"])
+
+    def test_budget_covers_first_page(self):
+        dois = ["10.9999/synthetic.%d" % i for i in range(1, 7)]
+        write(self.inp, "".join(d + "\n" for d in dois))
+        plan = ef.plan_openalex_batches(dois, 2)
+        self.assertEqual(len(plan), 3)
+        routes = {}
+        for i, (_, _, b) in enumerate(plan):
+            routes[ef.urllib.parse.quote(b[0], safe="")] = [
+                (200, oa_body([oa_work("W%d%d" % (i, j), d, "t", []) for j, d in enumerate(b)], count=2), None, None)]
+        g = FakeGetter(routes)
+        # 3 batches planned (max-records 5), each needs exactly one page; the budget admits only 2 requests
+        code, out, err = self.run_fetch(self.common("openalex") + ["--confirm-network", "--batch-size", "2",
+                                                                   "--max-records", "5", "--max-requests", "2"], g)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g.calls), 2)
+        self.assertIn("STOPPED: request budget exhausted", out)
+        ev = self.run_events()
+        self.assertEqual(ev[-1][2], "budget-exhausted")
+        self.assertIn("batch=%s page=1" % plan[2][0], ev[-1][6])
+        self.assertEqual(len(self.source_log("openalex")), 2)
+        # --max-requests 1: page 1 of the first batch is the only request, page 2 is refused by the budget
+        shutil.rmtree(os.path.join(self.tmp, "raw"))
+        g2 = FakeGetter({"page=1": [(200, oa_body([oa_work("W1", plan[0][2][0], "t", [])], count=2), None, None)],
+                         "page=2": [(200, oa_body([oa_work("W2", plan[0][2][1], "t", [])], count=2), None, None)]})
+        code, out, err = self.run_fetch(self.common("openalex") + ["--confirm-network", "--batch-size", "2",
+                                                                   "--max-requests", "1"], g2)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g2.calls), 1)
+        self.assertTrue(g2.calls[0][0].endswith("&page=1"))
+        self.assertIn("request budget exhausted; incomplete", self.source_log("openalex")[-1][5])
+        # resume: the incomplete batch is fetched again from page 1
+        g3 = FakeGetter(dict(g2.routes))
+        code, _, err = self.run_fetch(self.common("openalex") + ["--confirm-network", "--batch-size", "2",
+                                                                 "--max-records", "1"], g3)
+        self.assertEqual(code, 0, err)
+        self.assertEqual([u.rsplit("&", 1)[1] for u, _ in g3.calls], ["page=1", "page=2"])
+
+    # -- redirects ----------------------------------------------------------
+
+    def test_redirect_to_foreign_host_refused_without_contact(self):
+        foreign = ["https://evil.example.invalid/works/x",
+                   "https://api.crossref.org.evil.example.invalid/works/x",  # lookalike suffix
+                   "https://api.crossref.org@evil.example.invalid/works/x",  # userinfo trick
+                   "https://api.crossref.org:8443/works/x"]  # non-default port
+        for target in foreign:
+            shutil.rmtree(os.path.join(self.tmp, "logs"), ignore_errors=True)
+            write(self.inp, "10.9999/synthetic.1\n")
+            g = FakeGetter({"synthetic.1": [(302, "", target, None)],
+                            "evil": [(200, cr_body("10.9999/synthetic.1"), None, None)]})
+            code, out, err = self.run_fetch(self.common("crossref") + ["--confirm-network"], g)
+            self.assertEqual(code, 0, err)
+            self.assertEqual([u for u, _ in g.calls], [self.CR_1], target)  # foreign URL never requested
+            self.assert_contact_only_to_allowlisted_https(g)
+            log = self.source_log("crossref")
+            self.assertEqual(log[0][1], "302")
+            self.assertIn("redirect-refused", log[0][7])
+            ev = [e for e in self.run_events() if e[2] == "redirect-refused"]
+            self.assertEqual(len(ev), 1)
+            self.assertNotIn("/works/x", ev[0][6])  # scheme://host only
+            self.assertFalse(os.path.isdir(os.path.join(self.tmp, "raw/crossref/retrieved=%s" % SYN_DATE)))
+        self.assert_contact_not_on_disk()
+
+    def test_https_to_http_downgrade_refused(self):
+        write(self.inp, "10.9999/synthetic.1\n")
+        g = FakeGetter({"synthetic.1": [(301, "", "http://api.crossref.org/works/10.9999%2FSYNTHETIC.1X", None)],
+                        "SYNTHETIC.1X": [(200, cr_body("10.9999/synthetic.1"), None, None)]})
+        code, _, err = self.run_fetch(self.common("crossref") + ["--confirm-network"], g)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g.calls), 1)
+        self.assert_contact_only_to_allowlisted_https(g)
+        log = self.source_log("crossref")
+        self.assertEqual(log[0][1], "301")
+        self.assertIn("redirect-refused http://api.crossref.org (non-https scheme http)", log[0][7])
+        self.assertEqual([e[2] for e in self.run_events()], ["redirect-refused", "run-complete"])
+        # the OpenAlex path refuses the same way and notes it in the batch log row
+        write(self.inp, "10.9999/synthetic.2\n")
+        g2 = FakeGetter({"page=1": [(308, "", "http://api.openalex.org/works?page=1", None)]})
+        code, _, err = self.run_fetch(self.common("openalex") + ["--confirm-network"], g2)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g2.calls), 1)
+        self.assertIn("redirect-refused http://api.openalex.org", self.source_log("openalex")[0][5])
+
+    def test_same_host_redirect_allowed(self):
+        write(self.inp, "10.9999/synthetic.1\n")
+        target = "https://api.crossref.org/works/10.9999%2FSYNTHETIC.1X"
+        g = FakeGetter({"synthetic.1": [(301, "", target, None)],
+                        "SYNTHETIC.1X": [(200, cr_body("10.9999/synthetic.1"), None, None)]})
+        code, _, err = self.run_fetch(self.common("crossref") + ["--confirm-network"], g)
+        self.assertEqual(code, 0, err)
+        self.assertEqual([u for u, _ in g.calls], [self.CR_1, target])
+        self.assertIn("mailto:" + SYN_CONTACT, g.calls[1][1]["User-Agent"])
+        log = self.source_log("crossref")
+        self.assertEqual((log[0][1], log[0][4], log[0][5], log[0][6]), ("200", "2", "1", "10.9999/SYNTHETIC.1"))
+        self.assertTrue(os.path.isfile(os.path.join(self.tmp, "raw/crossref/retrieved=%s/%s.json"
+                                                    % (SYN_DATE, ec.doi_file_stem("10.9999/synthetic.1")))))
+        self.assertEqual([e[2] for e in self.run_events()], ["run-complete"])
+        self.assert_contact_not_on_disk()
+
+    def test_redirect_hop_limit(self):
+        write(self.inp, "10.9999/synthetic.1\n")
+        calls = []
+
+        def g(url, headers, timeout=60):  # endless same-host redirect chain ?n=1, ?n=2, ...
+            calls.append(url)
+            return 307, b"", self.CR_1 + "?n=%d" % len(calls), None
+        g.calls = calls
+        code, _, err = self.run_fetch(self.common("crossref") + ["--confirm-network"], g)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g.calls), 1 + ef.MAX_REDIRECT_HOPS)
+        self.assertIn("redirect hop limit", self.source_log("crossref")[0][7])
+
+    def test_http_get_never_auto_follows_and_resolves_location(self):
+        """The real transport (urllib) is stubbed: no socket is opened."""
+        seen = {}
+
+        class FakeOpener(object):
+            def __init__(self, handlers):
+                self.handlers = handlers
+
+            def open(self, req, timeout=None):
+                seen["url"] = req.full_url
+                hdrs = email.message.Message()
+                hdrs["Location"] = seen["location"]
+                raise ef.urllib.error.HTTPError(req.full_url, seen["code"], "Moved", hdrs, io.BytesIO(b""))
+
+        def build_opener(*handlers):
+            seen["handlers"] = handlers
+            return FakeOpener(handlers)
+
+        orig = ef.urllib.request.build_opener
+        ef.urllib.request.build_opener = build_opener
+        try:
+            for code, loc, expect in ((301, "/works/10.9999%2FSYNTHETIC.1X", "https://api.crossref.org/works/10.9999%2FSYNTHETIC.1X"),
+                                      (308, "http://evil.example.invalid/x", "http://evil.example.invalid/x")):
+                seen.update(code=code, location=loc)
+                st, body, final, ra = ef.http_get(self.CR_1, {"User-Agent": "x"})
+                self.assertEqual((st, final, ra), (code, expect, None))
+                self.assertTrue(any(isinstance(h, ef._NoRedirects) for h in seen["handlers"]))
+        finally:
+            ef.urllib.request.build_opener = orig
+        h = ef._NoRedirects()
+        self.assertIsNone(h.redirect_request(None, None, 301, "Moved", {}, "https://evil.example.invalid/"))
 
 
 # ---------------------------------------------------------------------------

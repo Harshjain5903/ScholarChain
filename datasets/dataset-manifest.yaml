@@ -248,8 +248,13 @@ datasets:
       lines: 43363
     local_raw_path: "datasets/raw/crossref/retrieved=2026-11-22/<sha256(doi)>.json (gitignored); log datasets/raw/logs/crossref-2026-11-22.tsv (doi, http_status, utc, sha256(doi))"
     retrieval_command: >-
-      Resumable, bounded re-fetch of the gaps (redirects followed, retry with
-      backoff, skip-existing, contact only from SCHOLARCHAIN_CONTACT_EMAIL):
+      Resumable, bounded re-fetch of the gaps (redirects followed manually and
+      only to https api.crossref.org / api.openalex.org / pub.orcid.org, others
+      refused without sending the contact header; hard --max-requests budget
+      counting every attempt, retry, redirect hop and page, default
+      max_records + max(5, ceil(max_records/4)), stop events in
+      datasets/raw/logs/fetch-runs-<date>.tsv; retry with backoff,
+      skip-existing, contact only from SCHOLARCHAIN_CONTACT_EMAIL):
       /usr/bin/python3 -I -B datasets/scripts/enrich_fetch.py crossref
       --input datasets/derived/enrichment/crossref-retry-dois.txt
       --max-records 100 --confirm-network   (dry run without --confirm-network)
