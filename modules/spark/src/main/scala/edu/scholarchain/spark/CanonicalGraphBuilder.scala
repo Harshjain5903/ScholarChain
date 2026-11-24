@@ -117,18 +117,28 @@ object CanonicalGraphBuilder:
         else Iterator(CanonicalPair(b, a, workId, year))
       }
 
+  /** Job name recorded in the `producer` of the provenance this object writes. */
+  val Job: String = "CanonicalGraphBuilder"
+
+  /** Transformation step of every aggregated `COAUTHORED_WITH` edge. */
+  val EdgeStep: String = "coauthor-edge-aggregation"
+
   /**
    * Aggregate canonical pairs into one CoauthorEdge per researcher pair. `jointPublicationCount` is
    * the number of distinct shared works; `representativeWorkIds` is sorted.
+   *
+   * @param policyVersion
+   *   ER policy version baked into each edge ID (`IdGen.coauthorEdgeId`); the pipeline derives it
+   *   from the match decisions
+   * @param lineage
+   *   provenance lineage; `sourceDataset` should be the pair candidates' source dataset
    */
   def aggregatePairs(
     pairs: RDD[CanonicalPair],
     windowStartYear: Int,
     windowEndYear: Int,
-    runId: String,
-    schemaVersion: String,
     policyVersion: String,
-    timestamp: String
+    lineage: Lineage
   ): RDD[CoauthorEdge] =
     pairs
       .map(p => ((p.researcherA, p.researcherB), (p.workId, p.year)))
@@ -137,11 +147,10 @@ object CanonicalGraphBuilder:
       .map { case ((ra, rb), records) =>
         val workIds = records.map(_._1).toVector.distinct.sorted
         val years   = records.map(_._2)
-        val prov = GraphUtils.makeProv(
-          runId,
-          schemaVersion,
-          IdGen.coauthorEdgeId(ra, rb, windowStartYear, windowEndYear, policyVersion),
-          timestamp
+        val prov = lineage.prov(
+          Job,
+          EdgeStep,
+          IdGen.coauthorEdgeId(ra, rb, windowStartYear, windowEndYear, policyVersion)
         )
         CoauthorEdge(ra, rb, workIds.size, years.min, years.max, workIds, prov)
       }
@@ -156,19 +165,15 @@ object CanonicalGraphBuilder:
     mentionToCanonical: RDD[(String, String)],
     windowStartYear: Int,
     windowEndYear: Int,
-    runId: String,
-    schemaVersion: String,
     policyVersion: String,
-    timestamp: String
+    lineage: Lineage
   ): RDD[CoauthorEdge] =
     aggregatePairs(
       canonicalPairs(pairCandidates, mentionToCanonical, windowStartYear, windowEndYear),
       windowStartYear,
       windowEndYear,
-      runId,
-      schemaVersion,
       policyVersion,
-      timestamp
+      lineage
     )
 
   /**
@@ -181,10 +186,8 @@ object CanonicalGraphBuilder:
     acceptedMatches: RDD[MatchDecision],
     windowStartYear: Int,
     windowEndYear: Int,
-    runId: String,
-    schemaVersion: String,
     policyVersion: String,
-    timestamp: String
+    lineage: Lineage
   ): RDD[CoauthorEdge] =
     buildFromMapping(
       sc,
@@ -192,10 +195,8 @@ object CanonicalGraphBuilder:
       matchedMentionMapping(acceptedMatches),
       windowStartYear,
       windowEndYear,
-      runId,
-      schemaVersion,
       policyVersion,
-      timestamp
+      lineage
     )
 
   /**
@@ -224,3 +225,28 @@ object CanonicalGraphBuilder:
     resolved.join(teamSizes).map { case (workId, ((rid, year), size)) =>
       CanonicalAuthorship(rid, workId, year, size - 1)
     }
+
+  /**
+   * Display name per canonical researcher, from the `rawName` of its author mentions in the window:
+   * the most frequent non-blank name, ties broken by the lexicographically smallest. Researchers
+   * whose mentions all have blank names are absent (the name is unknown, not invented).
+   */
+  def researcherDisplayNames(
+    teams: RDD[PublicationTeam],
+    mentionToCanonical: RDD[(String, String)],
+    windowStartYear: Int,
+    windowEndYear: Int
+  ): RDD[(String, String)] =
+    val mapping = uniqueMapping(mentionToCanonical)
+    teams
+      .filter(t => t.year >= windowStartYear && t.year <= windowEndYear)
+      .flatMap(_.authorMentions.iterator.map(m => (m.mentionId, Option(m.rawName).map(_.trim))))
+      .flatMap { case (mention, name) => name.filter(_.nonEmpty).map(n => (mention, n)) }
+      .leftOuterJoin(mapping)
+      .map { case (mention, (name, canonical)) => ((canonical.getOrElse(mention), name), 1L) }
+      .reduceByKey(_ + _)
+      .map { case ((rid, name), n) => (rid, (n, name)) }
+      .reduceByKey { case (a @ (n1, name1), b @ (n2, name2)) =>
+        if n1 > n2 || (n1 == n2 && name1 <= name2) then a else b
+      }
+      .mapValues(_._2)

@@ -42,6 +42,12 @@ import org.slf4j.LoggerFactory
  *   GraphExportWriter (Job 11) + NeptuneBulkLoadExport (openCypher CSV) + run-stats
  * }}}
  *
+ * Every run validates its input lineage first (ER policy derived from the decisions, ER decisions
+ * linked to the Hadoop run of the pairs), stamps lineage provenance on every output record, and
+ * writes a manifest whose `run` section records code version, jar and input checksums, upstream run
+ * IDs, ER policy, argv and config, betweenness method and seed, k-core and LPA convergence, and
+ * output counts.
+ *
  * Distributed-execution contract: per-vertex and per-edge data never reach the driver; the driver
  * only receives scalar counts and bounded samples (top-k lists, the requested shortest paths, and
  * per-window / per-outcome / per-coreness histograms). Iterative stages truncate lineage with
@@ -55,16 +61,36 @@ object ScholarChainPipeline:
   /** Sub-directory (under the output root) holding the run statistics JSON. */
   val RunStatsDir: String = "run-stats"
 
+  /** Throw IllegalArgumentException with `message` when `check` is a Left; otherwise its value. */
+  private def orFail[A](check: Either[String, A]): A =
+    check.fold(e => throw new IllegalArgumentException(e), identity)
+
+  /** Distinct values of a small-cardinality RDD, bounded; more than the bound is an input error. */
+  private def boundedDistinct(rdd: RDD[String], what: String): Vector[String] =
+    val values = rdd.distinct().take(InputLineage.MaxDistinctValues + 1).sorted.toVector
+    if values.size > InputLineage.MaxDistinctValues then
+      throw new IllegalArgumentException(
+        s"more than ${InputLineage.MaxDistinctValues} distinct $what in the input"
+      )
+    values
+
   /**
    * Run the full pipeline and return the run statistics (also written to `<output>/run-stats`).
+   *
+   * Before any output is written the input lineage is validated (see [[InputLineage]]): the ER
+   * policy version is derived from the match decisions (an explicit `--policy-version` must agree;
+   * mixed policies are refused) and the decisions must name the Hadoop run of the pair candidates.
+   * A violation throws IllegalArgumentException.
    *
    * @param spark
    *   active SparkSession; for reliable checkpoints its context should have a checkpoint directory
    *   (set by [[SparkSessionFactory.forPipeline]])
    * @param config
    *   pipeline configuration
+   * @param argv
+   *   the command line the configuration was parsed from, recorded in the manifest
    */
-  def run(spark: SparkSession, config: PipelineConfig): ujson.Obj =
+  def run(spark: SparkSession, config: PipelineConfig, argv: Seq[String] = Seq.empty): ujson.Obj =
     val sc        = spark.sparkContext
     val timestamp = config.runTimestamp.getOrElse(java.time.Instant.now().toString)
     val parts     = Some(config.numPartitions)
@@ -86,6 +112,52 @@ object ScholarChainPipeline:
     decisions.persist(StorageLevel.MEMORY_AND_DISK)
     val accepted = decisions.filter(_.decision == MatchOutcome.Accepted)
 
+    // ---- Input lineage: validated before any output is written.
+    val decisionCount    = decisions.count()
+    val decisionPolicies = boundedDistinct(decisions.map(_.policyVersion), "ER policy versions")
+    val policyVersion = orFail(
+      InputLineage.resolvePolicyVersion(config.policyVersion, decisionPolicies)
+    )
+    val decisionRunIds = boundedDistinct(decisions.map(_.runId), "ER run IDs")
+    val erInputRunIds = boundedDistinct(
+      decisions.flatMap(d => InputLineage.erInputRunIds(d.reasonCodes)),
+      "ER input run IDs"
+    )
+    val decisionsWithoutInputRun =
+      decisions.filter(d => InputLineage.erInputRunIds(d.reasonCodes).isEmpty).count()
+    val pairRunIds = boundedDistinct(pairCandidates.map(_.provenance.pipelineRunId), "pair run IDs")
+    val teamRunIds = boundedDistinct(teams.map(_.provenance.pipelineRunId), "team run IDs")
+    val erLinkage = orFail(
+      InputLineage.checkErLinkage(
+        pairRunIds.toSet,
+        erInputRunIds.toSet,
+        decisionCount,
+        decisionsWithoutInputRun,
+        config.allowUnlinkedErInput
+      )
+    )
+    val pairSources =
+      boundedDistinct(pairCandidates.map(_.provenance.sourceDataset), "pair datasets")
+    val teamSources    = boundedDistinct(teams.map(_.provenance.sourceDataset), "team datasets")
+    val upstreamRunIds = (pairRunIds ++ teamRunIds ++ decisionRunIds).distinct.sorted
+    val lineage = Lineage(
+      runId = config.runId,
+      schemaVersion = config.schemaVersion,
+      timestamp = timestamp,
+      sourceDataset = InputLineage.sourceDatasetOf(pairSources ++ teamSources),
+      upstreamRunIds = upstreamRunIds,
+      policyVersion = Some(policyVersion)
+    )
+    // Coauthor edges derive from pair candidates; researcher, work and authorship records from
+    // publication teams. Each carries the source dataset its own input records declare.
+    val edgeLineage = lineage.withSourceDataset(InputLineage.sourceDatasetOf(pairSources))
+    val teamLineage = lineage.withSourceDataset(InputLineage.sourceDatasetOf(teamSources))
+    logger.info(
+      s"Input lineage: ER policy $policyVersion, ER linkage $erLinkage, upstream runs " +
+        s"${upstreamRunIds.mkString(",")}, pair datasets ${pairSources.mkString(",")}, team " +
+        s"datasets ${teamSources.mkString(",")}"
+    )
+
     val pairCandidatesIn = pairCandidates.count()
     val pairCandidatesInWindow =
       pairCandidates.filter(p => p.year >= ws && p.year <= we).count()
@@ -95,9 +167,6 @@ object ScholarChainPipeline:
     val mentionsInWindow = teamsInWindow.map(_.authorMentions.size.toLong).fold(0L)(_ + _)
     val decisionsByOutcome =
       decisions.map(d => (d.decision.toString, 1L)).reduceByKey(_ + _).collect().toMap
-    val decisionPolicies = decisions.map(_.policyVersion).distinct().take(10).sorted.toVector
-    val decisionRunIds   = decisions.map(_.runId).distinct().take(10).sorted.toVector
-    val pairRunIds       = pairCandidates.map(_.provenance.pipelineRunId).distinct().take(10).sorted
 
     logger.info("Building canonical coauthorship graph (Jobs 1-2)")
     val mentionMapping = CanonicalGraphBuilder.matchedMentionMapping(accepted)
@@ -109,15 +178,8 @@ object ScholarChainPipeline:
       CanonicalGraphBuilder.canonicalPairs(pairCandidates, mentionMapping, ws, we)
     val canonicalPairCount = GraphUtils.checkpointAndCount(canonicalPairs)
 
-    val edges = CanonicalGraphBuilder.aggregatePairs(
-      canonicalPairs,
-      ws,
-      we,
-      config.runId,
-      config.schemaVersion,
-      config.policyVersion,
-      timestamp
-    )
+    val edges =
+      CanonicalGraphBuilder.aggregatePairs(canonicalPairs, ws, we, policyVersion, edgeLineage)
     val edgeCount = GraphUtils.checkpointAndCount(edges)
 
     val authorships     = CanonicalGraphBuilder.canonicalAuthorships(teams, mentionMapping, ws, we)
@@ -140,9 +202,7 @@ object ScholarChainPipeline:
       ),
       ws,
       we,
-      config.runId,
-      config.schemaVersion,
-      timestamp
+      teamLineage
     )
 
     logger.info("Computing connected components (Job 4)")
@@ -150,8 +210,14 @@ object ScholarChainPipeline:
     val metricsWithCC = ConnectedComponentsJob.enrichMetrics(initialMetrics, ccResult)
 
     logger.info("Computing communities (Job 6)")
-    val communityResult = CommunityDetectionJob.compute(graph, mapping)
+    val communityResult = CommunityDetectionJob.compute(graph, mapping, config.lpaMaxIterations)
     val metricsWithComm = CommunityDetectionJob.enrichMetrics(metricsWithCC, communityResult)
+    if !communityResult.converged then
+      logger.warn(
+        s"Label propagation did not converge within ${config.lpaMaxIterations} supersteps " +
+          s"(${communityResult.unstableVertices} vertices unstable); communities are reported " +
+          "as not converged"
+      )
 
     logger.info("Computing bridge analysis (Job 7)")
     val communityAssignments = communityResult.assignments.map { case (rid, commId, _) =>
@@ -162,13 +228,24 @@ object ScholarChainPipeline:
       mapping,
       communityAssignments,
       sampleCount = config.betweennessSampleCount,
-      maxGraphSize = config.maxBetweennessGraphSize
+      maxGraphSize = config.maxBetweennessGraphSize,
+      seed = config.betweennessSeed
     )
     val metricsWithBridge = BridgeAnalysisJob.enrichMetrics(metricsWithComm, bridgeResult)
+    logger.info(
+      s"Betweenness method ${bridgeResult.method} (k=${bridgeResult.sources}, " +
+        s"n=${bridgeResult.vertexCount}, seed=${bridgeResult.seed})"
+    )
 
     logger.info("Computing k-core decomposition (Job 8)")
-    val coreness     = KCoreJob.compute(graph, mapping)
-    val finalMetrics = KCoreJob.enrichMetrics(metricsWithBridge, coreness)
+    val kcore = KCoreJob.computeWithStatus(
+      graph,
+      mapping,
+      config.kcoreMaxIterations,
+      config.kcoreCheckpointInterval
+    )
+    KCoreJob.requireConverged(kcore)
+    val finalMetrics = KCoreJob.enrichMetrics(metricsWithBridge, kcore.coreness)
     val metricsCount = GraphUtils.checkpointAndCount(finalMetrics)
 
     logger.info("Computing shortest paths (Job 5)")
@@ -203,11 +280,9 @@ object ScholarChainPipeline:
       canonicalPairs,
       authorships,
       windows,
-      config.runId,
-      config.schemaVersion,
-      timestamp
+      lineage
     )
-    GraphUtils.checkpointAndCount(temporalSnapshots)
+    val temporalCount = GraphUtils.checkpointAndCount(temporalSnapshots)
 
     logger.info("Generating semantic context (Job 10)")
     val profiles = SemanticContextJob.researcherProfiles(
@@ -215,64 +290,72 @@ object ScholarChainPipeline:
       finalMetrics,
       edges,
       topN = 5,
-      config.runId,
-      config.schemaVersion,
-      timestamp
+      lineage
     )
     val commSummaries = SemanticContextJob.communitySummaries(
       sc,
       finalMetrics,
       bridgeResult.scores,
       topBridgeCount = 3,
-      config.runId,
-      config.schemaVersion,
-      timestamp
+      bridgeResult.method,
+      lineage
     )
-    val pathSummaries = SemanticContextJob.pathSummaries(
-      sc,
-      pathResults,
-      config.runId,
-      config.schemaVersion,
-      timestamp
-    )
-    val allSummaries = profiles.union(commSummaries).union(pathSummaries)
-    GraphUtils.checkpointAndCount(allSummaries)
+    val pathSummaries = SemanticContextJob.pathSummaries(sc, pathResults, lineage)
+    val allSummaries  = profiles.union(commSummaries).union(pathSummaries)
+    val summaryCount  = GraphUtils.checkpointAndCount(allSummaries)
 
     logger.info("Writing exports (Job 11)")
     GraphExportWriter.writeEdges(spark, edges, out)
     GraphExportWriter.writeMetrics(spark, finalMetrics, out)
     GraphExportWriter.writeSummaries(spark, allSummaries, out)
-    GraphExportWriter.writePaths(
-      spark,
-      pathResults,
-      out,
-      config.runId,
-      config.schemaVersion,
-      timestamp
-    )
+    GraphExportWriter.writePaths(spark, pathResults, out, lineage)
     GraphExportWriter.writeComponents(spark, ccResult.assignments, out)
     GraphExportWriter.writeCommunities(spark, communityResult.assignments, out)
     GraphExportWriter.writeTemporal(spark, temporalSnapshots, out)
+
+    // Work records are optional: when the Hadoop export has them they supply titles and venues.
+    val workRecordsRoot = new Path(config.workRecordsPath)
+    val workRecordsPresent =
+      workRecordsRoot.getFileSystem(sc.hadoopConfiguration).exists(workRecordsRoot)
     val neptuneCounts =
       if config.writeNeptuneCsv then
+        val descriptive: RDD[(String, (String, Option[String]))] =
+          if workRecordsPresent then
+            DataLoader
+              .loadWorkRecords(spark, config.workRecordsPath)
+              .map(w => (w.workId, (w.title, w.venueId)))
+              .reduceByKey((a, b) => if Ordering[(String, Option[String])].lteq(a, b) then a else b)
+          else sc.emptyRDD
+        val works = teamsInWindow
+          .map(t => (t.workId, t))
+          .leftOuterJoin(descriptive)
+          .map { case (workId, (t, desc)) =>
+            NeptuneBulkLoadExport.WorkNode(
+              workId = workId,
+              provenance = lineage
+                .withSourceDataset(InputLineage.sourceDatasetOf(Seq(t.provenance.sourceDataset)))
+                .prov(NeptuneBulkLoadExport.Job, "work-vertex-export", t.provenance.sourceRecordId),
+              title = desc.map(_._1).filter(_.trim.nonEmpty),
+              year = Some(t.year),
+              venue = desc.flatMap(_._2).filter(_.trim.nonEmpty)
+            )
+          }
         Some(
           NeptuneBulkLoadExport.writeAll(
             spark,
             out,
             finalMetrics,
-            teamsInWindow.map(t => (t.workId, t.provenance)),
+            CanonicalGraphBuilder.researcherDisplayNames(teams, mentionMapping, ws, we),
+            works,
             edges,
             authorships.map(a => (a.researcherId, a.workId)),
             ws,
             we,
-            config.policyVersion,
-            config.runId,
-            config.schemaVersion,
-            timestamp
+            policyVersion,
+            teamLineage
           )
         )
       else None
-    GraphExportWriter.writeManifest(spark, out, config.runId, timestamp, config.writeNeptuneCsv)
 
     // ---- Run statistics: scalars and bounded samples only.
     val byScoreThenId = Ordering.by[(String, Double), (Double, String)] { case (r, s) => (-s, r) }
@@ -283,8 +366,12 @@ object ScholarChainPipeline:
       .distinct()
       .takeOrdered(1)(Ordering.by[(String, Long), (Long, String)] { case (c, s) => (-s, c) })
       .headOption
-    val topBetweenness            = bridgeResult.scores.takeOrdered(5)(byScoreThenId)
-    val betweennessComputed       = vertexCount <= config.maxBetweennessGraphSize
+    val betweennessComputed = bridgeResult.method != BridgeScoreMethod.NotComputed
+    // Not-computed scores are placeholders: never ranked. Zero scores are not "top" either.
+    val topBetweenness =
+      if betweennessComputed then
+        bridgeResult.scores.filter(_._2 > 0.0).takeOrdered(5)(byScoreThenId).toSeq
+      else Seq.empty
     val crossCommunityResearchers = bridgeResult.crossCommunityDegrees.filter(_._2 > 1).count()
     val summariesByType =
       allSummaries.map(s => (s.entityType, 1L)).reduceByKey(_ + _).collect().toMap
@@ -295,36 +382,175 @@ object ScholarChainPipeline:
       .sortBy(_._1)
     val pubSum = finalMetrics.map(_.publicationCount.toLong).fold(0L)(_ + _)
 
+    val configJson = ujson.Obj(
+      "hadoopOutputPath"        -> config.hadoopOutputPath,
+      "matchDecisionsPath"      -> config.matchDecisionsPath,
+      "outputPath"              -> out,
+      "runId"                   -> config.runId,
+      "windowStartYear"         -> ws,
+      "windowEndYear"           -> we,
+      "numPartitions"           -> config.numPartitions,
+      "betweennessSampleCount"  -> config.betweennessSampleCount,
+      "betweennessSeed"         -> config.betweennessSeed.toDouble,
+      "maxBetweennessGraphSize" -> config.maxBetweennessGraphSize.toDouble,
+      "schemaVersion"           -> config.schemaVersion,
+      "policyVersionFlag"       -> config.policyVersion.fold[ujson.Value](ujson.Null)(ujson.Str(_)),
+      "policyVersion"           -> policyVersion,
+      "checkpointDir"           -> sc.getCheckpointDir.getOrElse[String]("<none: localCheckpoint>"),
+      "pregelCheckpointInterval" -> sc.getConf
+        .get(SparkSessionFactory.PregelCheckpointIntervalKey, "-1"),
+      "kcoreMaxIterations"      -> config.kcoreMaxIterations,
+      "kcoreCheckpointInterval" -> config.kcoreCheckpointInterval,
+      "lpaMaxIterations"        -> config.lpaMaxIterations,
+      "allowUnlinkedErInput"    -> config.allowUnlinkedErInput,
+      "inputChecksums"          -> config.inputChecksums,
+      "temporalWindowSize"      -> config.temporalWindowSize,
+      "temporalStep"            -> config.temporalStep,
+      "maxPathHops"             -> config.maxPathHops,
+      "pathPairs"               -> ujson.Arr.from(config.pathPairs.map { case (a, b) => s"$a|$b" }),
+      "pathPairsFile"           -> config.pathPairsFile.fold[ujson.Value](ujson.Null)(ujson.Str(_)),
+      "pathSampleCount"         -> config.pathSampleCount,
+      "keepCheckpoints"         -> config.keepCheckpoints,
+      "runTimestampFlag"        -> config.runTimestamp.fold[ujson.Value](ujson.Null)(ujson.Str(_)),
+      "neptuneCsv"              -> config.writeNeptuneCsv
+    )
+
+    val lineageJson = ujson.Obj(
+      "erPolicyVersion"          -> policyVersion,
+      "erLinkage"                -> erLinkage,
+      "upstreamRunIds"           -> ujson.Arr.from(upstreamRunIds),
+      "pairCandidateRunIds"      -> ujson.Arr.from(pairRunIds),
+      "teamRunIds"               -> ujson.Arr.from(teamRunIds),
+      "matchDecisionRunIds"      -> ujson.Arr.from(decisionRunIds),
+      "matchDecisionInputRunIds" -> ujson.Arr.from(erInputRunIds),
+      "decisionsWithoutInputRun" -> decisionsWithoutInputRun.toDouble,
+      "pairSourceDatasets"       -> ujson.Arr.from(pairSources),
+      "teamSourceDatasets"       -> ujson.Arr.from(teamSources),
+      "edgeSourceDataset"        -> edgeLineage.sourceDataset,
+      "researcherSourceDataset"  -> teamLineage.sourceDataset
+    )
+
+    val bridgesJson = ujson.Obj(
+      "method"                         -> bridgeResult.method,
+      "betweennessComputed"            -> betweennessComputed,
+      "betweennessSources"             -> bridgeResult.sources.toDouble,
+      "vertexCount"                    -> bridgeResult.vertexCount.toDouble,
+      "maxGraphSize"                   -> config.maxBetweennessGraphSize.toDouble,
+      "betweennessSeed"                -> bridgeResult.seed.toDouble,
+      "researchersCrossingCommunities" -> crossCommunityResearchers.toDouble,
+      "topBetweenness" -> ujson.Arr.from(topBetweenness.map { case (r, s) =>
+        ujson.Obj("researcherId" -> r, "score" -> s)
+      })
+    )
+
+    val kcoreJson = ujson.Obj(
+      "converged"          -> kcore.converged,
+      "iterations"         -> kcore.iterations,
+      "maxIterations"      -> kcore.maxIterations,
+      "checkpointInterval" -> kcore.checkpointInterval,
+      "maxCoreness"        -> corenessHistogram.lastOption.map(_._1.toDouble).getOrElse(0.0),
+      "histogram" -> ujson.Arr.from(corenessHistogram.map { case (k, n) =>
+        ujson.Obj("coreness" -> k, "researchers" -> n.toDouble)
+      })
+    )
+
+    val communitiesJson = ujson.Obj(
+      "algorithm" -> s"deterministic label propagation (CommunityDetectionJob.propagateLabels, maxIterations=${config.lpaMaxIterations})",
+      "converged"        -> communityResult.converged,
+      "unstableVertices" -> communityResult.unstableVertices.toDouble,
+      "maxIterations"    -> communityResult.maxIterations,
+      "count"            -> communityResult.communityCount.toDouble,
+      "largestId"        -> largestCommunity.map(_._1).getOrElse[String](""),
+      "largestSize"      -> largestCommunity.map(_._2.toDouble).getOrElse(0.0)
+    )
+
+    val neptuneJson = neptuneCounts.fold[ujson.Value](ujson.Null) { c =>
+      ujson.Obj(
+        "researcherNodes"       -> c.researcherNodes.toDouble,
+        "workNodes"             -> c.workNodes.toDouble,
+        "coauthorRelationships" -> c.coauthorRelationships.toDouble,
+        "authoredRelationships" -> c.authoredRelationships.toDouble
+      )
+    }
+
+    val outputCounts = ujson.Obj(
+      "edges"       -> edgeCount.toDouble,
+      "metrics"     -> metricsCount.toDouble,
+      "summaries"   -> summaryCount.toDouble,
+      "paths"       -> pathResults.size,
+      "components"  -> vertexCount.toDouble,
+      "communities" -> vertexCount.toDouble,
+      "temporal"    -> temporalCount.toDouble,
+      "neptune"     -> neptuneJson
+    )
+
+    val code = RunManifest.resolveCodeVersion(
+      config.gitSha,
+      config.gitDirty,
+      sys.env,
+      () => RunManifest.gitProbe()
+    )
+    val inputFiles =
+      if config.inputChecksums then
+        ujson.Arr.from(
+          RunManifest
+            .inputFiles(
+              sc.hadoopConfiguration,
+              Seq(
+                config.pairCandidatesPath,
+                config.teamsPath,
+                config.workRecordsPath,
+                config.matchDecisionsPath
+              ) ++ config.pathPairsFile.toSeq
+            )
+            .map(_.toJson)
+        )
+      else ujson.Str("disabled (--input-checksums false)")
+
+    val runManifest = ujson.Obj(
+      "runId"     -> config.runId,
+      "timestamp" -> timestamp,
+      "producer"  -> s"${Lineage.ProducerPrefix}/ScholarChainPipeline",
+      "code"      -> code.toJson,
+      "jar"       -> RunManifest.jarInfo(),
+      "argv"      -> ujson.Arr.from(argv),
+      "config"    -> configJson,
+      "inputs" -> ujson.Obj(
+        "files"              -> inputFiles,
+        "workRecordsPresent" -> workRecordsPresent
+      ),
+      "lineage"          -> lineageJson,
+      "erPolicyVersion"  -> policyVersion,
+      "upstreamRunIds"   -> ujson.Arr.from(upstreamRunIds),
+      "betweenness"      -> bridgesJson,
+      "kcore"            -> kcoreJson,
+      "labelPropagation" -> communitiesJson,
+      "outputCounts"     -> outputCounts
+    )
+    GraphExportWriter.writeManifest(
+      spark,
+      out,
+      config.runId,
+      timestamp,
+      config.writeNeptuneCsv,
+      runManifest
+    )
+
     val stats = ujson.Obj(
       "runId"     -> config.runId,
       "timestamp" -> timestamp,
       "master"    -> sc.master,
-      "config" -> ujson.Obj(
-        "hadoopOutputPath"        -> config.hadoopOutputPath,
-        "matchDecisionsPath"      -> config.matchDecisionsPath,
-        "outputPath"              -> out,
-        "windowStartYear"         -> ws,
-        "windowEndYear"           -> we,
-        "numPartitions"           -> config.numPartitions,
-        "betweennessSampleCount"  -> config.betweennessSampleCount,
-        "maxBetweennessGraphSize" -> config.maxBetweennessGraphSize.toDouble,
-        "schemaVersion"           -> config.schemaVersion,
-        "policyVersion"           -> config.policyVersion,
-        "checkpointDir" -> sc.getCheckpointDir.getOrElse[String]("<none: localCheckpoint>"),
-        "pregelCheckpointInterval" -> sc.getConf
-          .get(SparkSessionFactory.PregelCheckpointIntervalKey, "-1"),
-        "temporalWindowSize" -> config.temporalWindowSize,
-        "temporalStep"       -> config.temporalStep,
-        "maxPathHops"        -> config.maxPathHops,
-        "neptuneCsv"         -> config.writeNeptuneCsv
-      ),
+      "config"    -> configJson,
+      "lineage"   -> lineageJson,
+      "code"      -> code.toJson,
       "inputs" -> ujson.Obj(
         "pairCandidates"         -> pairCandidatesIn.toDouble,
         "pairCandidatesInWindow" -> pairCandidatesInWindow.toDouble,
-        "pairCandidateRunIds"    -> ujson.Arr.from(pairRunIds.toSeq),
+        "pairCandidateRunIds"    -> ujson.Arr.from(pairRunIds),
         "teams"                  -> teamsIn.toDouble,
         "teamsInWindow"          -> worksInWindow.toDouble,
         "authorMentionsInWindow" -> mentionsInWindow.toDouble,
+        "workRecordsPresent"     -> workRecordsPresent,
         "matchDecisions" -> ujson.Obj.from(decisionsByOutcome.toSeq.sorted.map { case (k, v) =>
           k -> ujson.Num(v.toDouble)
         }),
@@ -351,29 +577,9 @@ object ScholarChainPipeline:
         "largestId"       -> ccResult.largestComponentId.getOrElse[String](""),
         "singletons"      -> ccResult.singletonCount.toDouble
       ),
-      "communities" -> ujson.Obj(
-        "algorithm" -> "deterministic label propagation (CommunityDetectionJob.propagateLabels, maxIterations=20)",
-        "count"       -> communityResult.communityCount.toDouble,
-        "largestId"   -> largestCommunity.map(_._1).getOrElse[String](""),
-        "largestSize" -> largestCommunity.map(_._2.toDouble).getOrElse(0.0)
-      ),
-      "kcore" -> ujson.Obj(
-        "maxCoreness" -> corenessHistogram.lastOption.map(_._1.toDouble).getOrElse(0.0),
-        "histogram" -> ujson.Arr.from(corenessHistogram.map { case (k, n) =>
-          ujson.Obj("coreness" -> k, "researchers" -> n.toDouble)
-        })
-      ),
-      "bridges" -> ujson.Obj(
-        "betweennessComputed" -> betweennessComputed,
-        "betweennessSources" -> math
-          .min(config.betweennessSampleCount.toLong, vertexCount)
-          .toDouble,
-        "betweennessSeed"                -> 42,
-        "researchersCrossingCommunities" -> crossCommunityResearchers.toDouble,
-        "topBetweenness" -> ujson.Arr.from(topBetweenness.map { case (r, s) =>
-          ujson.Obj("researcherId" -> r, "score" -> s)
-        })
-      ),
+      "communities" -> communitiesJson,
+      "kcore"       -> kcoreJson,
+      "bridges"     -> bridgesJson,
       "shortestPaths" -> ujson.Obj(
         "pairSource" -> pathPairSource,
         "requested"  -> pathPairs.size,
@@ -397,14 +603,8 @@ object ScholarChainPipeline:
       "semanticSummaries" -> ujson.Obj.from(summariesByType.toSeq.sorted.map { case (k, v) =>
         k -> ujson.Num(v.toDouble)
       }),
-      "neptune" -> neptuneCounts.fold[ujson.Value](ujson.Null) { c =>
-        ujson.Obj(
-          "researcherNodes"       -> c.researcherNodes.toDouble,
-          "workNodes"             -> c.workNodes.toDouble,
-          "coauthorRelationships" -> c.coauthorRelationships.toDouble,
-          "authoredRelationships" -> c.authoredRelationships.toDouble
-        )
-      },
+      "neptune"         -> neptuneJson,
+      "outputCounts"    -> outputCounts,
       "pipelineSeconds" -> (System.nanoTime() - t0).toDouble / 1e9
     )
     GraphExportWriter.writeJson(spark, stats, s"$out/$RunStatsDir")
@@ -459,6 +659,6 @@ object ScholarChainPipeline:
       case Right(config) =>
         val spark = SparkSessionFactory.forPipeline("ScholarChain-Pipeline", config)
         try
-          run(spark, config)
+          run(spark, config, args.toSeq)
           if !config.keepCheckpoints then cleanupCheckpoints(spark, config)
         finally spark.stop()

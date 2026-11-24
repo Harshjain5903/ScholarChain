@@ -22,9 +22,7 @@ class GraphExportWriterSpec extends SparkTestBase:
       authorships,
       2000,
       2030,
-      "run",
-      "1.0.0",
-      "ts"
+      TestFixtures.lineage()
     )
     val outputDir = Files.createTempDirectory("spark-export-metrics").toString
     GraphExportWriter.writeMetrics(spark, metrics, outputDir)

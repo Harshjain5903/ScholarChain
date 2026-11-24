@@ -42,17 +42,54 @@ import org.apache.spark.HashPartitioner
  * [[GraphUtils.checkpointAndCount]] (reliable checkpoint when a checkpoint directory is set,
  * otherwise `localCheckpoint`). Only scalar counts reach the driver during the iterations.
  *
- * '''Size cap''': if the vertex count exceeds `maxGraphSize`, betweenness is NOT computed and every
- * researcher receives 0.0. Cross-community degree is still computed. This cap disables betweenness
- * entirely on large graphs; raise it explicitly (and size k accordingly) for large-scale runs.
+ * '''Method''' (review finding N52): every result records how betweenness was obtained, as a
+ * [[BridgeScoreMethod]] value, so a skipped computation is never mistaken for measured zeros:
+ *   - [[BridgeScoreMethod.Exact]]: k >= n (every vertex is a source), or the graph is empty
+ *   - [[BridgeScoreMethod.Sampled]]: 0 < k < n, scores are the scaled sample estimate
+ *   - [[BridgeScoreMethod.NotComputed]]: the vertex count exceeds `maxGraphSize`, or k = 0; every
+ *     researcher then carries the 0.0 placeholder, which must not be ranked or reported as a value
+ *
+ * '''Size cap''': above `maxGraphSize` vertices betweenness is not computed (method
+ * `not-computed`). Cross-community degree is still computed. Raise the cap explicitly (and size k
+ * accordingly) for large-scale runs.
  */
 object BridgeAnalysisJob:
 
-  /** Bridge analysis results per researcher. */
+  /** Default betweenness source-sampling seed (`--betweenness-seed`). */
+  val DefaultSeed: Long = 42L
+
+  /**
+   * Bridge analysis results per researcher.
+   *
+   * @param method
+   *   how `scores` were obtained; one of [[BridgeScoreMethod.All]]
+   * @param sources
+   *   number of betweenness source vertices k actually used (0 when not computed)
+   * @param vertexCount
+   *   vertex count n of the graph
+   * @param seed
+   *   source-sampling seed
+   */
   case class BridgeResult(
     scores: RDD[(String, Double)],
-    crossCommunityDegrees: RDD[(String, Int)]
+    crossCommunityDegrees: RDD[(String, Int)],
+    method: String = BridgeScoreMethod.Exact,
+    sources: Long = 0L,
+    vertexCount: Long = 0L,
+    seed: Long = DefaultSeed
   )
+
+  /**
+   * The betweenness method and source count k for a graph of `vertexCount` vertices. See the object
+   * documentation for the rules.
+   */
+  def betweennessPlan(vertexCount: Long, sampleCount: Int, maxGraphSize: Long): (String, Long) =
+    val k = math.max(0L, math.min(sampleCount.toLong, vertexCount))
+    if vertexCount > maxGraphSize then (BridgeScoreMethod.NotComputed, 0L)
+    else if vertexCount == 0L then (BridgeScoreMethod.Exact, 0L)
+    else if k == 0L then (BridgeScoreMethod.NotComputed, 0L)
+    else if k >= vertexCount then (BridgeScoreMethod.Exact, k)
+    else (BridgeScoreMethod.Sampled, k)
 
   /** A (source vertex, vertex) key in the multi-source BFS state. */
   private type SV = (VertexId, VertexId)
@@ -71,8 +108,8 @@ object BridgeAnalysisJob:
    *   number of sampled source vertices k for the betweenness approximation (k = min(sampleCount,
    *   n); k >= n gives exact betweenness)
    * @param maxGraphSize
-   *   vertex-count cap above which betweenness is skipped and reported as 0.0 for every vertex
-   *   (default 100000). This disables betweenness at large scale.
+   *   vertex-count cap above which betweenness is not computed (method `not-computed`, 0.0
+   *   placeholders; default 100000)
    * @param seed
    *   random seed for source sampling; the same seed on the same graph gives the same scores
    */
@@ -82,18 +119,26 @@ object BridgeAnalysisJob:
     communityAssignments: RDD[(String, String)],
     sampleCount: Int = 50,
     maxGraphSize: Long = 100000L,
-    seed: Long = 42L
+    seed: Long = DefaultSeed
   ): BridgeResult =
     val crossCommDeg =
       computeCrossCommunityDegree(graph, mapping, communityAssignments)
     val vertexCount = graph.numVertices
+    val (method, k) = betweennessPlan(vertexCount, sampleCount, maxGraphSize)
 
     val betweenness =
-      if vertexCount <= maxGraphSize then
-        computeApproximateBetweenness(graph, mapping, sampleCount, seed)
-      else graph.vertices.map { case (_, rid) => (rid, 0.0) }
+      if method == BridgeScoreMethod.NotComputed then
+        graph.vertices.map { case (_, rid) => (rid, 0.0) }
+      else computeApproximateBetweenness(graph, mapping, sampleCount, seed)
 
-    BridgeResult(scores = betweenness, crossCommunityDegrees = crossCommDeg)
+    BridgeResult(
+      scores = betweenness,
+      crossCommunityDegrees = crossCommDeg,
+      method = method,
+      sources = k,
+      vertexCount = vertexCount,
+      seed = seed
+    )
 
   /**
    * Compute the number of distinct communities among each vertex's neighbors, using distributed
@@ -254,14 +299,21 @@ object BridgeAnalysisJob:
       .takeOrdered(k)(Ordering.by[(Int, String, VertexId), (Int, String)](t => (t._1, t._2)))
       .map(_._3)
 
-  /** Update ResearcherMetrics with bridge scores. */
+  /**
+   * Update ResearcherMetrics with bridge scores and the method that produced them. When betweenness
+   * was not computed every researcher gets the 0.0 placeholder and method `not-computed`.
+   */
   def enrichMetrics(
     metrics: RDD[ResearcherMetrics],
     result: BridgeResult
   ): RDD[ResearcherMetrics] =
+    val method = result.method
     metrics
       .map(m => (m.researcherId, m))
       .leftOuterJoin(result.scores)
       .map { case (_, (m, scoreOpt)) =>
-        m.copy(bridgeScore = scoreOpt.getOrElse(m.bridgeScore))
+        val score =
+          if method == BridgeScoreMethod.NotComputed then 0.0
+          else scoreOpt.getOrElse(m.bridgeScore)
+        m.copy(bridgeScore = score, bridgeScoreMethod = method)
       }

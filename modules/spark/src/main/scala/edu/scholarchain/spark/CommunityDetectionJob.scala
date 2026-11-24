@@ -14,11 +14,25 @@ import org.apache.spark.rdd.RDD
  */
 object CommunityDetectionJob:
 
-  /** Community detection results. */
+  /** Default LPA superstep limit (`--lpa-max-iterations`). */
+  val DefaultMaxIterations: Int = 20
+
+  /**
+   * Community detection results.
+   *
+   * @param converged
+   *   true when the final labels are a fixed point of the update rule (no vertex would change its
+   *   label in one more superstep); false means `maxIterations` stopped LPA early
+   * @param unstableVertices
+   *   number of vertices whose label would still change in one more superstep
+   */
   case class CommunityResult(
     assignments: RDD[(String, String, Long)],
     crossCommunityEdges: RDD[(String, Int)],
-    communityCount: Long
+    communityCount: Long,
+    converged: Boolean = true,
+    unstableVertices: Long = 0L,
+    maxIterations: Int = DefaultMaxIterations
   )
 
   /**
@@ -29,14 +43,15 @@ object CommunityDetectionJob:
    * @param mapping
    *   vertex ID mapping
    * @param maxIterations
-   *   LPA superstep limit (default 20)
+   *   LPA superstep limit (default [[DefaultMaxIterations]])
    */
   def compute(
     graph: Graph[String, Int],
     mapping: GraphUtils.VertexMapping,
-    maxIterations: Int = 20
+    maxIterations: Int = DefaultMaxIterations
   ): CommunityResult =
     val lpaGraph = propagateLabels(graph, maxIterations)
+    val unstable = unstableVertexCount(lpaGraph)
 
     // (vertexId, (researcherId, label)); researcher IDs come from the graph's vertex attributes via
     // an index-aligned join.
@@ -80,8 +95,41 @@ object CommunityDetectionJob:
     CommunityResult(
       assignments = assignments,
       crossCommunityEdges = crossComm,
-      communityCount = communityInfo.count()
+      communityCount = communityInfo.count(),
+      converged = unstable == 0L,
+      unstableVertices = unstable,
+      maxIterations = maxIterations
     )
+
+  /**
+   * Number of vertices whose label would change if one more full LPA superstep (every neighbour
+   * voting) were applied to `labelled`; 0 means the labels are a fixed point (converged). One
+   * distributed aggregate; only the count reaches the driver.
+   */
+  def unstableVertexCount(labelled: Graph[String, Int]): Long =
+    val votes = labelled.aggregateMessages[Map[String, Long]](
+      ctx => if ctx.srcId != ctx.dstId then ctx.sendToDst(Map(ctx.srcAttr -> 1L)),
+      mergeVotes
+    )
+    labelled.vertices
+      .innerJoin(votes)((vid, current, v) => nextLabel(vid, current, v) != current)
+      .filter(_._2)
+      .count()
+
+  /** Sum two vote maps. */
+  private def mergeVotes(a: Map[String, Long], b: Map[String, Long]): Map[String, Long] =
+    b.foldLeft(a) { case (acc, (label, n)) => acc.updated(label, acc.getOrElse(label, 0L) + n) }
+
+  /**
+   * LPA update rule: the label with most votes, counting one vote for the current label; ties by
+   * the smallest label. No votes keeps the current label.
+   */
+  private def nextLabel(vid: VertexId, current: String, votes: Map[String, Long]): String =
+    if votes.isEmpty then current
+    else
+      val withSelf = votes.updated(current, votes.getOrElse(current, 0L) + 1L)
+      val best     = withSelf.values.max
+      withSelf.iterator.collect { case (label, n) if n == best => label }.min
 
   /**
    * Deterministic synchronous Label Propagation over GraphX Pregel.
@@ -110,20 +158,10 @@ object CommunityDetectionJob:
       // only gives each vertex exactly one vote per neighbour.
       if t.srcId == t.dstId then Iterator.empty else Iterator((t.dstId, Map(t.srcAttr -> 1L)))
 
-    def mergeMessage(a: Map[String, Long], b: Map[String, Long]): Map[String, Long] =
-      b.foldLeft(a) { case (acc, (label, n)) => acc.updated(label, acc.getOrElse(label, 0L) + n) }
-
-    def vertexProgram(vid: VertexId, current: String, votes: Map[String, Long]): String =
-      if votes.isEmpty then current
-      else
-        val withSelf = votes.updated(current, votes.getOrElse(current, 0L) + 1L)
-        val best     = withSelf.values.max
-        withSelf.iterator.collect { case (label, n) if n == best => label }.min
-
     Pregel(init, Map.empty[String, Long], maxIterations, EdgeDirection.Either)(
-      vertexProgram,
+      nextLabel,
       sendMessage,
-      mergeMessage
+      mergeVotes
     )
 
   /** Update ResearcherMetrics with community IDs. */

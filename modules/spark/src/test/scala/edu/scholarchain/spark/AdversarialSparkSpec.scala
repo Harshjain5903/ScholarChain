@@ -66,10 +66,8 @@ class AdversarialSparkSpec extends SparkTestBase:
       mentionMapping,
       windowStartYear = 2000,
       windowEndYear = 2030,
-      runId = "run-test",
-      schemaVersion = "1.0.0",
       policyVersion = "v1",
-      timestamp = "2026-01-01T00:00:00Z"
+      lineage = TestFixtures.lineage("run-test", "1.0.0", "2026-01-01T00:00:00Z")
     )
 
     // The self-pair (m1, m1b) -> (canonical-A, canonical-A) should be dropped
@@ -156,9 +154,7 @@ class AdversarialSparkSpec extends SparkTestBase:
       authorships,
       windowStartYear = 2000,
       windowEndYear = 2030,
-      runId = "run-test",
-      schemaVersion = "1.0.0",
-      timestamp = "2026-01-01T00:00:00Z"
+      lineage = TestFixtures.lineage("run-test", "1.0.0", "2026-01-01T00:00:00Z")
     )
 
     metrics.count() shouldBe 0L

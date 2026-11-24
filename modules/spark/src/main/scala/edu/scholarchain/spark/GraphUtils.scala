@@ -1,6 +1,6 @@
 package edu.scholarchain.spark
 
-import edu.scholarchain.core.*
+import edu.scholarchain.core.CoauthorEdge
 import org.apache.spark.graphx.{Edge, Graph, VertexId}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -54,16 +54,16 @@ object GraphUtils:
      * Lookup view from researcher ID to vertex ID, kept for source compatibility. Nothing is
      * materialised on the driver: each `get`/`contains` runs a distributed filter job, and
      * iteration streams the RDD one partition at a time. Production code must use [[ids]] with
-     * joins, or [[resolve]] for bounded lookups.
+     * joins, or [[resolve]] for bounded lookups. Package-private: diagnostics and tests only.
      */
-    def toLong: scala.collection.Map[String, VertexId] = new RddLookupView(ids)
+    private[spark] def toLong: scala.collection.Map[String, VertexId] = new RddLookupView(ids)
 
     /**
      * Lookup view from vertex ID to researcher ID, kept for source compatibility. Same cost model
      * as [[toLong]]; production code must use graph vertex attributes, joins, or
-     * [[resolveVertexIds]].
+     * [[resolveVertexIds]]. Package-private: diagnostics and tests only.
      */
-    def toStr: scala.collection.Map[VertexId, String] = new RddLookupView(byVertexId)
+    private[spark] def toStr: scala.collection.Map[VertexId, String] = new RddLookupView(byVertexId)
 
   /**
    * Read-only `Map` view over a pair RDD with unique keys. `get` launches a distributed filter that
@@ -167,17 +167,10 @@ object GraphUtils:
     else rdd.localCheckpoint()
     rdd.count()
 
-  /** Create provenance for a Spark pipeline output. */
-  def makeProv(
-    runId: String,
-    schemaVersion: String,
-    sourceRecordId: String,
-    timestamp: String
-  ): Provenance =
-    Provenance(
-      sourceDataset = "spark-analytics",
-      sourceRecordId = sourceRecordId,
-      pipelineRunId = runId,
-      schemaVersion = schemaVersion,
-      timestamp = timestamp
-    )
+  /**
+   * Persist an RDD and materialise it without truncating its lineage (the cheap counterpart of
+   * [[checkpointAndCount]] for iterations between checkpoints). Returns the element count.
+   */
+  private[spark] def persistAndCount[T](rdd: RDD[T]): Long =
+    rdd.persist(StorageLevel.MEMORY_AND_DISK)
+    rdd.count()

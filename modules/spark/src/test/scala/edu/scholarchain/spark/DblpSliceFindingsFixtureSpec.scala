@@ -4,12 +4,16 @@ import edu.scholarchain.core.*
 import org.apache.spark.rdd.RDD
 
 /**
- * Regression and feature tests for behaviour found or changed while running the pipeline on the
- * LOCAL REAL-DATA DBLP development slice (rs-20261123-dblp10k-first500): community detection on
- * collaboration cliques, deterministic canonical IDs, team-size based authorships, window-accurate
- * temporal metrics, and partition-independent results.
+ * Fixture-based regression tests for defects first observed on the local DBLP development slice
+ * (rs-20261123-dblp10k-first500): community detection on collaboration cliques, deterministic
+ * canonical IDs, team-size based authorships, window-accurate temporal metrics, and
+ * partition-independent results.
+ *
+ * Every test runs on small hand-built FIXTURES shaped like the slice; none reads the real run's
+ * files, so passing here does not validate the real-data outputs themselves (formerly named
+ * `RealDataRegressionSpec`, which overstated that).
  */
-class RealDataRegressionSpec extends SparkTestBase:
+class DblpSliceFindingsFixtureSpec extends SparkTestBase:
 
   private def prov(id: String) = TestFixtures.mkProv(id)
 
@@ -150,7 +154,7 @@ class RealDataRegressionSpec extends SparkTestBase:
     )
     val accepted = sc.parallelize(decisions.filter(_.decision == MatchOutcome.Accepted))
     val edges = CanonicalGraphBuilder
-      .build(sc, pairs, accepted, 2000, 2030, "run", "1.0.0", "v1", "ts")
+      .build(sc, pairs, accepted, 2000, 2030, "v1", TestFixtures.lineage())
       .collect()
       .sortBy(e => (e.researcherA, e.researcherB))
     edges.map(e => (e.researcherA, e.researcherB, e.jointPublicationCount)) shouldBe Array(
@@ -220,7 +224,7 @@ class RealDataRegressionSpec extends SparkTestBase:
     )
     val windows = TemporalAnalysisJob.generateWindows(2000, 2024, 5, 5)
     val snaps = TemporalAnalysisJob
-      .computeFromPairs(sc, pairs, authorships, windows, "run", "1.0.0", "ts")
+      .computeFromPairs(sc, pairs, authorships, windows, TestFixtures.lineage())
       .collect()
       .map(s =>
         (

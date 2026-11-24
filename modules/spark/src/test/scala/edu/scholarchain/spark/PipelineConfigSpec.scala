@@ -148,3 +148,54 @@ class PipelineConfigSpec extends AnyFunSuite with Matchers:
       SparkSessionFactory.PregelCheckpointIntervalKey
     ) shouldBe "-1"
   }
+
+  test("ER policy is not defaulted: absent unless --policy-version is given") {
+    parsed().policyVersion shouldBe None
+    parsed("--policy-version", "er-mention-v1-uncalibrated").policyVersion shouldBe
+      Some("er-mention-v1-uncalibrated")
+  }
+
+  test("betweenness seed, k-core cap/interval, LPA limit and manifest flags are parsed") {
+    val d = parsed()
+    d.betweennessSeed shouldBe 42L
+    d.kcoreMaxIterations shouldBe KCoreJob.DefaultMaxIterations
+    d.kcoreCheckpointInterval shouldBe KCoreJob.DefaultCheckpointInterval
+    d.lpaMaxIterations shouldBe CommunityDetectionJob.DefaultMaxIterations
+    d.allowUnlinkedErInput shouldBe false
+    d.inputChecksums shouldBe true
+    d.gitSha shouldBe None
+    d.gitDirty shouldBe None
+    val c = parsed(
+      "--betweenness-seed",
+      "7",
+      "--kcore-max-iterations",
+      "50",
+      "--kcore-checkpoint-interval",
+      "5",
+      "--lpa-max-iterations",
+      "30",
+      "--allow-unlinked-er-input",
+      "true",
+      "--input-checksums",
+      "false",
+      "--git-sha",
+      "abc123",
+      "--git-dirty",
+      "true"
+    )
+    c.betweennessSeed shouldBe 7L
+    c.kcoreMaxIterations shouldBe 50
+    c.kcoreCheckpointInterval shouldBe 5
+    c.lpaMaxIterations shouldBe 30
+    c.allowUnlinkedErInput shouldBe true
+    c.inputChecksums shouldBe false
+    c.gitSha shouldBe Some("abc123")
+    c.gitDirty shouldBe Some(true)
+    error((required ++ Seq("--kcore-max-iterations", "0"))*) should include(
+      "kcore-max-iterations must be > 0"
+    )
+    error((required ++ Seq("--kcore-checkpoint-interval", "0"))*) should include(
+      "kcore-checkpoint-interval must be > 0"
+    )
+    error((required ++ Seq("--git-dirty", "maybe"))*) should include("--git-dirty expects")
+  }

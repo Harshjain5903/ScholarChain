@@ -39,9 +39,7 @@ class TemporalAnalysisSpec extends SparkTestBase:
       edgesRdd,
       authorships,
       windows,
-      "run",
-      "1.0.0",
-      "ts"
+      TestFixtures.lineage()
     )
     val collected = snapshots.collect()
 
@@ -68,9 +66,7 @@ class TemporalAnalysisSpec extends SparkTestBase:
       emptyEdges,
       emptyAuthorships,
       windows,
-      "run",
-      "1.0.0",
-      "ts"
+      TestFixtures.lineage()
     )
     snapshots.count() shouldBe 0
   }

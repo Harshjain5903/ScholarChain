@@ -20,9 +20,7 @@ class GraphAnalyticsSpec extends SparkTestBase:
       authorships,
       2000,
       2030,
-      "run",
-      "1.0.0",
-      "ts"
+      TestFixtures.lineage()
     )
     val map = metrics.map(m => (m.researcherId, m)).collectAsMap()
     map("R1").distinctCoauthorCount shouldBe 2
@@ -40,9 +38,7 @@ class GraphAnalyticsSpec extends SparkTestBase:
       authorships,
       2000,
       2030,
-      "run",
-      "1.0.0",
-      "ts"
+      TestFixtures.lineage()
     )
     val map = metrics.map(m => (m.researcherId, m)).collectAsMap()
     // R1: edges to R2(2) + R3(1) = 3.0
@@ -59,9 +55,7 @@ class GraphAnalyticsSpec extends SparkTestBase:
       authorships,
       2000,
       2030,
-      "run",
-      "1.0.0",
-      "ts"
+      TestFixtures.lineage()
     )
     val map = metrics.map(m => (m.researcherId, m)).collectAsMap()
     // R1: works w1(1 coauthor), w2(1), w3(2) -> max=2, avg=4/3
@@ -229,4 +223,155 @@ class GraphAnalyticsSpec extends SparkTestBase:
     val ccResult   = ConnectedComponentsJob.compute(g, m)
     ccResult.componentCount shouldBe 1
     ccResult.singletonCount shouldBe 0
+  }
+
+  // ---- M_r evidence (maximumTeamWorkIds).
+
+  test("maximumTeamWorkIds lists the sorted works achieving M_r; empty when M_r is 0") {
+    val authorships = sc.parallelize(
+      TestFixtures.authorships :+ CollaborationMetricsJob.AuthorshipInfo("R6", "w-solo", 0)
+    )
+    val map = CollaborationMetricsJob
+      .compute(sc, edgesRdd, authorships, 2000, 2030, TestFixtures.lineage())
+      .map(m => (m.researcherId, m))
+      .collectAsMap()
+    map("R1").maximumTeamWorkIds shouldBe Vector("w3")
+    map("R2").maximumTeamWorkIds shouldBe Vector("w3")
+    // R4 had 1 coauthor on both w4 and w5: a tie keeps both, sorted.
+    map("R4").maximumCoauthorsOnOnePaper shouldBe 1
+    map("R4").maximumTeamWorkIds shouldBe Vector("w4", "w5")
+    map("R6").maximumCoauthorsOnOnePaper shouldBe 0
+    map("R6").maximumTeamWorkIds shouldBe empty
+  }
+
+  test("maximumTeamWorkIds is capped deterministically at MaxTeamWorkIdsCap") {
+    val cap   = CollaborationMetricsJob.MaxTeamWorkIdsCap
+    val works = (0 until cap + 7).map(i => f"w$i%03d")
+    val authorships = sc.parallelize(
+      works.reverse.map(w => CollaborationMetricsJob.AuthorshipInfo("R", w, 3)),
+      5
+    )
+    val m = CollaborationMetricsJob
+      .compute(sc, sc.emptyRDD, authorships, 2000, 2030, TestFixtures.lineage())
+      .collect()
+      .head
+    m.maximumCoauthorsOnOnePaper shouldBe 3
+    m.maximumTeamWorkIds shouldBe works.take(cap).toVector
+  }
+
+  test("metrics provenance carries lineage instead of a hardcoded dataset") {
+    val lineage = Lineage("s", "1.0.0", "ts", "dblp", Vector("er", "hd"), Some("er-p"))
+    val p = CollaborationMetricsJob
+      .compute(sc, edgesRdd, sc.parallelize(TestFixtures.authorships), 2000, 2030, lineage)
+      .first()
+      .provenance
+    p.sourceDataset shouldBe "dblp"
+    p.producer shouldBe Some("spark-analytics/CollaborationMetricsJob")
+    p.transformationStep shouldBe Some(CollaborationMetricsJob.Step)
+    p.upstreamRunIds shouldBe Vector("er", "hd")
+    p.policyVersion shouldBe Some("er-p")
+  }
+
+  // ---- Betweenness method (N52).
+
+  test("betweenness plan: exact, sampled and not-computed") {
+    BridgeAnalysisJob.betweennessPlan(10, 50, 1000) shouldBe ((BridgeScoreMethod.Exact, 10L))
+    BridgeAnalysisJob.betweennessPlan(10, 10, 1000) shouldBe ((BridgeScoreMethod.Exact, 10L))
+    BridgeAnalysisJob.betweennessPlan(10, 3, 1000) shouldBe ((BridgeScoreMethod.Sampled, 3L))
+    BridgeAnalysisJob.betweennessPlan(10, 3, 9) shouldBe ((BridgeScoreMethod.NotComputed, 0L))
+    BridgeAnalysisJob.betweennessPlan(10, 0, 1000) shouldBe ((BridgeScoreMethod.NotComputed, 0L))
+    BridgeAnalysisJob.betweennessPlan(0, 5, 1000) shouldBe ((BridgeScoreMethod.Exact, 0L))
+  }
+
+  private def bridgeMetrics(sampleCount: Int, maxGraphSize: Long, seed: Long = 7L) =
+    val result = BridgeAnalysisJob.compute(
+      graph,
+      mapping,
+      sc.emptyRDD[(String, String)],
+      sampleCount = sampleCount,
+      maxGraphSize = maxGraphSize,
+      seed = seed
+    )
+    val metrics = CollaborationMetricsJob.compute(
+      sc,
+      edgesRdd,
+      sc.parallelize(TestFixtures.authorships),
+      2000,
+      2030,
+      TestFixtures.lineage()
+    )
+    (
+      result,
+      BridgeAnalysisJob.enrichMetrics(metrics, result).collect().map(m => m.researcherId -> m).toMap
+    )
+
+  test("a graph above maxGraphSize is not-computed with 0.0 placeholders, never silently exact") {
+    val (result, metrics) = bridgeMetrics(sampleCount = 50, maxGraphSize = 3)
+    result.method shouldBe BridgeScoreMethod.NotComputed
+    result.sources shouldBe 0L
+    result.vertexCount shouldBe 6L
+    metrics.values.foreach { m =>
+      m.bridgeScoreMethod shouldBe BridgeScoreMethod.NotComputed
+      m.bridgeScore shouldBe 0.0
+    }
+  }
+
+  test("k >= n is exact and k < n is sampled; the seed is recorded") {
+    val (exact, exactMetrics) = bridgeMetrics(sampleCount = 100, maxGraphSize = 1000, seed = 5L)
+    exact.method shouldBe BridgeScoreMethod.Exact
+    exact.sources shouldBe 6L
+    exact.seed shouldBe 5L
+    exactMetrics("R2").bridgeScoreMethod shouldBe BridgeScoreMethod.Exact
+    exactMetrics("R2").bridgeScore should be > 0.0
+    val (sampled, sampledMetrics) = bridgeMetrics(sampleCount = 2, maxGraphSize = 1000)
+    sampled.method shouldBe BridgeScoreMethod.Sampled
+    sampled.sources shouldBe 2L
+    sampledMetrics.values.foreach(_.bridgeScoreMethod shouldBe BridgeScoreMethod.Sampled)
+  }
+
+  // ---- K-core iteration cap (no silent wrong coreness).
+
+  private lazy val pathGraph =
+    val vs = (0 until 12).map(i => f"p$i%02d")
+    val edges = vs.zip(vs.tail).map { case (a, b) =>
+      CoauthorEdge(a, b, 1, 2020, 2020, Vector("w"), TestFixtures.mkProv(a))
+    }
+    GraphUtils.buildGraphWithIsolates(sc, sc.parallelize(edges), sc.emptyRDD)
+
+  test("k-core reports convergence and iterations; periodic checkpoints give the same coreness") {
+    val (g, m) = pathGraph
+    val every  = KCoreJob.computeWithStatus(g, m, maxIterations = 100, checkpointInterval = 1)
+    val sparse = KCoreJob.computeWithStatus(g, m, maxIterations = 100, checkpointInterval = 4)
+    every.converged shouldBe true
+    sparse.converged shouldBe true
+    // A 12-vertex path peels two endpoints per iteration.
+    every.iterations shouldBe 6
+    sparse.iterations shouldBe 6
+    every.coreness.collect().toMap.values.toSet shouldBe Set(1)
+    sparse.coreness.collect().toMap shouldBe every.coreness.collect().toMap
+  }
+
+  test("k-core hitting the iteration cap is marked not converged and compute fails") {
+    val (g, m) = pathGraph
+    val capped = KCoreJob.computeWithStatus(g, m, maxIterations = 2, checkpointInterval = 1)
+    capped.converged shouldBe false
+    capped.iterations shouldBe 2
+    // Unpeeled vertices are explicitly unknown (-1), never a guessed coreness.
+    capped.coreness.collect().count(_._2 == KCoreJob.Unknown) shouldBe 8
+    val ex = intercept[IllegalStateException](KCoreJob.compute(g, m, maxIterations = 2))
+    ex.getMessage should include("did not converge within 2 iterations")
+  }
+
+  // ---- Label propagation convergence.
+
+  test("label propagation reports convergence, and non-convergence when stopped early") {
+    val converged = CommunityDetectionJob.compute(graph, mapping)
+    converged.converged shouldBe true
+    converged.unstableVertices shouldBe 0L
+    converged.maxIterations shouldBe CommunityDetectionJob.DefaultMaxIterations
+    // A path needs several supersteps for labels to settle; one superstep cannot converge.
+    val (g, m) = pathGraph
+    val early  = CommunityDetectionJob.compute(g, m, maxIterations = 1)
+    early.converged shouldBe false
+    early.unstableVertices should be > 0L
   }

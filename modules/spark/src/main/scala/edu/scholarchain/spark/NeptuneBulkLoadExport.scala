@@ -17,22 +17,33 @@ import java.security.MessageDigest
  * pinned by `NeptuneBulkLoadExportSpec`, which asserts that the headers and values are a subset of
  * `GraphSchema` and cover the keys the storage queries match on.
  *
- * Layout under `<output>/neptune/` (each part file starts with its header row):
+ * Layout under `<output>/neptune/` (each part file starts with its header row). Label and type
+ * values are the [[GraphSchema]] constants (`VertexLabel.Researcher`, `VertexLabel.Work`,
+ * `EdgeType.Coauthor`, `EdgeType.Authored`), not literals; see [[ResearcherNodeHeader]] and the
+ * other header vectors for the exact columns:
  * {{{
- *   nodes/researcher/       :ID, :LABEL=Researcher, nodeId, researcherId, componentId, provenance
- *   nodes/work/             :ID, :LABEL=Work, nodeId, workId, provenance
- *   relationships/coauthor/ :ID, :START_ID, :END_ID, :TYPE=COAUTHOR, researcherA, researcherB,
- *                           jointPublicationCount:Int, firstCollaborationYear:Int,
+ *   nodes/researcher/       :ID, :LABEL=<VertexLabel.Researcher>, nodeId, researcherId,
+ *                           componentId, displayName, provenance
+ *   nodes/work/             :ID, :LABEL=<VertexLabel.Work>, nodeId, workId, title, year:Int,
+ *                           venue, provenance
+ *   relationships/coauthor/ :ID, :START_ID, :END_ID, :TYPE=<EdgeType.Coauthor>, researcherA,
+ *                           researcherB, jointPublicationCount:Int, firstCollaborationYear:Int,
  *                           lastCollaborationYear:Int, representativeWorkIds, provenance
- *   relationships/authored/ :ID, :START_ID (Researcher), :END_ID (Work), :TYPE=AUTHORED, provenance
+ *   relationships/authored/ :ID, :START_ID (Researcher), :END_ID (Work), :TYPE=<EdgeType.Authored>,
+ *                           provenance
  * }}}
  *
  * Encoding decisions (the loader/consumer owner must honour them):
  *   - `:ID` of a Researcher is its researcher ID and of a Work its work ID (the prefixes
  *     `mention:`, `researcher:` and `work:` keep the two ID spaces disjoint), so loads are
  *     idempotent.
- *   - A COAUTHOR relationship is stored once, `:START_ID` = researcherA < `:END_ID` = researcherB;
- *     consumer queries match it without direction.
+ *   - A coauthor (`EdgeType.Coauthor`) relationship is stored once, `:START_ID` = researcherA <
+ *     `:END_ID` = researcherB; consumer queries match it without direction.
+ *   - Descriptive properties (`displayName`; `title`, `year`, `venue`) are written only when the
+ *     inputs carry them: an unknown value is an empty unquoted CSV field (null), never an invented
+ *     placeholder. `displayName` is the most frequent raw name of the researcher's mentions;
+ *     `title` and `venue` (the DBLP venue ID) come from the Hadoop `work_records` export when it is
+ *     present; `year` comes from the publication team.
  *   - `provenance` (an object) and `representativeWorkIds` (a list) are stored as JSON text in a
  *     String property, because Neptune properties cannot hold maps. Consumers must decode these two
  *     properties from JSON.
@@ -49,6 +60,21 @@ object NeptuneBulkLoadExport:
   private val Label = GraphSchema.VertexLabel
   private val Rel   = GraphSchema.EdgeType
   private val Key   = GraphSchema.PropertyKey
+
+  /** Job name recorded in the `producer` of provenance this export creates. */
+  val Job: String = "NeptuneBulkLoadExport"
+
+  /**
+   * A `Work` vertex: identity, provenance, and the descriptive properties known from the inputs
+   * (None = unknown, written as an empty field).
+   */
+  final case class WorkNode(
+    workId: String,
+    provenance: Provenance,
+    title: Option[String] = None,
+    year: Option[Int] = None,
+    venue: Option[String] = None
+  )
 
   /** openCypher CSV system columns. */
   object System:
@@ -70,17 +96,19 @@ object NeptuneBulkLoadExport:
     System.Label,
     property(Key.NodeId),
     property(Key.ResearcherId),
-    property(Key.ComponentId),
-    property(Key.Provenance)
-  )
+    property(Key.ComponentId)
+  ) ++ Key.ResearcherDescriptiveKeys.map(k => property(k)) :+ property(Key.Provenance)
+
+  /** openCypher CSV type of each `Work` descriptive key. */
+  private def workPropertyType(key: String): String = if key == Key.Year then "Int" else "String"
 
   val WorkNodeHeader: Vector[String] = Vector(
     System.Id,
     System.Label,
     property(Key.NodeId),
-    property(Key.WorkId),
+    property(Key.WorkId)
+  ) ++ Key.WorkDescriptiveKeys.map(k => property(k, workPropertyType(k))) :+
     property(Key.Provenance)
-  )
 
   val CoauthorRelationshipHeader: Vector[String] = Vector(
     System.Id,
@@ -121,27 +149,63 @@ object NeptuneBulkLoadExport:
       md.digest(s"$researcherId|$workId".getBytes(StandardCharsets.UTF_8)).map("%02x".format(_))
     s"authored:${digest.mkString}"
 
-  /** Rows for Researcher nodes, one per researcher in `metrics`. */
-  def researcherRows(metrics: RDD[ResearcherMetrics]): RDD[Row] =
-    metrics.map { m =>
-      Row(
-        m.researcherId,
-        Label.Researcher,
-        m.researcherId,
-        m.researcherId,
-        m.componentId.orNull,
-        write(m.provenance)
+  /**
+   * Rows for Researcher nodes, one per researcher in `metrics`; `displayNames` (researcherId, name)
+   * supplies `displayName`, which is left empty for researchers without one.
+   */
+  def researcherRows(
+    metrics: RDD[ResearcherMetrics],
+    displayNames: RDD[(String, String)]
+  ): RDD[Row] =
+    val oneName = displayNames.reduceByKey((a, b) => if a <= b then a else b)
+    metrics
+      .map(m => (m.researcherId, m))
+      .leftOuterJoin(oneName)
+      .map { case (_, (m, name)) =>
+        Row(
+          m.researcherId,
+          Label.Researcher,
+          m.researcherId,
+          m.researcherId,
+          m.componentId.orNull,
+          name.orNull,
+          write(m.provenance)
+        )
+      }
+
+  /**
+   * Rows for Work nodes, one per distinct work ID. Duplicates are resolved deterministically: the
+   * candidate with the smallest (provenance JSON, title, year, venue) is kept.
+   */
+  def workRows(works: RDD[WorkNode]): RDD[Row] =
+    val order = Ordering[(String, String, Int, String)]
+    def sortKey(w: WorkNode): (String, String, Int, String) =
+      (
+        write(w.provenance),
+        w.title.getOrElse(""),
+        w.year.getOrElse(Int.MinValue),
+        w.venue.getOrElse("")
       )
-    }
-
-  /** Rows for Work nodes, one per distinct work ID (smallest provenance JSON kept). */
-  def workRows(works: RDD[(String, Provenance)]): RDD[Row] =
     works
-      .mapValues(p => write(p))
-      .reduceByKey((a, b) => if a <= b then a else b)
-      .map { case (workId, prov) => Row(workId, Label.Work, workId, workId, prov) }
+      .map(w => (w.workId, w))
+      .reduceByKey((a, b) => if order.lteq(sortKey(a), sortKey(b)) then a else b)
+      .map { case (workId, w) =>
+        Row(
+          workId,
+          Label.Work,
+          workId,
+          workId,
+          w.title.filter(_.nonEmpty).orNull,
+          w.year.map(Int.box).orNull,
+          w.venue.filter(_.nonEmpty).orNull,
+          write(w.provenance)
+        )
+      }
 
-  /** Rows for COAUTHOR relationships; `:ID` is [[IdGen.coauthorEdgeId]] for the window/policy. */
+  /**
+   * Rows for coauthor relationships of type [[GraphSchema.EdgeType.Coauthor]]; `:ID` is
+   * [[IdGen.coauthorEdgeId]] for the window and ER policy version.
+   */
   def coauthorRows(
     edges: RDD[CoauthorEdge],
     windowStartYear: Int,
@@ -170,22 +234,14 @@ object NeptuneBulkLoadExport:
       )
     }
 
-  /** Rows for AUTHORED relationships (Researcher -> Work), one per distinct pair. */
-  def authoredRows(
-    authorships: RDD[(String, String)],
-    runId: String,
-    schemaVersion: String,
-    timestamp: String
-  ): RDD[Row] =
+  /**
+   * Rows for [[GraphSchema.EdgeType.Authored]] relationships (Researcher -> Work), one per distinct
+   * pair. `lineage.sourceDataset` should be the publication teams' source dataset.
+   */
+  def authoredRows(authorships: RDD[(String, String)], lineage: Lineage): RDD[Row] =
     authorships.distinct().map { case (rid, workId) =>
       val id = authoredId(rid, workId)
-      Row(
-        id,
-        rid,
-        workId,
-        Rel.Authored,
-        write(GraphUtils.makeProv(runId, schemaVersion, id, timestamp))
-      )
+      Row(id, rid, workId, Rel.Authored, write(lineage.prov(Job, "authorship-export", id)))
     }
 
   private def schemaOf(header: Vector[String]): StructType =
@@ -238,25 +294,33 @@ object NeptuneBulkLoadExport:
     authoredRelationships: Long
   )
 
-  /** Write the four Neptune openCypher CSV datasets. */
+  /**
+   * Write the four Neptune openCypher CSV datasets.
+   *
+   * @param displayNames
+   *   (researcherId, displayName) for researchers whose name is known
+   * @param policyVersion
+   *   ER policy version baked into coauthor relationship IDs
+   * @param authoredLineage
+   *   lineage for AUTHORED relationship provenance
+   */
   def writeAll(
     spark: SparkSession,
     outputPath: String,
     metrics: RDD[ResearcherMetrics],
-    works: RDD[(String, Provenance)],
+    displayNames: RDD[(String, String)],
+    works: RDD[WorkNode],
     edges: RDD[CoauthorEdge],
     authorships: RDD[(String, String)],
     windowStartYear: Int,
     windowEndYear: Int,
     policyVersion: String,
-    runId: String,
-    schemaVersion: String,
-    timestamp: String
+    authoredLineage: Lineage
   ): Counts =
     Counts(
       researcherNodes = writeCsv(
         spark,
-        researcherRows(metrics),
+        researcherRows(metrics, displayNames),
         ResearcherNodeHeader,
         outputPath,
         Dir.ResearcherNodes
@@ -271,7 +335,7 @@ object NeptuneBulkLoadExport:
       ),
       authoredRelationships = writeCsv(
         spark,
-        authoredRows(authorships, runId, schemaVersion, timestamp),
+        authoredRows(authorships, authoredLineage),
         AuthoredRelationshipHeader,
         outputPath,
         Dir.AuthoredRelationships

@@ -84,7 +84,11 @@ object GraphExportWriter:
       .partitionBy("windowStartYear")
       .parquet(s"$outputPath/temporal")
 
-  /** Write ResearcherMetrics as Parquet. */
+  /**
+   * Write ResearcherMetrics as Parquet. `maximumTeamWorkIds` (the evidence behind M_r) is a Parquet
+   * list column; `bridgeScoreMethod` says whether `bridgeScore` is exact, sampled or a not-computed
+   * placeholder.
+   */
   def writeMetrics(
     spark: SparkSession,
     metrics: RDD[ResearcherMetrics],
@@ -105,7 +109,13 @@ object GraphExportWriter:
         StructField("coreness", IntegerType, nullable = false),
         StructField("windowStartYear", IntegerType, nullable = false),
         StructField("windowEndYear", IntegerType, nullable = false),
-        StructField("provenance", StringType, nullable = false)
+        StructField("provenance", StringType, nullable = false),
+        StructField(
+          "maximumTeamWorkIds",
+          ArrayType(StringType, containsNull = false),
+          nullable = false
+        ),
+        StructField("bridgeScoreMethod", StringType, nullable = false)
       )
     )
     val rows = metrics.map { m =>
@@ -123,7 +133,9 @@ object GraphExportWriter:
         m.coreness,
         m.windowStartYear,
         m.windowEndYear,
-        write(m.provenance)
+        write(m.provenance),
+        m.maximumTeamWorkIds,
+        m.bridgeScoreMethod
       )
     }
     val df = spark.createDataFrame(rows, schema)
@@ -154,9 +166,7 @@ object GraphExportWriter:
     spark: SparkSession,
     paths: Seq[ShortestPathJob.PathResult],
     outputPath: String,
-    runId: String,
-    schemaVersion: String,
-    timestamp: String
+    lineage: Lineage
   ): Unit =
     val schema = StructType(
       Seq(
@@ -168,11 +178,10 @@ object GraphExportWriter:
       )
     )
     val rows = paths.map { p =>
-      val prov = GraphUtils.makeProv(
-        runId,
-        schemaVersion,
-        s"path:${p.sourceResearcherId}:${p.targetResearcherId}",
-        timestamp
+      val prov = lineage.prov(
+        "ShortestPathJob",
+        "shortest-path-evidence",
+        s"path:${p.sourceResearcherId}:${p.targetResearcherId}"
       )
       Row(
         p.sourceResearcherId,
@@ -233,13 +242,19 @@ object GraphExportWriter:
    * The `neptune` target points at the openCypher bulk-load CSV prefixes written by
    * [[NeptuneBulkLoadExport]] (when `neptuneCsv` is true) and lists the [[GraphSchema]] labels,
    * types and keys used, so a loader can check them before loading.
+   *
+   * @param run
+   *   the run's reproducibility record (code version, jar and input checksums, upstream run IDs, ER
+   *   policy, argv and config, algorithm methods and convergence, output counts), embedded as `run`
+   *   when non-empty; built by `ScholarChainPipeline`
    */
   def writeManifest(
     spark: SparkSession,
     outputPath: String,
     runId: String,
     timestamp: String,
-    neptuneCsv: Boolean = false
+    neptuneCsv: Boolean = false,
+    run: ujson.Obj = ujson.Obj()
   ): Unit =
     val root = outputPath.stripSuffix("/")
     val neptune =
@@ -254,6 +269,14 @@ object GraphExportWriter:
           "relationships"     -> s"$root/${NeptuneBulkLoadExport.Dir.Relationships}",
           "vertexLabels"      -> ujson.Arr.from(GraphSchema.VertexLabel.All),
           "relationshipTypes" -> ujson.Arr.from(GraphSchema.EdgeType.All),
+          "descriptiveProperties" -> ujson.Obj(
+            GraphSchema.VertexLabel.Researcher -> ujson.Arr.from(
+              GraphSchema.PropertyKey.ResearcherDescriptiveKeys
+            ),
+            GraphSchema.VertexLabel.Work -> ujson.Arr.from(
+              GraphSchema.PropertyKey.WorkDescriptiveKeys
+            )
+          ),
           "jsonEncodedProperties" -> ujson.Arr(
             GraphSchema.PropertyKey.Provenance,
             GraphSchema.PropertyKey.RepresentativeWorkIds
@@ -279,6 +302,7 @@ object GraphExportWriter:
         "s3"        -> ujson.Obj("paths" -> s"$root/paths", "edgesParquet" -> s"$root/edges")
       )
     )
+    if run.value.nonEmpty then manifest("run") = run
     writeJson(spark, manifest, s"$root/manifest")
 
   /** Write one pretty-printed JSON document as a single-part text dataset at `path`. */

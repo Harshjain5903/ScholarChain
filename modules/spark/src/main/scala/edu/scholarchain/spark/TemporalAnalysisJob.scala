@@ -13,6 +13,12 @@ import org.apache.spark.SparkContext
  */
 object TemporalAnalysisJob:
 
+  /** Job name recorded in the `producer` of snapshot provenance. */
+  val Job: String = "TemporalAnalysisJob"
+
+  /** Transformation step of snapshot provenance. */
+  val Step: String = "temporal-window-snapshot"
+
   /** A single time window specification. */
   case class TimeWindow(startYear: Int, endYear: Int)
 
@@ -68,9 +74,7 @@ object TemporalAnalysisJob:
     pairs: RDD[CanonicalGraphBuilder.CanonicalPair],
     authorships: RDD[CanonicalGraphBuilder.CanonicalAuthorship],
     windows: Seq[TimeWindow],
-    runId: String,
-    schemaVersion: String,
-    timestamp: String
+    lineage: Lineage
   ): RDD[TemporalSnapshot] =
     if windows.isEmpty then return sc.emptyRDD[TemporalSnapshot]
     val ws = windows.toVector
@@ -106,12 +110,7 @@ object TemporalAnalysisJob:
           publicationCount = pubs,
           distinctCoauthorCount = distinctCoauthors,
           weightedDegree = weightedDeg,
-          provenance = GraphUtils.makeProv(
-            runId,
-            schemaVersion,
-            s"$rid:${w.startYear}-${w.endYear}",
-            timestamp
-          )
+          provenance = lineage.prov(Job, Step, s"$rid:${w.startYear}-${w.endYear}")
         )
       }
 
@@ -128,24 +127,18 @@ object TemporalAnalysisJob:
    *   per-researcher per-work authorship info with year
    * @param windows
    *   time windows to evaluate
-   * @param runId
-   *   pipeline run identifier
-   * @param schemaVersion
-   *   schema version for provenance
-   * @param timestamp
-   *   current timestamp for provenance
+   * @param lineage
+   *   provenance lineage
    */
   def compute(
     sc: SparkContext,
     allEdges: RDD[CoauthorEdge],
     authorships: RDD[(String, String, Int, Int)],
     windows: Seq[TimeWindow],
-    runId: String,
-    schemaVersion: String,
-    timestamp: String
+    lineage: Lineage
   ): RDD[TemporalSnapshot] =
     val snapshots = windows.map { w =>
-      computeWindow(sc, allEdges, authorships, w, runId, schemaVersion, timestamp)
+      computeWindow(sc, allEdges, authorships, w, lineage)
     }
     if snapshots.isEmpty then sc.emptyRDD[TemporalSnapshot]
     else snapshots.reduce(_ union _)
@@ -161,9 +154,7 @@ object TemporalAnalysisJob:
     allEdges: RDD[CoauthorEdge],
     authorships: RDD[(String, String, Int, Int)],
     window: TimeWindow,
-    runId: String,
-    schemaVersion: String,
-    timestamp: String
+    lineage: Lineage
   ): RDD[TemporalSnapshot] =
     val windowEdges = allEdges.filter(e =>
       e.lastCollaborationYear >= window.startYear &&
@@ -194,13 +185,7 @@ object TemporalAnalysisJob:
       .map { case (rid, (edgeOpt, pubOpt)) =>
         val (distinctCoauthors, weightedDeg) = edgeOpt.getOrElse((0, 0.0))
         val pubs                             = pubOpt.getOrElse(0)
-        val prov =
-          GraphUtils.makeProv(
-            runId,
-            schemaVersion,
-            s"$rid:${window.startYear}-${window.endYear}",
-            timestamp
-          )
+        val prov = lineage.prov(Job, Step, s"$rid:${window.startYear}-${window.endYear}")
         TemporalSnapshot(
           researcherId = rid,
           windowStartYear = window.startYear,

@@ -39,6 +39,27 @@ import edu.scholarchain.core.IdGen
  *   optional file of tab-separated `source<TAB>target` lines, appended to `pathPairs`
  * @param writeNeptuneCsv
  *   emit Neptune openCypher bulk-load CSV in addition to Parquet
+ * @param policyVersion
+ *   optional explicit ER policy version. The policy is derived from the match decisions; when this
+ *   is given it must equal the derived one (the run fails otherwise). Required only when the
+ *   match-decision input is empty.
+ * @param betweennessSeed
+ *   seed of the betweenness source sampling (recorded in the manifest)
+ * @param kcoreMaxIterations
+ *   k-core peeling iteration cap; reaching it fails the run rather than publish wrong coreness
+ * @param kcoreCheckpointInterval
+ *   k-core lineage truncation interval in iterations
+ * @param lpaMaxIterations
+ *   label-propagation superstep limit; convergence is reported in the run statistics
+ * @param allowUnlinkedErInput
+ *   accept match decisions that do not name their Hadoop input run (`input_run:` reason code); by
+ *   default such decisions fail the run because their linkage cannot be verified
+ * @param gitSha
+ *   code git SHA for the manifest (else `SCHOLARCHAIN_GIT_SHA`, else a best-effort git probe)
+ * @param gitDirty
+ *   code worktree dirty flag for the manifest (else `SCHOLARCHAIN_GIT_DIRTY`, else the probe)
+ * @param inputChecksums
+ *   record the SHA-256 of every input file in the manifest (reads all input bytes on the driver)
  */
 case class PipelineConfig(
   hadoopOutputPath: String,
@@ -50,7 +71,7 @@ case class PipelineConfig(
   numPartitions: Int,
   betweennessSampleCount: Int,
   schemaVersion: String,
-  policyVersion: String,
+  policyVersion: Option[String],
   maxBetweennessGraphSize: Long,
   checkpointDir: Option[String] = None,
   pregelCheckpointInterval: Int = PipelineConfig.Defaults.pregelCheckpointInterval,
@@ -63,7 +84,15 @@ case class PipelineConfig(
   maxPathHops: Int = PipelineConfig.Defaults.maxPathHops,
   temporalWindowSize: Int = PipelineConfig.Defaults.temporalWindowSize,
   temporalStep: Int = PipelineConfig.Defaults.temporalStep,
-  writeNeptuneCsv: Boolean = true
+  writeNeptuneCsv: Boolean = true,
+  betweennessSeed: Long = PipelineConfig.Defaults.betweennessSeed,
+  kcoreMaxIterations: Int = PipelineConfig.Defaults.kcoreMaxIterations,
+  kcoreCheckpointInterval: Int = PipelineConfig.Defaults.kcoreCheckpointInterval,
+  lpaMaxIterations: Int = PipelineConfig.Defaults.lpaMaxIterations,
+  allowUnlinkedErInput: Boolean = false,
+  gitSha: Option[String] = None,
+  gitDirty: Option[Boolean] = None,
+  inputChecksums: Boolean = true
 ):
   require(hadoopOutputPath.nonEmpty, "hadoop-output must not be empty")
   require(matchDecisionsPath.nonEmpty, "match-decisions must not be empty")
@@ -79,6 +108,10 @@ case class PipelineConfig(
   require(maxPathHops > 0, "max-path-hops must be > 0")
   require(temporalWindowSize > 0, "temporal-window-size must be > 0")
   require(temporalStep > 0, "temporal-step must be > 0")
+  require(policyVersion.forall(_.nonEmpty), "policy-version must not be empty")
+  require(kcoreMaxIterations > 0, "kcore-max-iterations must be > 0")
+  require(kcoreCheckpointInterval > 0, "kcore-checkpoint-interval must be > 0")
+  require(lpaMaxIterations > 0, "lpa-max-iterations must be > 0")
 
   private def root(p: String): String = p.stripSuffix("/")
 
@@ -87,6 +120,9 @@ case class PipelineConfig(
 
   /** `<hadoop-output>/teams` (PublicationTeam JSON lines). */
   def teamsPath: String = s"${root(hadoopOutputPath)}/teams"
+
+  /** `<hadoop-output>/work_records` (WorkRecord JSON lines; optional, supplies titles/venues). */
+  def workRecordsPath: String = s"${root(hadoopOutputPath)}/work_records"
 
   /** The checkpoint directory actually used: the explicit one or `<output>/_checkpoints`. */
   def effectiveCheckpointDir: String =
@@ -101,13 +137,16 @@ object PipelineConfig:
     val numPartitions: Int            = 200
     val betweennessSampleCount: Int   = 50
     val schemaVersion: String         = "1.0.0"
-    val policyVersion: String         = "v1"
     val maxBetweennessGraphSize: Long = 100000L
     val pregelCheckpointInterval: Int = 10
     val pathSampleCount: Int          = 5
     val maxPathHops: Int              = 10
     val temporalWindowSize: Int       = 5
     val temporalStep: Int             = 5
+    val betweennessSeed: Long         = BridgeAnalysisJob.DefaultSeed
+    val kcoreMaxIterations: Int       = KCoreJob.DefaultMaxIterations
+    val kcoreCheckpointInterval: Int  = KCoreJob.DefaultCheckpointInterval
+    val lpaMaxIterations: Int         = CommunityDetectionJob.DefaultMaxIterations
 
   /** Every accepted `--flag`; each takes exactly one value. */
   val KnownFlags: Set[String] = Set(
@@ -133,7 +172,15 @@ object PipelineConfig:
     "max-path-hops",
     "temporal-window-size",
     "temporal-step",
-    "neptune-csv"
+    "neptune-csv",
+    "betweenness-seed",
+    "kcore-max-iterations",
+    "kcore-checkpoint-interval",
+    "lpa-max-iterations",
+    "allow-unlinked-er-input",
+    "git-sha",
+    "git-dirty",
+    "input-checksums"
   )
 
   val RequiredFlags: Vector[String] = Vector("hadoop-output", "match-decisions", "output")
@@ -145,7 +192,10 @@ object PipelineConfig:
       "[--master M] [--run-timestamp ISO8601] [--betweenness-samples K] " +
       "[--max-betweenness-graph-size N] [--path-pairs src|tgt,src|tgt] [--path-pairs-file <uri>] " +
       "[--path-sample-count N] [--max-path-hops N] [--temporal-window-size N] [--temporal-step N] " +
-      "[--neptune-csv true|false] [--schema-version V] [--policy-version V]"
+      "[--neptune-csv true|false] [--schema-version V] [--policy-version V] " +
+      "[--betweenness-seed N] [--kcore-max-iterations N] [--kcore-checkpoint-interval N] " +
+      "[--lpa-max-iterations N] [--allow-unlinked-er-input true|false] [--git-sha SHA] " +
+      "[--git-dirty true|false] [--input-checksums true|false]"
 
   /**
    * Parse `--flag value` arguments strictly: an unknown flag, a flag without a value, a repeated
@@ -190,6 +240,17 @@ object PipelineConfig:
       tStep     <- int(m, "temporal-step", Defaults.temporalStep)
       neptune   <- bool(m, "neptune-csv", true)
       pairs     <- m.get("path-pairs").fold(Right(Seq.empty))(parsePathPairs)
+      seed      <- long(m, "betweenness-seed", Defaults.betweennessSeed)
+      kcoreMax  <- int(m, "kcore-max-iterations", Defaults.kcoreMaxIterations)
+      kcoreCkpt <- int(m, "kcore-checkpoint-interval", Defaults.kcoreCheckpointInterval)
+      lpaMax    <- int(m, "lpa-max-iterations", Defaults.lpaMaxIterations)
+      unlinked  <- bool(m, "allow-unlinked-er-input", false)
+      checksums <- bool(m, "input-checksums", true)
+      gitDirty <- m
+        .get("git-dirty")
+        .fold(Right(None))(v =>
+          v.toBooleanOption.map(Some(_)).toRight(s"--git-dirty expects true|false, got '$v'")
+        )
       config <-
         try
           Right(
@@ -203,7 +264,7 @@ object PipelineConfig:
               numPartitions = parts,
               betweennessSampleCount = samples,
               schemaVersion = m.getOrElse("schema-version", Defaults.schemaVersion),
-              policyVersion = m.getOrElse("policy-version", Defaults.policyVersion),
+              policyVersion = m.get("policy-version"),
               maxBetweennessGraphSize = maxBetw,
               checkpointDir = m.get("checkpoint-dir"),
               pregelCheckpointInterval = ckptEvery,
@@ -216,7 +277,15 @@ object PipelineConfig:
               maxPathHops = maxHops,
               temporalWindowSize = tSize,
               temporalStep = tStep,
-              writeNeptuneCsv = neptune
+              writeNeptuneCsv = neptune,
+              betweennessSeed = seed,
+              kcoreMaxIterations = kcoreMax,
+              kcoreCheckpointInterval = kcoreCkpt,
+              lpaMaxIterations = lpaMax,
+              allowUnlinkedErInput = unlinked,
+              gitSha = m.get("git-sha"),
+              gitDirty = gitDirty,
+              inputChecksums = checksums
             )
           )
         catch

@@ -35,6 +35,14 @@ object TestFixtures:
   def mkProv(recordId: String): Provenance =
     testProv.copy(sourceRecordId = recordId)
 
+  /** Lineage for jobs under test; the source dataset is the fixtures' `test`. */
+  def lineage(
+    runId: String = "run",
+    schemaVersion: String = "1.0.0",
+    timestamp: String = "ts"
+  ): Lineage =
+    Lineage(runId, schemaVersion, timestamp, sourceDataset = testProv.sourceDataset)
+
   val edgeR1R2: CoauthorEdge = CoauthorEdge(
     "R1",
     "R2",

@@ -11,11 +11,11 @@ import scala.jdk.CollectionConverters.*
  * [[GraphSchema]] labels, relationship types and property keys, and supplies every key the storage
  * openCypher queries match on.
  *
- * The storage queries (`NeptuneStorageClient.getResearcherQuery`, `directCoauthorsQuery`,
- * `componentMembersQuery`, `neighborsQuery`, `shortestPathQuery`, `getWorkQuery`) are built from
- * the same `GraphSchema` constants; [[QueriedByStorage]] restates which (label, key) pairs and
- * relationship types they read. The spark module cannot depend on storage (module boundaries), so a
- * direct cross-module assertion belongs in the `tests/contracts` tree.
+ * Expected key sets are derived from [[GraphSchema]] (`VertexKeys`, `ResearcherDescriptiveKeys`,
+ * `WorkDescriptiveKeys`, `CoauthorEdgeKeys`, `Provenance`), not hand-copied, so a schema change
+ * that the export does not follow fails here. The spark module cannot depend on storage (module
+ * boundaries), so a direct cross-module assertion against the storage queries belongs in the
+ * `tests/contracts` tree.
  */
 class NeptuneBulkLoadExportSpec extends SparkTestBase:
 
@@ -24,15 +24,23 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
   private val Key   = GraphSchema.PropertyKey
   private val N     = NeptuneBulkLoadExport
 
-  /** (vertex label -> property keys) and relationship types read by the storage queries. */
-  private object QueriedByStorage:
+  /**
+   * Expected property keys per header, derived from GraphSchema: identity keys are the `VertexKeys`
+   * that belong to the label (a Work has no researcher/component identity; a Researcher has no work
+   * identity), plus the label's descriptive keys and `provenance`.
+   */
+  private object Expected:
 
-    val vertexKeys: Map[String, Set[String]] = Map(
-      Label.Researcher -> Set(Key.ResearcherId, Key.ComponentId, Key.NodeId),
-      Label.Work       -> Set(Key.WorkId, Key.NodeId)
-    )
-    val coauthorKeys: Set[String]      = Key.CoauthorEdgeKeys.toSet
-    val relationshipTypes: Set[String] = Set(Rel.Coauthor)
+    private val workOnly: Set[String]       = Set(Key.WorkId)
+    private val researcherOnly: Set[String] = Set(Key.ResearcherId, Key.ComponentId)
+
+    val researcherKeys: Set[String] =
+      Key.VertexKeys.toSet.diff(workOnly) ++ Key.ResearcherDescriptiveKeys + Key.Provenance
+
+    val workKeys: Set[String] =
+      Key.VertexKeys.toSet.diff(researcherOnly) ++ Key.WorkDescriptiveKeys + Key.Provenance
+    val coauthorKeys: Set[String] = Key.CoauthorEdgeKeys.toSet
+    val authoredKeys: Set[String] = Set(Key.Provenance)
 
   private def keysOf(header: Vector[String]): Set[String] =
     header.filterNot(N.System.All.contains).map(N.propertyKeyOf).toSet
@@ -51,12 +59,15 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
     }
   }
 
-  test("exported headers cover every key the storage queries and parser read") {
-    QueriedByStorage
-      .vertexKeys(Label.Researcher)
-      .subsetOf(keysOf(N.ResearcherNodeHeader)) shouldBe true
-    QueriedByStorage.vertexKeys(Label.Work).subsetOf(keysOf(N.WorkNodeHeader)) shouldBe true
-    keysOf(N.CoauthorRelationshipHeader) shouldBe QueriedByStorage.coauthorKeys
+  test("exported headers carry exactly the GraphSchema-derived key sets") {
+    keysOf(N.ResearcherNodeHeader) shouldBe Expected.researcherKeys
+    keysOf(N.WorkNodeHeader) shouldBe Expected.workKeys
+    keysOf(N.CoauthorRelationshipHeader) shouldBe Expected.coauthorKeys
+    keysOf(N.AuthoredRelationshipHeader) shouldBe Expected.authoredKeys
+    // Every declared descriptive key is exported; year is typed so Neptune stores an integer.
+    Key.ResearcherDescriptiveKeys.foreach(k => keysOf(N.ResearcherNodeHeader) should contain(k))
+    Key.WorkDescriptiveKeys.foreach(k => keysOf(N.WorkNodeHeader) should contain(k))
+    N.WorkNodeHeader should contain(s"${Key.Year}:Int")
     N.CoauthorRelationshipHeader should contain(s"${Key.JointPublicationCount}:Int")
     N.CoauthorRelationshipHeader.take(4) shouldBe Vector(":ID", ":START_ID", ":END_ID", ":TYPE")
     N.ResearcherNodeHeader.take(2) shouldBe Vector(":ID", ":LABEL")
@@ -67,6 +78,15 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
 
   private val ts               = "2026-11-23T00:00:00Z"
   private def prov(id: String) = TestFixtures.mkProv(id)
+
+  private val lineage = Lineage(
+    "spark-run",
+    "1.0.0",
+    ts,
+    sourceDataset = "dblp",
+    upstreamRunIds = Vector("er-run-1", "hadoop-run-1"),
+    policyVersion = Some("er-policy-1")
+  )
 
   private lazy val outDir: Path =
     val dir = Files.createTempDirectory("neptune-export")
@@ -96,7 +116,13 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
         CoauthorEdge("R2", "R3", 1, 2020, 2020, Vector("work:w2"), prov("e2, \"quoted\""))
       )
     )
-    val works = sc.parallelize(Seq("work:w1" -> prov("w1"), "work:w2" -> prov("w2")))
+    val works = sc.parallelize(
+      Seq(
+        N.WorkNode("work:w1", prov("w1"), Some("A \"quoted\", title"), Some(2019), Some("3dv")),
+        N.WorkNode("work:w2", prov("w2"), None, Some(2020), None)
+      )
+    )
+    val names = sc.parallelize(Seq("R1" -> "Ada Lovelace", "R2" -> "Alan Turing"))
     val authorships = sc.parallelize(
       Seq(
         "R1" -> "work:w1",
@@ -111,15 +137,14 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
       spark,
       dir.toUri.toString,
       metrics,
+      names,
       works,
       edges,
       authorships,
       2000,
       2030,
       "v1",
-      "run",
-      "1.0.0",
-      ts
+      lineage
     )
     counts shouldBe N.Counts(3, 2, 2, 5)
     dir
@@ -256,4 +281,41 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
       .parquet(s"$dir/edges")
       .columns
       .toSet should contain allElementsOf Key.CoauthorEdgeKeys
+  }
+
+  test("relationship type values come from GraphSchema: coauthor edges are COAUTHORED_WITH") {
+    Rel.Coauthor shouldBe "COAUTHORED_WITH"
+    val raw = partFiles(N.Dir.CoauthorRelationships).map(f => Files.readString(f)).mkString
+    raw should include(s",${Rel.Coauthor},")
+    raw should not include ",COAUTHOR,"
+  }
+
+  test("descriptive properties are written where known and left empty (null) where unknown") {
+    val researchers = read(N.Dir.ResearcherNodes)
+      .collect()
+      .map(r => r.getAs[String](":ID") -> r.getAs[String](s"${Key.DisplayName}:String"))
+      .toMap
+    researchers shouldBe Map("R1" -> "Ada Lovelace", "R2" -> "Alan Turing", "R3" -> null)
+    val works = read(N.Dir.WorkNodes).collect().map(r => r.getAs[String](":ID") -> r).toMap
+    works("work:w1").getAs[String](s"${Key.Title}:String") shouldBe "A \"quoted\", title"
+    works("work:w1").getAs[String](s"${Key.Year}:Int") shouldBe "2019"
+    works("work:w1").getAs[String](s"${Key.Venue}:String") shouldBe "3dv"
+    works("work:w2").getAs[String](s"${Key.Title}:String") shouldBe null
+    works("work:w2").getAs[String](s"${Key.Venue}:String") shouldBe null
+    works("work:w2").getAs[String](s"${Key.Year}:Int") shouldBe "2020"
+    // Unknown values are bare empty fields, not quoted empty strings.
+    val raw = partFiles(N.Dir.WorkNodes).map(f => Files.readString(f)).mkString
+    raw should include("work:w2,Work,work:w2,work:w2,,2020,,")
+  }
+
+  test("AUTHORED provenance carries the run lineage, not a hardcoded dataset") {
+    val p = upickle.default.read[Provenance](
+      read(N.Dir.AuthoredRelationships).collect().head.getAs[String](s"${Key.Provenance}:String")
+    )
+    p.sourceDataset shouldBe "dblp"
+    p.pipelineRunId shouldBe "spark-run"
+    p.transformationStep shouldBe Some("authorship-export")
+    p.producer shouldBe Some("spark-analytics/NeptuneBulkLoadExport")
+    p.upstreamRunIds shouldBe Vector("er-run-1", "hadoop-run-1")
+    p.policyVersion shouldBe Some("er-policy-1")
   }

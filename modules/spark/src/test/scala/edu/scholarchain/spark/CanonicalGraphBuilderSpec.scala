@@ -20,10 +20,8 @@ class CanonicalGraphBuilderSpec extends SparkTestBase:
       matchDecisions,
       windowStartYear = 2000,
       windowEndYear = 2030,
-      runId = "run-test",
-      schemaVersion = "1.0.0",
       policyVersion = "v1",
-      timestamp = "2024-01-01T00:00:00Z"
+      lineage = TestFixtures.lineage("run-test", "1.0.0", "2024-01-01T00:00:00Z")
     )
 
     val collected = edges.collect()
@@ -51,10 +49,8 @@ class CanonicalGraphBuilderSpec extends SparkTestBase:
       mapping,
       windowStartYear = 2000,
       windowEndYear = 2030,
-      runId = "run-test",
-      schemaVersion = "1.0.0",
       policyVersion = "v1",
-      timestamp = "2024-01-01T00:00:00Z"
+      lineage = TestFixtures.lineage("run-test", "1.0.0", "2024-01-01T00:00:00Z")
     )
 
     val collected = edges.collect()
@@ -87,10 +83,8 @@ class CanonicalGraphBuilderSpec extends SparkTestBase:
       mapping,
       windowStartYear = 2000,
       windowEndYear = 2030,
-      runId = "run-test",
-      schemaVersion = "1.0.0",
       policyVersion = "v1",
-      timestamp = "2024-01-01T00:00:00Z"
+      lineage = TestFixtures.lineage("run-test", "1.0.0", "2024-01-01T00:00:00Z")
     )
 
     val collected = edges.collect()
@@ -117,10 +111,8 @@ class CanonicalGraphBuilderSpec extends SparkTestBase:
       mapping,
       windowStartYear = 2020,
       windowEndYear = 2021,
-      runId = "run-test",
-      schemaVersion = "1.0.0",
       policyVersion = "v1",
-      timestamp = "2024-01-01T00:00:00Z"
+      lineage = TestFixtures.lineage("run-test", "1.0.0", "2024-01-01T00:00:00Z")
     )
 
     val collected = edges.collect()
@@ -141,10 +133,8 @@ class CanonicalGraphBuilderSpec extends SparkTestBase:
       emptyMatches,
       windowStartYear = 2000,
       windowEndYear = 2030,
-      runId = "run-test",
-      schemaVersion = "1.0.0",
       policyVersion = "v1",
-      timestamp = "2024-01-01T00:00:00Z"
+      lineage = TestFixtures.lineage("run-test", "1.0.0", "2024-01-01T00:00:00Z")
     )
 
     edges.count() shouldBe 0
@@ -164,14 +154,86 @@ class CanonicalGraphBuilderSpec extends SparkTestBase:
       mapping,
       windowStartYear = 2000,
       windowEndYear = 2030,
-      runId = "my-run",
-      schemaVersion = "2.0.0",
       policyVersion = "v1",
-      timestamp = "2024-06-15T12:00:00Z"
+      lineage = TestFixtures.lineage("my-run", "2.0.0", "2024-06-15T12:00:00Z")
     )
 
     val edge = edges.collect().head
-    edge.provenance.sourceDataset shouldBe "spark-analytics"
+    edge.provenance.sourceDataset shouldBe "test"
     edge.provenance.pipelineRunId shouldBe "my-run"
     edge.provenance.schemaVersion shouldBe "2.0.0"
+    edge.provenance.transformationStep shouldBe Some(CanonicalGraphBuilder.EdgeStep)
+    edge.provenance.producer shouldBe Some("spark-analytics/CanonicalGraphBuilder")
+  }
+
+  test("edge provenance carries the input lineage and the policy-derived edge ID") {
+    val lineage = Lineage(
+      "spark-run",
+      "1.0.0",
+      "ts",
+      sourceDataset = "dblp",
+      upstreamRunIds = Vector("er-rs-1", "rs-1"),
+      policyVersion = Some("er-mention-v1-uncalibrated")
+    )
+    val pairs = sc.parallelize(
+      Seq(CoauthorPairCandidate("m1", "m2", "w1", 2020, TestFixtures.mkProv("pair:m1:m2")))
+    )
+    val edge = CanonicalGraphBuilder
+      .buildFromMapping(sc, pairs, sc.emptyRDD, 2000, 2030, "er-mention-v1-uncalibrated", lineage)
+      .collect()
+      .head
+    edge.provenance.sourceDataset shouldBe "dblp"
+    edge.provenance.sourceDataset should not be "spark-analytics"
+    edge.provenance.upstreamRunIds shouldBe Vector("er-rs-1", "rs-1")
+    edge.provenance.policyVersion shouldBe Some("er-mention-v1-uncalibrated")
+    edge.provenance.sourceRecordId shouldBe
+      IdGen.coauthorEdgeId("m1", "m2", 2000, 2030, "er-mention-v1-uncalibrated")
+  }
+
+  test("both endpoints merged across two works aggregate to jointPublicationCount 2") {
+    // Work w1: a1 + b1; work w2: a2 + b2. ER accepts a1~a2 and b1~b2, so the two mention-level
+    // pairs collapse onto one researcher pair that shares two distinct works.
+    val pairs = sc.parallelize(
+      Seq(
+        CoauthorPairCandidate("m:a1", "m:b1", "w1", 2018, TestFixtures.mkProv("p1")),
+        CoauthorPairCandidate("m:a2", "m:b2", "w2", 2021, TestFixtures.mkProv("p2"))
+      )
+    )
+    def accept(a: String, b: String) =
+      MatchDecision(a, b, Map.empty, MatchOutcome.Accepted, 0.99, Vector.empty, "v1", "er")
+    val accepted = sc.parallelize(Seq(accept("m:a1", "m:a2"), accept("m:b2", "m:b1")))
+    val edges = CanonicalGraphBuilder
+      .build(sc, pairs, accepted, 2000, 2030, "v1", TestFixtures.lineage())
+      .collect()
+    edges should have size 1
+    val e = edges.head
+    (e.researcherA, e.researcherB) shouldBe (("m:a1", "m:b1"))
+    e.jointPublicationCount shouldBe 2
+    e.representativeWorkIds shouldBe Vector("w1", "w2")
+    e.firstCollaborationYear shouldBe 2018
+    e.lastCollaborationYear shouldBe 2021
+  }
+
+  test("researcher display names: most frequent raw name across merged mentions, blanks unknown") {
+    def m(id: String, name: String) =
+      AuthorMention(id, name, name.toLowerCase, 0, None, None, None, id, TestFixtures.mkProv(id))
+    val teams = sc.parallelize(
+      Seq(
+        PublicationTeam(
+          "w1",
+          2020,
+          Vector(m("m:1", "J. Smith"), m("m:9", "  ")),
+          2,
+          TestFixtures.mkProv("w1")
+        ),
+        PublicationTeam("w2", 2021, Vector(m("m:2", "John Smith")), 1, TestFixtures.mkProv("w2")),
+        PublicationTeam("w3", 2022, Vector(m("m:3", "John Smith")), 1, TestFixtures.mkProv("w3")),
+        PublicationTeam("w4", 1900, Vector(m("m:4", "Out Of Window")), 1, TestFixtures.mkProv("w4"))
+      )
+    )
+    val mapping = sc.parallelize(Seq("m:2" -> "m:1", "m:3" -> "m:1", "m:1" -> "m:1"))
+    CanonicalGraphBuilder
+      .researcherDisplayNames(teams, mapping, 2000, 2030)
+      .collect()
+      .toMap shouldBe Map("m:1" -> "John Smith")
   }
