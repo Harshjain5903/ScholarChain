@@ -79,9 +79,7 @@ object TemporalAnalysisJob:
 
     // ((window, a, b), distinct works in window) -> per researcher (distinct coauthors, weight).
     val edgeMetrics: RDD[((TimeWindow, String), (Int, Double))] = pairs
-      .flatMap(p =>
-        windowsOf(p.year).map(w => ((w, p.researcherA, p.researcherB), p.workId))
-      )
+      .flatMap(p => windowsOf(p.year).map(w => ((w, p.researcherA, p.researcherB), p.workId)))
       .distinct()
       .mapValues(_ => 1)
       .reduceByKey(_ + _)

@@ -89,12 +89,12 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
     finally logger.detachAppender(appender)
 
   /** Clock whose instant only moves when the test advances it. */
-  private final class SteppingClock(start: Instant) extends Clock:
-    @volatile private var now                       = start
-    def advanceSeconds(n: Long): Unit               = now = now.plusSeconds(n)
-    override def getZone: ZoneId                    = ZoneOffset.UTC
-    override def withZone(zone: ZoneId): Clock      = this
-    override def instant(): Instant                 = now
+  final private class SteppingClock(start: Instant) extends Clock:
+    @volatile private var now                  = start
+    def advanceSeconds(n: Long): Unit          = now = now.plusSeconds(n)
+    override def getZone: ZoneId               = ZoneOffset.UTC
+    override def withZone(zone: ZoneId): Clock = this
+    override def instant(): Instant            = now
 
   private def signatureOf(call: HttpCall): String =
     call.header("Authorization").get.split("Signature=", 2)(1)
@@ -150,7 +150,7 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
 
   it should "split writes into PutVectors calls of at most 500 vectors (AWS limit)" in {
     val transport = RecordingTransport(ok())
-    val result    = vectorsClient(transport).putVectors(Bucket, Index, Vector.tabulate(1201)(rec(_)))
+    val result = vectorsClient(transport).putVectors(Bucket, Index, Vector.tabulate(1201)(rec(_)))
 
     result.succeeded shouldBe 1201
     transport.calls.map(c => ujson.read(c.bodyString)("vectors").arr.size) shouldBe
@@ -402,7 +402,7 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
     )
     server.start()
     try
-      val port = server.getAddress.getPort
+      val port            = server.getAddress.getPort
       val recordingSigned = mutable.ArrayBuffer.empty[HttpCall]
       val real            = JavaHttpTransport.create(Duration.ofSeconds(5))
       val spy = new HttpTransport:
@@ -580,13 +580,16 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
     val echoing = RecordingTransport(
       HttpReply(400, Map.empty, s"""{"message":"bad token $token key $DummySecretKey"}""")
     )
-    val client = S3VectorsStorageClient(Region, 0, 0L, echoing, session, clock = fixedClock)
+    val client    = S3VectorsStorageClient(Region, 0, 0L, echoing, session, clock = fixedClock)
     val sdkLogger = LoggerFactory.getLogger("software.amazon.awssdk").asInstanceOf[LogbackLogger]
     val sdkLogs   = ListAppender[ILoggingEvent]()
     sdkLogs.start()
     sdkLogger.addAppender(sdkLogs)
     val (result, ourLogs) =
-      try captureLogs(classOf[S3VectorsStorageClient])(client.putVectors(Bucket, Index, Vector(rec(1))))
+      try
+        captureLogs(classOf[S3VectorsStorageClient])(
+          client.putVectors(Bucket, Index, Vector(rec(1)))
+        )
       finally sdkLogger.detachAppender(sdkLogs)
 
     // the token is signed into the request itself...
@@ -605,7 +608,8 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
       LoggerFactory.getLogger(SigV4Signer.SdkSignerLoggerName).asInstanceOf[LogbackLogger]
     val previous = sdkSigner.getLevel
     sdkSigner.setLevel(ch.qos.logback.classic.Level.DEBUG)
-    val call = HttpCall("POST", URI.create("https://x.example:8182/openCypher"), Vector.empty, Array())
+    val call =
+      HttpCall("POST", URI.create("https://x.example:8182/openCypher"), Vector.empty, Array())
     val (_, logs) =
       try
         captureLogs(classOf[SigV4Signer])(
@@ -616,7 +620,9 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
     logs should contain(SigV4Signer.SdkDebugWarning)
 
     val (_, quiet) =
-      captureLogs(classOf[SigV4Signer])(SigV4Signer(dummyCredentials, Region, "neptune-db").sign(call))
+      captureLogs(classOf[SigV4Signer])(
+        SigV4Signer(dummyCredentials, Region, "neptune-db").sign(call)
+      )
     quiet shouldBe empty
   }
 
@@ -635,8 +641,10 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
 
   private class RecordingQueue extends QueueClient:
     val sentTo: mutable.ArrayBuffer[String] = mutable.ArrayBuffer.empty
+
     def sendMessage(queueUrl: String, body: String): Try[String] =
       sentTo += queueUrl; Success("m-1")
+
     def receiveMessages(queueUrl: String, maxMessages: Int): Try[List[(String, String)]] =
       sentTo += queueUrl; Success(Nil)
     def deleteMessage(queueUrl: String, receiptHandle: String): Try[Unit] = Success(())
@@ -666,7 +674,8 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
   }
 
   it should "come from SCHOLARCHAIN_EMBEDDING_QUEUE_URL via an injected environment" in {
-    val cfg = StorageModuleConfig.loadWithEnv(Map(StorageModuleConfig.EmbeddingQueueUrlEnv -> QueueUrl))
+    val cfg =
+      StorageModuleConfig.loadWithEnv(Map(StorageModuleConfig.EmbeddingQueueUrlEnv -> QueueUrl))
     StorageModuleConfig.EmbeddingQueueUrlEnv shouldBe "SCHOLARCHAIN_EMBEDDING_QUEUE_URL"
     cfg.embeddingQueueUrl shouldBe Some(QueueUrl)
   }
@@ -699,11 +708,13 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
   }
 
   "EmbeddingQueueManager.fromConfig" should "use the configured queue URL for every queue call" in {
-    val cfg = StorageModuleConfig.loadWithEnv(Map(StorageModuleConfig.EmbeddingQueueUrlEnv -> QueueUrl))
+    val cfg =
+      StorageModuleConfig.loadWithEnv(Map(StorageModuleConfig.EmbeddingQueueUrlEnv -> QueueUrl))
     val queue   = RecordingQueue()
     val manager = EmbeddingQueueManager.fromConfig(queue, cfg, mutable.Set.empty).get
     manager.queueUrl shouldBe QueueUrl
-    val job = EmbeddingJob("j1", "e1", "researcher-profile", "s3://b/k", "h", "m", None, None, "r", 0)
+    val job =
+      EmbeddingJob("j1", "e1", "researcher-profile", "s3://b/k", "h", "m", None, None, "r", 0)
     manager.enqueue(job).get shouldBe "m-1"
     manager.dequeueBatch(10).get shouldBe Nil
     queue.sentTo.toSeq shouldBe Seq(QueueUrl, QueueUrl)

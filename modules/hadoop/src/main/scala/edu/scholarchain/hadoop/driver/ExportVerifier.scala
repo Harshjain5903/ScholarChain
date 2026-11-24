@@ -47,7 +47,8 @@ object ExportVerifier:
         val raw = fs.open(p)
         val in  = Option(codecs.getCodec(p)).map(_.createInputStream(raw)).getOrElse(raw)
         val br  = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
-        try Iterator.continually(br.readLine()).takeWhile(_ != null).filter(_.trim.nonEmpty).toVector
+        try
+          Iterator.continually(br.readLine()).takeWhile(_ != null).filter(_.trim.nonEmpty).toVector
         finally br.close()
       }
       (files.map(_.getName), lines)

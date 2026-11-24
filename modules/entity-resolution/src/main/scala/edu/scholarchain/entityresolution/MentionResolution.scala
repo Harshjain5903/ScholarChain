@@ -3,8 +3,8 @@ package edu.scholarchain.entityresolution
 import edu.scholarchain.core.{MatchDecision, MatchOutcome, WorkRecord}
 
 /**
- * An author mention together with the work-level context needed to compare it with another
- * mention (coauthors, venue, year, title).
+ * An author mention together with the work-level context needed to compare it with another mention
+ * (coauthors, venue, year, title).
  */
 case class MentionContext(
   mentionId: String,
@@ -56,7 +56,9 @@ object MentionContext:
         )
     }
 
-/** A pair of mentions sharing a blocking key, ordered so that source.mentionId < target.mentionId. */
+/**
+ * A pair of mentions sharing a blocking key, ordered so that source.mentionId < target.mentionId.
+ */
 case class MentionPair(source: MentionContext, target: MentionContext, blockKey: String):
   require(source.mentionId < target.mentionId, "MentionPair must be ordered by mentionId")
 
@@ -112,16 +114,14 @@ object MentionBlocker:
 
 /**
  * Mention-level resolution policy. Evidence hierarchy:
- *   1. ORCID on both mentions: equal -> Accepted, different -> Rejected.
- *   2. DBLP homonym suffix on both mentions: same base name and same suffix -> Accepted (DBLP
- *      person key); different suffixes -> Rejected.
- *   3. Given-name gate: incompatible first given names (not equal, not an initial of one another)
- *      -> Rejected.
- *   4. Weighted feature score via ScoringPolicy thresholds. If exactly one mention carries a DBLP
- *      homonym suffix, an Accepted score is downgraded to Unresolved (DBLP has explicitly split
- *      this name; an unsuffixed mention may belong to any of the homonyms).
- *   5. Unresolved pairs go to the LLM adjudicator only when llmEnabled; otherwise they stay
- *      Unresolved for human review.
+ *   1. ORCID on both mentions: equal -> Accepted, different -> Rejected. 2. DBLP homonym suffix on
+ *      both mentions: same base name and same suffix -> Accepted (DBLP person key); different
+ *      suffixes -> Rejected. 3. Given-name gate: incompatible first given names (not equal, not an
+ *      initial of one another) -> Rejected. 4. Weighted feature score via ScoringPolicy thresholds.
+ *      If exactly one mention carries a DBLP homonym suffix, an Accepted score is downgraded to
+ *      Unresolved (DBLP has explicitly split this name; an unsuffixed mention may belong to any of
+ *      the homonyms). 5. Unresolved pairs go to the LLM adjudicator only when llmEnabled; otherwise
+ *      they stay Unresolved for human review.
  */
 class MentionResolver(
   policy: ScoringPolicy,
@@ -152,34 +152,64 @@ class MentionResolver(
 
     (s.orcid, t.orcid) match
       case (Some(a), Some(b)) if a == b =>
-        decision(p, features, MatchOutcome.Accepted, 1.0, base ++ Vector(
-          "exact_id_match:orcid",
-          "path:exact_id"
-        ))
+        decision(
+          p,
+          features,
+          MatchOutcome.Accepted,
+          1.0,
+          base ++ Vector(
+            "exact_id_match:orcid",
+            "path:exact_id"
+          )
+        )
       case (Some(_), Some(_)) =>
-        decision(p, features, MatchOutcome.Rejected, 0.0, base ++ Vector(
-          "orcid_mismatch",
-          "path:exact_id"
-        ))
+        decision(
+          p,
+          features,
+          MatchOutcome.Rejected,
+          0.0,
+          base ++ Vector(
+            "orcid_mismatch",
+            "path:exact_id"
+          )
+        )
       case _ =>
         (s.dblpHomonymSuffix, t.dblpHomonymSuffix) match
           case (Some(a), Some(b)) if a == b && s.normalizedName == t.normalizedName =>
-            decision(p, features, MatchOutcome.Accepted, 1.0, base ++ Vector(
-              "dblp_person_key_match",
-              "path:dblp_person_key"
-            ))
+            decision(
+              p,
+              features,
+              MatchOutcome.Accepted,
+              1.0,
+              base ++ Vector(
+                "dblp_person_key_match",
+                "path:dblp_person_key"
+              )
+            )
           case (Some(a), Some(b)) if a != b =>
-            decision(p, features, MatchOutcome.Rejected, 0.0, base ++ Vector(
-              "dblp_homonym_suffix_mismatch",
-              "path:dblp_person_key"
-            ))
+            decision(
+              p,
+              features,
+              MatchOutcome.Rejected,
+              0.0,
+              base ++ Vector(
+                "dblp_homonym_suffix_mismatch",
+                "path:dblp_person_key"
+              )
+            )
           case _ if !MentionResolver.givenNamesCompatible(s.normalizedName, t.normalizedName) =>
             val score = policy.computeScore(features)
-            decision(p, features, MatchOutcome.Rejected, score, base ++ Vector(
-              s"score:${"%.4f".format(score)}",
-              "given_name_incompatible",
-              "path:name_gate"
-            ))
+            decision(
+              p,
+              features,
+              MatchOutcome.Rejected,
+              score,
+              base ++ Vector(
+                s"score:${"%.4f".format(score)}",
+                "given_name_incompatible",
+                "path:name_gate"
+              )
+            )
           case _ => scored(p, features, base)
 
   private def scored(
@@ -193,23 +223,47 @@ class MentionResolver(
     val oneSided  = p.source.dblpHomonymSuffix.isDefined != p.target.dblpHomonymSuffix.isDefined
     policy.classify(score) match
       case MatchOutcome.Accepted if oneSided =>
-        decision(p, features, MatchOutcome.Unresolved, score, base ++ Vector(
-          scoreCode,
-          s"path:$path",
-          "dblp_homonym_one_sided"
-        ))
+        decision(
+          p,
+          features,
+          MatchOutcome.Unresolved,
+          score,
+          base ++ Vector(
+            scoreCode,
+            s"path:$path",
+            "dblp_homonym_one_sided"
+          )
+        )
       case MatchOutcome.Accepted =>
-        decision(p, features, MatchOutcome.Accepted, score, base ++ Vector(scoreCode, s"path:$path"))
+        decision(
+          p,
+          features,
+          MatchOutcome.Accepted,
+          score,
+          base ++ Vector(scoreCode, s"path:$path")
+        )
       case MatchOutcome.Rejected =>
-        decision(p, features, MatchOutcome.Rejected, score, base ++ Vector(scoreCode, s"path:$path"))
+        decision(
+          p,
+          features,
+          MatchOutcome.Rejected,
+          score,
+          base ++ Vector(scoreCode, s"path:$path")
+        )
       case _ if llmEnabled =>
         adjudicate(p, features, score, base :+ scoreCode)
       case _ =>
-        decision(p, features, MatchOutcome.Unresolved, score, base ++ Vector(
-          scoreCode,
-          s"path:$path",
-          "llm_disabled"
-        ))
+        decision(
+          p,
+          features,
+          MatchOutcome.Unresolved,
+          score,
+          base ++ Vector(
+            scoreCode,
+            s"path:$path",
+            "llm_disabled"
+          )
+        )
 
   private def adjudicate(
     p: MentionPair,
@@ -218,8 +272,12 @@ class MentionResolver(
     codes: Vector[String]
   ): MatchDecision =
     def fields(m: MentionContext): Map[String, String] =
-      Map("name" -> m.rawName, "title" -> m.title, "coauthors" -> m.coauthorNames.toVector.sorted
-        .mkString("; ")) ++ m.venue.map("venue" -> _) ++ m.year.map("year" -> _.toString)
+      Map(
+        "name"  -> m.rawName,
+        "title" -> m.title,
+        "coauthors" -> m.coauthorNames.toVector.sorted
+          .mkString("; ")
+      ) ++ m.venue.map("venue" -> _) ++ m.year.map("year" -> _.toString)
     val response = adjudicator.adjudicate(
       AdjudicationRequest(
         sourceId = p.source.mentionId,
@@ -236,11 +294,17 @@ class MentionResolver(
       case AdjudicationDecision.Reject  => MatchOutcome.Rejected
       case AdjudicationDecision.Abstain => MatchOutcome.Unresolved
     val conf = if outcome == MatchOutcome.Unresolved then score else response.confidence
-    decision(p, features, outcome, conf, codes ++ Vector(
-      "path:llm_adjudicated",
-      s"llm_decision:${response.decision}",
-      s"llm_model:${response.modelVersion}"
-    ) ++ response.reasonCodes)
+    decision(
+      p,
+      features,
+      outcome,
+      conf,
+      codes ++ Vector(
+        "path:llm_adjudicated",
+        s"llm_decision:${response.decision}",
+        s"llm_model:${response.modelVersion}"
+      ) ++ response.reasonCodes
+    )
 
   private def decision(
     p: MentionPair,

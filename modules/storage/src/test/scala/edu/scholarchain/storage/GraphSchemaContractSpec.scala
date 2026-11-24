@@ -60,9 +60,11 @@ class GraphSchemaContractSpec extends AnyFlatSpec with Matchers:
   private val MapKeyToken      = """\{\s*([A-Za-z_]\w*)\s*:""".r
   private val PropertyAccessed = """\b[A-Za-z_]\w*\.([A-Za-z_]\w*)""".r
 
-  private def labelsIn(q: String)    = NodeLabelToken.findAllMatchIn(q).map(_.group(1)).toSet
+  private def labelsIn(q: String) = NodeLabelToken.findAllMatchIn(q).map(_.group(1)).toSet
+
   private def edgeTypesIn(q: String) =
     RelTypeToken.findAllMatchIn(q).flatMap(_.group(1).split('|')).toSet
+
   private def keysIn(q: String) =
     MapKeyToken.findAllMatchIn(q).map(_.group(1)).toSet ++
       PropertyAccessed.findAllMatchIn(q).map(_.group(1)).toSet
@@ -215,8 +217,8 @@ class GraphSchemaContractSpec extends AnyFlatSpec with Matchers:
     NeptuneStorageClient.neighborsQuery(Vector.empty, 1) should include(s"DISTINCT ${C.Neighbor} ")
     NeptuneStorageClient.shortestPathQuery("a", "b", 2)._1 should endWith(s" AS ${C.Path}")
 
-    val members = ujson.Obj("results" -> ujson.Arr(ujson.Obj(C.ResearcherIds -> "r7")))
-    val path    = ujson.Obj("results" -> ujson.Arr(ujson.Obj(C.Path -> ujson.Arr("r1", "r2"))))
+    val members   = ujson.Obj("results" -> ujson.Arr(ujson.Obj(C.ResearcherIds -> "r7")))
+    val path      = ujson.Obj("results" -> ujson.Arr(ujson.Obj(C.Path -> ujson.Arr("r1", "r2"))))
     val transport = RecordingTransport(ok(ujson.write(members)), ok(ujson.write(path)))
     val client    = neptuneClient(transport)
     client.getComponentMembers("c1", 5) shouldBe Vector("r7")

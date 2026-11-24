@@ -14,8 +14,8 @@ import scala.jdk.CollectionConverters.*
  * The storage queries (`NeptuneStorageClient.getResearcherQuery`, `directCoauthorsQuery`,
  * `componentMembersQuery`, `neighborsQuery`, `shortestPathQuery`, `getWorkQuery`) are built from
  * the same `GraphSchema` constants; [[QueriedByStorage]] restates which (label, key) pairs and
- * relationship types they read. The spark module cannot depend on storage (module boundaries), so
- * a direct cross-module assertion belongs in the `tests/contracts` tree.
+ * relationship types they read. The spark module cannot depend on storage (module boundaries), so a
+ * direct cross-module assertion belongs in the `tests/contracts` tree.
  */
 class NeptuneBulkLoadExportSpec extends SparkTestBase:
 
@@ -26,12 +26,13 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
 
   /** (vertex label -> property keys) and relationship types read by the storage queries. */
   private object QueriedByStorage:
+
     val vertexKeys: Map[String, Set[String]] = Map(
       Label.Researcher -> Set(Key.ResearcherId, Key.ComponentId, Key.NodeId),
       Label.Work       -> Set(Key.WorkId, Key.NodeId)
     )
-    val coauthorKeys: Set[String]       = Key.CoauthorEdgeKeys.toSet
-    val relationshipTypes: Set[String]  = Set(Rel.Coauthor)
+    val coauthorKeys: Set[String]      = Key.CoauthorEdgeKeys.toSet
+    val relationshipTypes: Set[String] = Set(Rel.Coauthor)
 
   private def keysOf(header: Vector[String]): Set[String] =
     header.filterNot(N.System.All.contains).map(N.propertyKeyOf).toSet
@@ -51,7 +52,9 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
   }
 
   test("exported headers cover every key the storage queries and parser read") {
-    QueriedByStorage.vertexKeys(Label.Researcher).subsetOf(keysOf(N.ResearcherNodeHeader)) shouldBe true
+    QueriedByStorage
+      .vertexKeys(Label.Researcher)
+      .subsetOf(keysOf(N.ResearcherNodeHeader)) shouldBe true
     QueriedByStorage.vertexKeys(Label.Work).subsetOf(keysOf(N.WorkNodeHeader)) shouldBe true
     keysOf(N.CoauthorRelationshipHeader) shouldBe QueriedByStorage.coauthorKeys
     N.CoauthorRelationshipHeader should contain(s"${Key.JointPublicationCount}:Int")
@@ -62,14 +65,29 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
 
   // ---- A small export, read back.
 
-  private val ts = "2026-11-23T00:00:00Z"
+  private val ts               = "2026-11-23T00:00:00Z"
   private def prov(id: String) = TestFixtures.mkProv(id)
 
   private lazy val outDir: Path =
-    val dir     = Files.createTempDirectory("neptune-export")
+    val dir = Files.createTempDirectory("neptune-export")
     val metrics = sc.parallelize(
       Seq("R1", "R2", "R3").map(r =>
-        ResearcherMetrics(r, 1, 1, 1, 1.0, 1, 1.0, Some("component:R1"), None, 0.0, 1, 2000, 2030, prov(r))
+        ResearcherMetrics(
+          r,
+          1,
+          1,
+          1,
+          1.0,
+          1,
+          1.0,
+          Some("component:R1"),
+          None,
+          0.0,
+          1,
+          2000,
+          2030,
+          prov(r)
+        )
       )
     )
     val edges = sc.parallelize(
@@ -78,9 +96,31 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
         CoauthorEdge("R2", "R3", 1, 2020, 2020, Vector("work:w2"), prov("e2, \"quoted\""))
       )
     )
-    val works       = sc.parallelize(Seq("work:w1" -> prov("w1"), "work:w2" -> prov("w2")))
-    val authorships = sc.parallelize(Seq("R1" -> "work:w1", "R2" -> "work:w1", "R1" -> "work:w2", "R2" -> "work:w2", "R3" -> "work:w2", "R3" -> "work:w2"))
-    val counts = N.writeAll(spark, dir.toUri.toString, metrics, works, edges, authorships, 2000, 2030, "v1", "run", "1.0.0", ts)
+    val works = sc.parallelize(Seq("work:w1" -> prov("w1"), "work:w2" -> prov("w2")))
+    val authorships = sc.parallelize(
+      Seq(
+        "R1" -> "work:w1",
+        "R2" -> "work:w1",
+        "R1" -> "work:w2",
+        "R2" -> "work:w2",
+        "R3" -> "work:w2",
+        "R3" -> "work:w2"
+      )
+    )
+    val counts = N.writeAll(
+      spark,
+      dir.toUri.toString,
+      metrics,
+      works,
+      edges,
+      authorships,
+      2000,
+      2030,
+      "v1",
+      "run",
+      "1.0.0",
+      ts
+    )
     counts shouldBe N.Counts(3, 2, 2, 5)
     dir
 
@@ -92,14 +132,30 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
       .csv(outDir.resolve(subdir).toString)
 
   private def partFiles(subdir: String): Seq[Path] =
-    Files.list(outDir.resolve(subdir)).iterator().asScala.toSeq
+    Files
+      .list(outDir.resolve(subdir))
+      .iterator()
+      .asScala
+      .toSeq
       .filter(_.getFileName.toString.startsWith("part-"))
 
   test("written labels and relationship types are GraphSchema values") {
-    read(N.Dir.ResearcherNodes).select(":LABEL").collect().map(_.getString(0)).toSet shouldBe Set(Label.Researcher)
-    read(N.Dir.WorkNodes).select(":LABEL").collect().map(_.getString(0)).toSet shouldBe Set(Label.Work)
-    read(N.Dir.CoauthorRelationships).select(":TYPE").collect().map(_.getString(0)).toSet shouldBe Set(Rel.Coauthor)
-    read(N.Dir.AuthoredRelationships).select(":TYPE").collect().map(_.getString(0)).toSet shouldBe Set(Rel.Authored)
+    read(N.Dir.ResearcherNodes).select(":LABEL").collect().map(_.getString(0)).toSet shouldBe Set(
+      Label.Researcher
+    )
+    read(N.Dir.WorkNodes).select(":LABEL").collect().map(_.getString(0)).toSet shouldBe Set(
+      Label.Work
+    )
+    read(N.Dir.CoauthorRelationships)
+      .select(":TYPE")
+      .collect()
+      .map(_.getString(0))
+      .toSet shouldBe Set(Rel.Coauthor)
+    read(N.Dir.AuthoredRelationships)
+      .select(":TYPE")
+      .collect()
+      .map(_.getString(0))
+      .toSet shouldBe Set(Rel.Authored)
   }
 
   test("each non-empty part file starts with the exact header row") {
@@ -151,11 +207,16 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
   }
 
   test("JSON-encoded properties round-trip, with RFC 4180 quoting of embedded quotes") {
-    val rows = read(N.Dir.CoauthorRelationships).collect().map(r => r.getAs[String](":START_ID") -> r).toMap
-    val r23  = rows("R2")
-    upickle.default.read[Provenance](r23.getAs[String](s"${Key.Provenance}:String")).sourceRecordId shouldBe
+    val rows =
+      read(N.Dir.CoauthorRelationships).collect().map(r => r.getAs[String](":START_ID") -> r).toMap
+    val r23 = rows("R2")
+    upickle.default
+      .read[Provenance](r23.getAs[String](s"${Key.Provenance}:String"))
+      .sourceRecordId shouldBe
       "e2, \"quoted\""
-    upickle.default.read[Vector[String]](rows("R1").getAs[String](s"${Key.RepresentativeWorkIds}:String")) shouldBe
+    upickle.default.read[Vector[String]](
+      rows("R1").getAs[String](s"${Key.RepresentativeWorkIds}:String")
+    ) shouldBe
       Vector("work:w1", "work:w2")
     rows("R1").getAs[String](s"${Key.JointPublicationCount}:Int") shouldBe "2"
     val raw = partFiles(N.Dir.CoauthorRelationships).map(f => Files.readString(f)).mkString
@@ -165,7 +226,12 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
   }
 
   test("no _SUCCESS marker is written under the Neptune prefix") {
-    Files.walk(outDir).iterator().asScala.map(_.getFileName.toString).toSeq should not contain "_SUCCESS"
+    Files
+      .walk(outDir)
+      .iterator()
+      .asScala
+      .map(_.getFileName.toString)
+      .toSeq should not contain "_SUCCESS"
   }
 
   test("manifest points the neptune target at the openCypher CSV prefixes") {
@@ -175,7 +241,10 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
     val neptune = json("targets")("neptune")
     neptune("format").str shouldBe "opencypher"
     neptune("nodes").str shouldBe s"$dir/${N.Dir.Nodes}"
-    neptune("loadOrder").arr.map(_.str).toSeq shouldBe Seq(s"$dir/${N.Dir.Nodes}", s"$dir/${N.Dir.Relationships}")
+    neptune("loadOrder").arr.map(_.str).toSeq shouldBe Seq(
+      s"$dir/${N.Dir.Nodes}",
+      s"$dir/${N.Dir.Relationships}"
+    )
     neptune("vertexLabels").arr.map(_.str).toSet shouldBe Label.All.toSet
     neptune("relationshipTypes").arr.map(_.str).toSet shouldBe Rel.All.toSet
   }
@@ -183,5 +252,8 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
   test("edges Parquet columns use GraphSchema property keys") {
     val dir = Files.createTempDirectory("edges-parquet").toString
     GraphExportWriter.writeEdges(spark, sc.parallelize(TestFixtures.allEdges), dir)
-    spark.read.parquet(s"$dir/edges").columns.toSet should contain allElementsOf Key.CoauthorEdgeKeys
+    spark.read
+      .parquet(s"$dir/edges")
+      .columns
+      .toSet should contain allElementsOf Key.CoauthorEdgeKeys
   }

@@ -352,7 +352,7 @@ object ScholarChainPipeline:
         "singletons"      -> ccResult.singletonCount.toDouble
       ),
       "communities" -> ujson.Obj(
-        "algorithm"   -> "deterministic label propagation (CommunityDetectionJob.propagateLabels, maxIterations=20)",
+        "algorithm" -> "deterministic label propagation (CommunityDetectionJob.propagateLabels, maxIterations=20)",
         "count"       -> communityResult.communityCount.toDouble,
         "largestId"   -> largestCommunity.map(_._1).getOrElse[String](""),
         "largestSize" -> largestCommunity.map(_._2.toDouble).getOrElse(0.0)

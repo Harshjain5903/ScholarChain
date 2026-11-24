@@ -148,7 +148,11 @@ class MentionResolutionSpec extends AnyFlatSpec with Matchers {
   it should "use ORCID first: equal accepts, different rejects" in {
     val same = resolveAll(
       work("conf/a/I1", Vector("Jo Park"), orcids = Map(0 -> "0000-0002-1825-0097")),
-      work("conf/b/I2", Vector("J. Park"), orcids = Map(0 -> "https://orcid.org/0000-0002-1825-0097"))
+      work(
+        "conf/b/I2",
+        Vector("J. Park"),
+        orcids = Map(0 -> "https://orcid.org/0000-0002-1825-0097")
+      )
     )
     same.map(_.decision) shouldBe Vector(MatchOutcome.Accepted)
     same.head.reasonCodes should contain("exact_id_match:orcid")

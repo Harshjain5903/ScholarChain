@@ -34,7 +34,9 @@ class EntityResolutionRunnerSpec extends AnyFlatSpec with Matchers {
       .parseArgs(Vector("--work-records", "w", "--output", "o", "--run-id", "r", "--bogus", "x"))
       .isLeft shouldBe true
     EntityResolutionRunner
-      .parseArgs(Vector("--work-records", "w", "--output", "o", "--run-id", "r", "--max-block-size", "1"))
+      .parseArgs(
+        Vector("--work-records", "w", "--output", "o", "--run-id", "r", "--max-block-size", "1")
+      )
       .isLeft shouldBe true
     val cfg = EntityResolutionRunner
       .parseArgs(Vector("--work-records", "w", "--output", "o", "--run-id", "r", "--label", "L"))

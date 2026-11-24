@@ -180,8 +180,8 @@ class DistributedGraphAlgorithmsSpec extends SparkTestBase:
       j <- (i + 1) until vertices.size
       if rng.nextDouble() < 0.15
     yield (vertices(i), vertices(j))
-    val edges    = pairs.map { case (a, b) => edge(a, b) }
-    val expected = DistributedGraphAlgorithmsSpec.referenceBetweenness(vertices, pairs)
+    val edges            = pairs.map { case (a, b) => edge(a, b) }
+    val expected         = DistributedGraphAlgorithmsSpec.referenceBetweenness(vertices, pairs)
     val (graph, mapping) = build(edges, vertices, partitions = 3)
     val actual = BridgeAnalysisJob
       .compute(graph, mapping, sc.emptyRDD, sampleCount = 100, maxGraphSize = 1000L)
@@ -245,7 +245,7 @@ class DistributedGraphAlgorithmsSpec extends SparkTestBase:
 
   test("cross-community degree counts distinct neighbour communities, unassigned use own ID") {
     // P4 a-b-c-d (d unassigned), star z-{l1,l2,l3} (z unassigned), isolate iso.
-    val edges = p4 ++ edgesOf("z" -> "l1", "z" -> "l2", "z" -> "l3")
+    val edges            = p4 ++ edgesOf("z" -> "l1", "z" -> "l2", "z" -> "l3")
     val (graph, mapping) = build(edges, Seq("iso"))
     val assignments = sc.parallelize(
       Seq(

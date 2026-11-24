@@ -5,7 +5,9 @@ import software.amazon.awssdk.auth.credentials.{AwsBasicCredentials, StaticCrede
 import java.time.{Clock, Duration, Instant, ZoneOffset}
 import scala.collection.mutable
 
-/** Test-only AWS fixtures: dummy static credentials and fake transports. No network, no real keys. */
+/**
+ * Test-only AWS fixtures: dummy static credentials and fake transports. No network, no real keys.
+ */
 object StorageTestAws:
 
   val DummyAccessKey: String = "AKIDEXAMPLEDUMMY0001"
@@ -21,6 +23,7 @@ object StorageTestAws:
 
   /** Transport that fails the test if anything tries to send a request. */
   object NoNetwork extends HttpTransport:
+
     def execute(call: HttpCall, timeout: Option[Duration]): HttpReply =
       throw AssertionError(s"unexpected network call to ${call.uri}")
 

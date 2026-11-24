@@ -20,9 +20,8 @@ import scala.jdk.CollectionConverters.*
  * Security requirement: the AWS SDK v2 SigV4 signer logs the canonical request, including
  * x-amz-security-token, at DEBUG. No root-level override may let that reach CloudWatch.
  *
- * Each test loads the production file into its own isolated LoggerContext through
- * JoranConfigurator and stops it afterwards, so the global SLF4J context used by other suites is
- * never mutated.
+ * Each test loads the production file into its own isolated LoggerContext through JoranConfigurator
+ * and stops it afterwards, so the global SLF4J context used by other suites is never mutated.
  */
 class LoggingConfigSpec extends AnyFlatSpec with Matchers:
 

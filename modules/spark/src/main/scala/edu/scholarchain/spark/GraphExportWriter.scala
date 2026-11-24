@@ -245,8 +245,11 @@ object GraphExportWriter:
     val neptune =
       if neptuneCsv then
         ujson.Obj(
-          "format"            -> "opencypher",
-          "loadOrder"         -> ujson.Arr(s"$root/${NeptuneBulkLoadExport.Dir.Nodes}", s"$root/${NeptuneBulkLoadExport.Dir.Relationships}"),
+          "format" -> "opencypher",
+          "loadOrder" -> ujson.Arr(
+            s"$root/${NeptuneBulkLoadExport.Dir.Nodes}",
+            s"$root/${NeptuneBulkLoadExport.Dir.Relationships}"
+          ),
           "nodes"             -> s"$root/${NeptuneBulkLoadExport.Dir.Nodes}",
           "relationships"     -> s"$root/${NeptuneBulkLoadExport.Dir.Relationships}",
           "vertexLabels"      -> ujson.Arr.from(GraphSchema.VertexLabel.All),

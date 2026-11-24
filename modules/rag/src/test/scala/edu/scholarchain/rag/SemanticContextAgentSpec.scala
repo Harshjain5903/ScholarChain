@@ -27,9 +27,9 @@ class SemanticContextAgentSpec extends AnyFlatSpec with Matchers:
   // --- happy path ---
 
   "SemanticContextAgent" should "query with a 1024-length vector produced by the embedder, not a hash" in {
-    val embedder        = new FakeQueryEmbedder()
-    val (sut, store)    = agent(embedder)
-    val bundle          = sut.retrieve(Vector("R001"), Vector.empty, "who works on graphs?")
+    val embedder         = new FakeQueryEmbedder()
+    val (sut, store)     = agent(embedder)
+    val bundle           = sut.retrieve(Vector("R001"), Vector.empty, "who works on graphs?")
     val expectedFromFake = fixedVector(1024)
 
     embedder.calls shouldBe Vector("who works on graphs?" -> TitanV2)

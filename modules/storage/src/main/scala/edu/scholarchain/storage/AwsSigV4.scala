@@ -23,6 +23,7 @@ final case class HttpCall(
   headers: Vector[(String, String)],
   body: Array[Byte]
 ):
+
   /** First value of a header, matched case-insensitively. */
   def header(name: String): Option[String] =
     headers.collectFirst { case (k, v) if k.equalsIgnoreCase(name) => v }
@@ -82,8 +83,8 @@ object JavaHttpTransport:
  * Signs [[HttpCall]]s with AWS Signature Version 4 using the SDK's `AwsV4HttpSigner`.
  *
  * Credentials come from the injected provider and are resolved per request (so rotated role
- * credentials are picked up). They are never logged; `toString` shows only service and region,
- * and [[redact]] removes credential material from any text before it is logged or thrown.
+ * credentials are picked up). They are never logged; `toString` shows only service and region, and
+ * [[redact]] removes credential material from any text before it is logged or thrown.
  */
 final class SigV4Signer(
   credentialsProvider: AwsCredentialsProvider,

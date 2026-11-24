@@ -22,9 +22,17 @@ class RealDataRegressionSpec extends SparkTestBase:
       j <- (i + 1) until n
     yield edge(s"$prefix$i", s"$prefix$j")
 
-  private def communities(edges: Seq[CoauthorEdge], isolates: Seq[String] = Seq.empty, parts: Int = 2) =
+  private def communities(
+    edges: Seq[CoauthorEdge],
+    isolates: Seq[String] = Seq.empty,
+    parts: Int = 2
+  ) =
     val (graph, mapping) =
-      GraphUtils.buildGraphWithIsolates(sc, sc.parallelize(edges, parts), sc.parallelize(isolates, parts))
+      GraphUtils.buildGraphWithIsolates(
+        sc,
+        sc.parallelize(edges, parts),
+        sc.parallelize(isolates, parts)
+      )
     CommunityDetectionJob.compute(graph, mapping)
 
   private def decision(a: String, b: String, outcome: MatchOutcome) =
@@ -77,7 +85,9 @@ class RealDataRegressionSpec extends SparkTestBase:
     run(1) shouldBe run(5)
   }
 
-  test("connected component IDs are named by the smallest member and do not depend on partitioning") {
+  test(
+    "connected component IDs are named by the smallest member and do not depend on partitioning"
+  ) {
     val edges = Seq(edge("b", "c"), edge("c", "d"), edge("x", "y"))
     def run(parts: Int) =
       val (graph, mapping) = GraphUtils.buildGraphWithIsolates(
@@ -102,7 +112,9 @@ class RealDataRegressionSpec extends SparkTestBase:
 
   // ---- Canonicalization.
 
-  test("canonical ID is the lexicographically smallest mention of a merged group, chains included") {
+  test(
+    "canonical ID is the lexicographically smallest mention of a merged group, chains included"
+  ) {
     val accepted = sc.parallelize(
       Seq(
         decision("m:9", "m:5", MatchOutcome.Accepted),
@@ -155,7 +167,13 @@ class RealDataRegressionSpec extends SparkTestBase:
       AuthorMention(id, id, id, pos, None, None, None, "src", prov(id))
     val teams = sc.parallelize(
       Seq(
-        PublicationTeam("w1", 2020, Vector(mention("m:a1", 0), mention("m:b", 1), mention("m:c", 2)), 3, prov("w1")),
+        PublicationTeam(
+          "w1",
+          2020,
+          Vector(mention("m:a1", 0), mention("m:b", 1), mention("m:c", 2)),
+          3,
+          prov("w1")
+        ),
         PublicationTeam("w2", 2021, Vector(mention("m:a2", 0), mention("m:d", 1)), 2, prov("w2")),
         PublicationTeam("w3", 2019, Vector(mention("m:solo", 0)), 1, prov("w3")),
         PublicationTeam("w4", 1970, Vector(mention("m:old", 0), mention("m:b", 1)), 2, prov("w4"))
@@ -204,7 +222,12 @@ class RealDataRegressionSpec extends SparkTestBase:
     val snaps = TemporalAnalysisJob
       .computeFromPairs(sc, pairs, authorships, windows, "run", "1.0.0", "ts")
       .collect()
-      .map(s => ((s.researcherId, s.windowStartYear), (s.publicationCount, s.distinctCoauthorCount, s.weightedDegree)))
+      .map(s =>
+        (
+          (s.researcherId, s.windowStartYear),
+          (s.publicationCount, s.distinctCoauthorCount, s.weightedDegree)
+        )
+      )
       .toMap
     // a-b collaborated in 2001 and 2020-2021 only: nothing in 2005-2019.
     snaps.keySet.filter(_._1 == "a") shouldBe Set(("a", 2000), ("a", 2020))
@@ -258,7 +281,11 @@ class RealDataRegressionSpec extends SparkTestBase:
     yield edge(vs(i), vs(j))
     def run(parts: Int): Map[String, Double] =
       val (graph, mapping) =
-        GraphUtils.buildGraphWithIsolates(sc, sc.parallelize(edges, parts), sc.parallelize(vs, parts))
+        GraphUtils.buildGraphWithIsolates(
+          sc,
+          sc.parallelize(edges, parts),
+          sc.parallelize(vs, parts)
+        )
       BridgeAnalysisJob
         .compute(graph, mapping, sc.emptyRDD[(String, String)], sampleCount = 7, seed = 9L)
         .scores

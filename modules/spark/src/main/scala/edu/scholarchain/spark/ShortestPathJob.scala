@@ -147,7 +147,10 @@ object ShortestPathJob:
     source: VertexId
   ): Map[VertexId, (Int, Long)] =
     @annotation.tailrec
-    def loop(known: Map[VertexId, (Int, Long)], frontier: Set[VertexId]): Map[VertexId, (Int, Long)] =
+    def loop(
+      known: Map[VertexId, (Int, Long)],
+      frontier: Set[VertexId]
+    ): Map[VertexId, (Int, Long)] =
       val next = frontier
         .flatMap(v => known.get(v))
         .collect { case (dist, pred) if dist < Infinity && pred >= 0 => pred }
@@ -175,8 +178,8 @@ object ShortestPathJob:
         val ranked = metrics
           .filter(_.componentId.contains(cid))
           .map(m => (m.researcherId, m.weightedDegree))
-          .takeOrdered(2 * count)(Ordering.by[(String, Double), (Double, String)] {
-            case (rid, w) => (-w, rid)
+          .takeOrdered(2 * count)(Ordering.by[(String, Double), (Double, String)] { case (rid, w) =>
+            (-w, rid)
           })
           .map(_._1)
         val half = ranked.length / 2

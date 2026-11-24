@@ -12,10 +12,10 @@ import java.security.MessageDigest
 /**
  * Neptune bulk-load export in the openCypher CSV format (review finding N36, producer side).
  *
- * Every vertex label, relationship type and property key written here comes from
- * [[GraphSchema]], the same constants the storage `NeptuneStorageClient` queries are built from.
- * The export is pinned by `NeptuneBulkLoadExportSpec`, which asserts that the headers and values
- * are a subset of `GraphSchema` and cover the keys the storage queries match on.
+ * Every vertex label, relationship type and property key written here comes from [[GraphSchema]],
+ * the same constants the storage `NeptuneStorageClient` queries are built from. The export is
+ * pinned by `NeptuneBulkLoadExportSpec`, which asserts that the headers and values are a subset of
+ * `GraphSchema` and cover the keys the storage queries match on.
  *
  * Layout under `<output>/neptune/` (each part file starts with its header row):
  * {{{
@@ -28,17 +28,18 @@ import java.security.MessageDigest
  * }}}
  *
  * Encoding decisions (the loader/consumer owner must honour them):
- *   - `:ID` of a Researcher is its researcher ID and of a Work its work ID (the prefixes `mention:`,
- *     `researcher:` and `work:` keep the two ID spaces disjoint), so loads are idempotent.
- *   - A COAUTHOR relationship is stored once, `:START_ID` = researcherA < `:END_ID` =
- *     researcherB; consumer queries match it without direction.
+ *   - `:ID` of a Researcher is its researcher ID and of a Work its work ID (the prefixes
+ *     `mention:`, `researcher:` and `work:` keep the two ID spaces disjoint), so loads are
+ *     idempotent.
+ *   - A COAUTHOR relationship is stored once, `:START_ID` = researcherA < `:END_ID` = researcherB;
+ *     consumer queries match it without direction.
  *   - `provenance` (an object) and `representativeWorkIds` (a list) are stored as JSON text in a
  *     String property, because Neptune properties cannot hold maps. Consumers must decode these two
  *     properties from JSON.
  *   - Fields with RFC 4180 quoting (`"` doubled); no whitespace trimming; no compression.
  *   - No `_SUCCESS` marker is written under `neptune/`, so the directory can be used directly as a
- *     bulk-load source prefix. (Local `file://` runs still produce Hadoop `.crc` side files; S3 does
- *     not.)
+ *     bulk-load source prefix. (Local `file://` runs still produce Hadoop `.crc` side files; S3
+ *     does not.)
  *   - Load `nodes/` before `relationships/` (two load jobs) so every relationship endpoint exists.
  *
  * Not verified against a live Neptune cluster.
@@ -51,11 +52,11 @@ object NeptuneBulkLoadExport:
 
   /** openCypher CSV system columns. */
   object System:
-    val Id: String      = ":ID"
-    val Label: String   = ":LABEL"
-    val StartId: String = ":START_ID"
-    val EndId: String   = ":END_ID"
-    val Type: String    = ":TYPE"
+    val Id: String       = ":ID"
+    val Label: String    = ":LABEL"
+    val StartId: String  = ":START_ID"
+    val EndId: String    = ":END_ID"
+    val Type: String     = ":TYPE"
     val All: Set[String] = Set(Id, Label, StartId, EndId, Type)
 
   /** Neptune openCypher CSV property column header `name:Type`. */
@@ -105,11 +106,11 @@ object NeptuneBulkLoadExport:
 
   /** Subdirectories under `<output>/neptune`. */
   object Dir:
-    val Root: String                 = "neptune"
-    val Nodes: String                = s"$Root/nodes"
-    val Relationships: String        = s"$Root/relationships"
-    val ResearcherNodes: String      = s"$Nodes/researcher"
-    val WorkNodes: String            = s"$Nodes/work"
+    val Root: String                  = "neptune"
+    val Nodes: String                 = s"$Root/nodes"
+    val Relationships: String         = s"$Root/relationships"
+    val ResearcherNodes: String       = s"$Nodes/researcher"
+    val WorkNodes: String             = s"$Nodes/work"
     val CoauthorRelationships: String = s"$Relationships/coauthor"
     val AuthoredRelationships: String = s"$Relationships/authored"
 
@@ -149,7 +150,13 @@ object NeptuneBulkLoadExport:
   ): RDD[Row] =
     edges.map { e =>
       Row(
-        IdGen.coauthorEdgeId(e.researcherA, e.researcherB, windowStartYear, windowEndYear, policyVersion),
+        IdGen.coauthorEdgeId(
+          e.researcherA,
+          e.researcherB,
+          windowStartYear,
+          windowEndYear,
+          policyVersion
+        ),
         e.researcherA,
         e.researcherB,
         Rel.Coauthor,
@@ -172,7 +179,13 @@ object NeptuneBulkLoadExport:
   ): RDD[Row] =
     authorships.distinct().map { case (rid, workId) =>
       val id = authoredId(rid, workId)
-      Row(id, rid, workId, Rel.Authored, write(GraphUtils.makeProv(runId, schemaVersion, id, timestamp)))
+      Row(
+        id,
+        rid,
+        workId,
+        Rel.Authored,
+        write(GraphUtils.makeProv(runId, schemaVersion, id, timestamp))
+      )
     }
 
   private def schemaOf(header: Vector[String]): StructType =
@@ -241,8 +254,13 @@ object NeptuneBulkLoadExport:
     timestamp: String
   ): Counts =
     Counts(
-      researcherNodes =
-        writeCsv(spark, researcherRows(metrics), ResearcherNodeHeader, outputPath, Dir.ResearcherNodes),
+      researcherNodes = writeCsv(
+        spark,
+        researcherRows(metrics),
+        ResearcherNodeHeader,
+        outputPath,
+        Dir.ResearcherNodes
+      ),
       workNodes = writeCsv(spark, workRows(works), WorkNodeHeader, outputPath, Dir.WorkNodes),
       coauthorRelationships = writeCsv(
         spark,

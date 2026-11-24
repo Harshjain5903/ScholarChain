@@ -19,8 +19,8 @@ import scala.jdk.CollectionConverters.*
  *   W4 2010: m:W4:0, m:W4:1              pair  (0,1)
  *   Accepted: m:W1:0 ~ m:W2:0  (-> canonical m:W1:0)    Rejected: m:W1:1 ~ m:W4:0
  * }}}
- * 8 mentions - 1 merge = 7 researchers; 5 coauthor edges; components {W1 team + W2:1} (4),
- * {W4 pair} (2), {W3:0} (1).
+ * 8 mentions - 1 merge = 7 researchers; 5 coauthor edges; components {W1 team + W2:1} (4), {W4
+ * pair} (2), {W3:0} (1).
  */
 class PipelineEndToEndSpec extends SparkTestBase:
 
@@ -45,7 +45,13 @@ class PipelineEndToEndSpec extends SparkTestBase:
     AuthorMention(id, id, id, pos, None, None, None, id, prov(id))
 
   private val teams = Seq(
-    PublicationTeam("work:W1", 2020, Vector(m("m:W1:0", 0), m("m:W1:1", 1), m("m:W1:2", 2)), 3, prov("W1")),
+    PublicationTeam(
+      "work:W1",
+      2020,
+      Vector(m("m:W1:0", 0), m("m:W1:1", 1), m("m:W1:2", 2)),
+      3,
+      prov("W1")
+    ),
     PublicationTeam("work:W2", 2021, Vector(m("m:W2:0", 0), m("m:W2:1", 1)), 2, prov("W2")),
     PublicationTeam("work:W3", 2019, Vector(m("m:W3:0", 0)), 1, prov("W3")),
     PublicationTeam("work:W4", 2010, Vector(m("m:W4:0", 0), m("m:W4:1", 1)), 2, prov("W4"))
@@ -65,17 +71,30 @@ class PipelineEndToEndSpec extends SparkTestBase:
   }
 
   private def decision(a: String, b: String, outcome: MatchOutcome) =
-    MatchDecision(a, b, Map("name_similarity" -> 1.0), outcome, 0.9, Vector("r"), "er-test", "er-run")
+    MatchDecision(
+      a,
+      b,
+      Map("name_similarity" -> 1.0),
+      outcome,
+      0.9,
+      Vector("r"),
+      "er-test",
+      "er-run"
+    )
 
   private lazy val inputRoot: Path =
     val root = Files.createTempDirectory("pipeline-e2e-in")
     val pc   = Files.createDirectories(root.resolve("export/pair_candidates"))
-    val gz   = new java.util.zip.GZIPOutputStream(Files.newOutputStream(pc.resolve("part-m-00001.gz")))
+    val gz =
+      new java.util.zip.GZIPOutputStream(Files.newOutputStream(pc.resolve("part-m-00001.gz")))
     gz.write(pairs.map(p => upickle.default.write(p)).mkString("", "\n", "\n").getBytes("UTF-8"))
     gz.close()
     Files.writeString(pc.resolve("_SUCCESS"), "")
     val tm = Files.createDirectories(root.resolve("export/teams"))
-    Files.writeString(tm.resolve("part-m-00000"), teams.map(t => upickle.default.write(t)).mkString("\n"))
+    Files.writeString(
+      tm.resolve("part-m-00000"),
+      teams.map(t => upickle.default.write(t)).mkString("\n")
+    )
     val md = Files.createDirectories(root.resolve("match-decisions"))
     Files.writeString(
       md.resolve("part-00000"),
@@ -119,6 +138,7 @@ class PipelineEndToEndSpec extends SparkTestBase:
 
   private lazy val ckptRoot: Path = Files.createTempDirectory("pipeline-e2e-ckpt")
   private lazy val outA: Path     = freshOut()
+
   private lazy val statsA: ujson.Obj =
     sc.setCheckpointDir(ckptRoot.toUri.toString)
     ScholarChainPipeline.run(spark, config(outA, 1))
@@ -173,7 +193,18 @@ class PipelineEndToEndSpec extends SparkTestBase:
 
   test("every documented output is written and the checkpoint directory was used") {
     statsA
-    Seq("edges", "metrics", "summaries", "paths", "components", "communities", "temporal", "manifest", "run-stats", "neptune")
+    Seq(
+      "edges",
+      "metrics",
+      "summaries",
+      "paths",
+      "components",
+      "communities",
+      "temporal",
+      "manifest",
+      "run-stats",
+      "neptune"
+    )
       .foreach(d => Files.isDirectory(outA.resolve(d)) shouldBe true)
     val ckptFiles = Files.walk(ckptRoot).iterator().asScala.count(Files.isRegularFile(_))
     ckptFiles should be > 0
@@ -197,7 +228,11 @@ class PipelineEndToEndSpec extends SparkTestBase:
   }
 
   private def csvLines(out: Path): Seq[String] =
-    Files.walk(out.resolve("neptune")).iterator().asScala.toSeq
+    Files
+      .walk(out.resolve("neptune"))
+      .iterator()
+      .asScala
+      .toSeq
       .filter(p => p.getFileName.toString.startsWith("part-"))
       .flatMap(p => Files.readAllLines(p).asScala.drop(1))
       .sorted
@@ -225,7 +260,10 @@ class PipelineEndToEndSpec extends SparkTestBase:
     statsA
     val runDir = Path.of(new java.net.URI(sc.getCheckpointDir.get))
     Files.exists(runDir) shouldBe true
-    ScholarChainPipeline.cleanupCheckpoints(spark, config(outA, 1, "--checkpoint-dir", ckptRoot.toUri.toString))
+    ScholarChainPipeline.cleanupCheckpoints(
+      spark,
+      config(outA, 1, "--checkpoint-dir", ckptRoot.toUri.toString)
+    )
     Files.exists(runDir) shouldBe false
     Files.exists(ckptRoot) shouldBe true
   }

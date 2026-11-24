@@ -31,9 +31,9 @@ case class RunnerResult(
 )
 
 /**
- * Mention-level entity-resolution entry point. Reads Hadoop WorkRecord JSON lines (plain or
- * gzip), blocks author mentions on (surname, first initial), resolves each candidate pair with the
- * mention policy, and writes:
+ * Mention-level entity-resolution entry point. Reads Hadoop WorkRecord JSON lines (plain or gzip),
+ * blocks author mentions on (surname, first initial), resolves each candidate pair with the mention
+ * policy, and writes:
  *   - `<output>/match-decisions/part-00000` -- core MatchDecision JSON lines (Spark input)
  *   - `<output>/match-decisions/_SUCCESS`
  *   - `<output>/review-queue.json` -- Unresolved/Conflict and low-confidence decisions
@@ -64,7 +64,7 @@ object EntityResolutionRunner:
   def parseArgs(args: Vector[String]): Either[String, RunnerConfig] =
     if args.size % 2 != 0 then Left("Arguments must be --key value pairs")
     else
-      val kv      = args.grouped(2).map(v => v(0) -> v(1)).toMap
+      val kv = args.grouped(2).map(v => v(0) -> v(1)).toMap
       val allowed =
         Set(
           "--work-records",
@@ -167,9 +167,7 @@ object EntityResolutionRunner:
       mentions,
       upstream.size,
       upstream.count(_.orcid.exists(_.trim.nonEmpty)),
-      upstream.count(a =>
-        IdentifierNormalizer.hasNonDecomposingLetters(a.rawName)
-      ),
+      upstream.count(a => IdentifierNormalizer.hasNonDecomposingLetters(a.rawName)),
       blocking,
       decisions,
       queue.items.size,
@@ -199,8 +197,8 @@ object EntityResolutionRunner:
     val policy = MentionResolver.mentionPolicy
     def path(d: MatchDecision) =
       d.reasonCodes.find(_.startsWith("path:")).map(_.stripPrefix("path:")).getOrElse("unknown")
-    val accepted     = decisions.filter(_.decision == MatchOutcome.Accepted)
-    val acceptedIds  = accepted.flatMap(d => Vector(d.sourceId, d.targetId)).toSet
+    val accepted    = decisions.filter(_.decision == MatchOutcome.Accepted)
+    val acceptedIds = accepted.flatMap(d => Vector(d.sourceId, d.targetId)).toSet
     val reasonFilter = Set(
       "dblp_person_key_match",
       "dblp_homonym_suffix_mismatch",
@@ -251,27 +249,27 @@ object EntityResolutionRunner:
         })
       ),
       "counts" -> ujson.Obj(
-        "work_records"              -> workCount,
-        "upstream_author_mentions"  -> upstreamMentionCount,
-        "resolvable_mentions"       -> mentions.size,
-        "blocks"                    -> blocking.blockCount,
-        "blocks_with_2plus"         -> blocking.blockSizes.count(_._2 >= 2),
-        "oversized_blocks_skipped"  -> blocking.oversizedBlocks.size,
-        "same_work_pairs_skipped"   -> blocking.sameWorkPairsSkipped,
-        "candidate_pairs"           -> blocking.pairs.size,
-        "decisions"                 -> decisions.size,
-        "by_decision"               -> countBy(decisions)(d => reportLabel(d.decision)),
-        "by_core_outcome"           -> countBy(decisions)(_.decision.toString),
-        "by_path"                   -> countBy(decisions)(path),
-        "by_rule_reason"            -> countBy(
+        "work_records"             -> workCount,
+        "upstream_author_mentions" -> upstreamMentionCount,
+        "resolvable_mentions"      -> mentions.size,
+        "blocks"                   -> blocking.blockCount,
+        "blocks_with_2plus"        -> blocking.blockSizes.count(_._2 >= 2),
+        "oversized_blocks_skipped" -> blocking.oversizedBlocks.size,
+        "same_work_pairs_skipped"  -> blocking.sameWorkPairsSkipped,
+        "candidate_pairs"          -> blocking.pairs.size,
+        "decisions"                -> decisions.size,
+        "by_decision"              -> countBy(decisions)(d => reportLabel(d.decision)),
+        "by_core_outcome"          -> countBy(decisions)(_.decision.toString),
+        "by_path"                  -> countBy(decisions)(path),
+        "by_rule_reason" -> countBy(
           decisions.flatMap(_.reasonCodes.filter(reasonFilter.contains))
         )(identity),
         "mentions_in_accepted_pairs" -> acceptedIds.size,
-        "review_queue_items"        -> reviewQueueSize
+        "review_queue_items"         -> reviewQueueSize
       ),
       "data_quality_effects" -> ujson.Obj(
-        "upstream_mentions_with_orcid" -> upstreamOrcidCount,
-        "mentions_with_dblp_homonym_suffix" -> mentions.count(_.dblpHomonymSuffix.isDefined),
+        "upstream_mentions_with_orcid"          -> upstreamOrcidCount,
+        "mentions_with_dblp_homonym_suffix"     -> mentions.count(_.dblpHomonymSuffix.isDefined),
         "mentions_with_non_decomposing_letters" -> nonDecomposingCount,
         "note" -> ("Names are re-normalized from rawName: the DBLP homonym suffix that the Hadoop " +
           "normalizedName strips is kept as a separate signal, and ae/o-stroke etc. are " +

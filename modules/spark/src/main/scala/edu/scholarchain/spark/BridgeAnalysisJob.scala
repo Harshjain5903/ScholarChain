@@ -163,7 +163,7 @@ object BridgeAnalysisJob:
 
     // O(k) source IDs on the driver, chosen deterministically from the seed (see selectSources).
     val sources: Array[VertexId] = selectSources(graph, k, seed)
-    val scale = n.toDouble / sources.length.toDouble
+    val scale                    = n.toDouble / sources.length.toDouble
 
     // ---- Forward phase: levels(d) holds ((source, vertex), sigma) for vertices at distance d.
     val level0: RDD[(SV, Long)] = sc
@@ -241,14 +241,16 @@ object BridgeAnalysisJob:
 
   /**
    * Choose `k` betweenness sources: the vertices with the smallest seeded MurmurHash3 of their
-   * researcher ID (ties by researcher ID), via one bounded `takeOrdered(k)` job. Keyed on researcher
-   * IDs rather than GraphX vertex IDs, so the sample (and hence the scores) does not change with
-   * partitioning or vertex-ID assignment.
+   * researcher ID (ties by researcher ID), via one bounded `takeOrdered(k)` job. Keyed on
+   * researcher IDs rather than GraphX vertex IDs, so the sample (and hence the scores) does not
+   * change with partitioning or vertex-ID assignment.
    */
   def selectSources(graph: Graph[String, Int], k: Int, seed: Long): Array[VertexId] =
     val hashSeed = (seed ^ (seed >>> 32)).toInt
     graph.vertices
-      .map { case (vid, rid) => (scala.util.hashing.MurmurHash3.stringHash(rid, hashSeed), rid, vid) }
+      .map { case (vid, rid) =>
+        (scala.util.hashing.MurmurHash3.stringHash(rid, hashSeed), rid, vid)
+      }
       .takeOrdered(k)(Ordering.by[(Int, String, VertexId), (Int, String)](t => (t._1, t._2)))
       .map(_._3)
 

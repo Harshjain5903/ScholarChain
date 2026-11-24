@@ -5,8 +5,8 @@ import org.scalatest.matchers.should.Matchers
 
 /**
  * Regression tests for DTD-declared named entities in real DBLP records. Before the fix, 75 of the
- * first 500 records of the DBLP 10K development selection were rejected as MALFORMED_XML
- * ("The entity "oslash" was referenced, but not declared").
+ * first 500 records of the DBLP 10K development selection were rejected as MALFORMED_XML ("The
+ * entity "oslash" was referenced, but not declared").
  */
 class DblpEntitiesSpec extends AnyFunSuite with Matchers:
 

@@ -8,10 +8,9 @@ import org.apache.spark.rdd.RDD
  * Job 6: Collaboration communities using Label Propagation Algorithm (LPA).
  *
  * Uses a deterministic synchronous Label Propagation ([[propagateLabels]]) to assign community
- * labels. Reports community ID
- * (`community:<smallest member researcher ID>`), size, and cross-community edge count per
- * researcher. No per-vertex or per-community map is collected to the driver; only the community
- * count is.
+ * labels. Reports community ID (`community:<smallest member researcher ID>`), size, and
+ * cross-community edge count per researcher. No per-vertex or per-community map is collected to the
+ * driver; only the community count is.
  */
 object CommunityDetectionJob:
 
@@ -99,8 +98,8 @@ object CommunityDetectionJob:
    * and pairs converge to one community, and labels are researcher IDs so the result does not
    * depend on GraphX vertex-ID assignment or partitioning. Isolated vertices keep their own label.
    *
-   * Pregel checkpoints according to `spark.graphx.pregel.checkpointInterval` when the context has
-   * a checkpoint directory.
+   * Pregel checkpoints according to `spark.graphx.pregel.checkpointInterval` when the context has a
+   * checkpoint directory.
    */
   def propagateLabels(graph: Graph[String, Int], maxIterations: Int): Graph[String, Int] =
     require(maxIterations > 0, s"maxIterations must be > 0, got $maxIterations")

@@ -23,8 +23,8 @@ object ConnectedComponentsJob:
   ):
 
     /**
-     * The ID of the largest component (ties broken by the smallest ID), or None for an empty
-     * graph. One bounded `takeOrdered(1)` job.
+     * The ID of the largest component (ties broken by the smallest ID), or None for an empty graph.
+     * One bounded `takeOrdered(1)` job.
      */
     def largestComponentId: Option[String] =
       assignments

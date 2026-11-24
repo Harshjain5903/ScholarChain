@@ -79,8 +79,8 @@ object GraphSchema:
     val VertexKeys: Vector[String] = Vector(NodeId, ResearcherId, ComponentId, WorkId)
 
     /**
-     * Properties a stored `COAUTHOR` edge must carry; storage parses an edge as a
-     * [[CoauthorEdge]], which requires every one of these keys.
+     * Properties a stored `COAUTHOR` edge must carry; storage parses an edge as a [[CoauthorEdge]],
+     * which requires every one of these keys.
      */
     val CoauthorEdgeKeys: Vector[String] = Vector(
       ResearcherA,

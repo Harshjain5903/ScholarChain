@@ -29,7 +29,7 @@ class EmbeddingWriteValidationSpec extends AnyFlatSpec with Matchers:
         StorageTestAws.dummyCredentials
       ):
     val written: mutable.ArrayBuffer[VectorRecord] = mutable.ArrayBuffer.empty
-    var calls: Int                                  = 0
+    var calls: Int                                 = 0
 
     override def putVectors(
       vectorBucket: String,
@@ -68,8 +68,9 @@ class EmbeddingWriteValidationSpec extends AnyFlatSpec with Matchers:
     )
 
   "EmbeddingBatchWriter" should "write a 1024-dim Titan v2 vector" in {
-    val fake   = RecordingVectors()
-    val result = writerWith(fake).writeBatch(Vector(rec("ok", 1024, TitanModel)), "researcher-profile-v1").get
+    val fake = RecordingVectors()
+    val result =
+      writerWith(fake).writeBatch(Vector(rec("ok", 1024, TitanModel)), "researcher-profile-v1").get
 
     result.written shouldBe 1
     result.rejected shouldBe 0
@@ -79,23 +80,28 @@ class EmbeddingWriteValidationSpec extends AnyFlatSpec with Matchers:
   }
 
   it should "reject a 256-dim vector with EMBEDDING_DIMENSION_MISMATCH and not write it" in {
-    val fake   = RecordingVectors()
-    val result = writerWith(fake).writeBatch(Vector(rec("short", 256, TitanModel)), "researcher-profile-v1").get
+    val fake = RecordingVectors()
+    val result = writerWith(fake)
+      .writeBatch(Vector(rec("short", 256, TitanModel)), "researcher-profile-v1")
+      .get
 
     result.written shouldBe 0
     result.rejected shouldBe 1
     result.rejections.map(r => (r.key, r.reasonCode)) shouldBe
       Vector("short" -> VectorRejectionReason.EmbeddingDimensionMismatch)
     result.rejectedByReason shouldBe Map("EMBEDDING_DIMENSION_MISMATCH" -> 1)
-    result.errors.head should (include("EMBEDDING_DIMENSION_MISMATCH") and include("expected=1024") and
+    result.errors.head should (include("EMBEDDING_DIMENSION_MISMATCH") and include(
+      "expected=1024"
+    ) and
       include("actual=256"))
     fake.calls shouldBe 0
     fake.written shouldBe empty
   }
 
   it should "reject a Voyage-model vector with EMBEDDING_MODEL_MISMATCH and not write it" in {
-    val fake   = RecordingVectors()
-    val result = writerWith(fake).writeBatch(Vector(rec("voyage", 1024, VoyageModel)), "paper-abstract-v1").get
+    val fake = RecordingVectors()
+    val result =
+      writerWith(fake).writeBatch(Vector(rec("voyage", 1024, VoyageModel)), "paper-abstract-v1").get
 
     result.written shouldBe 0
     result.rejected shouldBe 1
