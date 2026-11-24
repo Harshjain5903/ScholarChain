@@ -1,6 +1,7 @@
 package edu.scholarchain.hadoop.integration
 
 import edu.scholarchain.core.{CoauthorPairCandidate, PublicationTeam, WorkRecord}
+import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.driver.{ExportVerifier, HadoopJobDriver, JobCompletion}
 import edu.scholarchain.hadoop.io.RejectWriter
 import edu.scholarchain.hadoop.model.RejectRecord
@@ -77,9 +78,17 @@ class LocalChainIntegrationSpec extends AnyFunSuite with Matchers:
       new String(bytes, StandardCharsets.UTF_8).linesIterator.filter(_.trim.nonEmpty).toVector
     }
 
-  private def runJob(job: String, in: String, out: Path, counters: Path): Int =
+  private val FixedTs = "2026-11-23T00:00:00Z"
+
+  private def runJob(
+    job: String,
+    in: String,
+    out: Path,
+    counters: Path,
+    timestamp: Option[String] = Some(FixedTs)
+  ): Int =
     HadoopJobDriver.run(
-      Array(
+      (Seq(
         job,
         "-D",
         "mapreduce.framework.name=local",
@@ -88,12 +97,48 @@ class LocalChainIntegrationSpec extends AnyFunSuite with Matchers:
         "-D",
         "scholarchain.pipeline.run-id=it-local-chain",
         "-D",
-        s"${JobCompletion.CountersOutputKey}=$counters",
-        in,
-        out.toString
-      ),
+        s"${JobCompletion.CountersOutputKey}=$counters"
+      ) ++ timestamp.toSeq.flatMap(t => Seq("-D", s"${JobConfig.RunTimestampKey}=$t")) ++
+        Seq(in, out.toString)).toArray,
       new Configuration()
     )
+
+  private def deleteTree(root: Path): Unit =
+    if Files.exists(root) then
+      Files.walk(root).sorted(java.util.Comparator.reverseOrder()).forEach(p => Files.delete(p))
+
+  /** Run J01 -> J06 -> J07 -> J08 under `root`; returns the export directory. */
+  private def runChain(root: Path, timestamp: Option[String] = Some(FixedTs)): Path =
+    val in = root.resolve("input/dblp.xml")
+    Files.createDirectories(in.getParent)
+    Files.writeString(in, dblpXml, StandardCharsets.ISO_8859_1)
+    val logs  = root.resolve("logs")
+    val works = root.resolve("work_records")
+    val teams = root.resolve("teams")
+    val pairs = root.resolve("pairs")
+    val out   = root.resolve("hadoop-output")
+    runJob("dblp-extraction", in.toString, works, logs.resolve("j01.json"), timestamp) shouldBe 0
+    runJob("team-extraction", works.toString, teams, logs.resolve("j06.json"), timestamp) shouldBe 0
+    runJob("pair-expansion", teams.toString, pairs, logs.resolve("j07.json"), timestamp) shouldBe 0
+    runJob(
+      "graph-export",
+      Seq(works, teams, pairs).mkString(","),
+      out,
+      logs.resolve("j08.json"),
+      timestamp
+    ) shouldBe 0
+    out
+
+  /** Relative path -> bytes of every data file (part files, not CRCs or markers) under `dir`. */
+  private def dataFiles(dir: Path): Map[String, Vector[Byte]] =
+    Files
+      .walk(dir)
+      .iterator()
+      .asScala
+      .filter(Files.isRegularFile(_))
+      .filter(_.getFileName.toString.startsWith("part-"))
+      .map(p => dir.relativize(p).toString -> Files.readAllBytes(p).toVector)
+      .toMap
 
   private def counter(file: Path, group: String, name: String): Long =
     val c = ujson.read(Files.readString(file))("counters").obj
@@ -161,6 +206,30 @@ class LocalChainIntegrationSpec extends AnyFunSuite with Matchers:
     readLines(exportDir.resolve("author_paper")).size shouldBe 6
     counter(logs.resolve("j08.json"), "GraphExport", "pair_candidates_out") shouldBe 4
 
+    // N44 / fixed timestamp / ORCID: lineage visible in the Spark-consumed export
+    pc.foreach { p =>
+      p.provenance.sourceDataset shouldBe "dblp"
+      p.provenance.timestamp shouldBe FixedTs
+      p.provenance.pipelineRunId shouldBe "it-local-chain"
+      p.provenance.transformationStep shouldBe Some("pair-expansion")
+      p.provenance.producer shouldBe Some("hadoop/J07-pair-expansion")
+      p.provenance.sourceRecordId should startWith("dblp:")
+    }
+    val exportedTeams = readLines(exportDir.resolve("teams")).map(read[PublicationTeam](_))
+    exportedTeams.foreach { t =>
+      t.provenance.sourceDataset shouldBe "dblp"
+      t.provenance.timestamp shouldBe FixedTs
+      t.provenance.producer shouldBe Some("hadoop/J06-team-extraction")
+    }
+    val exportedWorks = readLines(exportDir.resolve("work_records")).map(read[WorkRecord](_))
+    exportedWorks.foreach(_.provenance.producer shouldBe Some("hadoop/J01-dblp-extraction"))
+    exportedWorks.flatMap(_.authors).flatMap(_.orcid) shouldBe Vector("0000-0001-6914-8597")
+
+    // N49: no stray part files at the export root
+    ExportVerifier.unexpectedRootFiles(exportDir.toString) shouldBe Vector.empty
+    partFiles(exportDir) shouldBe Vector.empty
+    ExportVerifier.verifyExport(exportDir.toString).ok shouldBe true
+
     // ExportVerifier accepts the export and reports per-type record counts
     val reports = ExportVerifier.verify(exportDir.toString)
     reports.map(r => (r.dir, r.records, r.ok)) shouldBe Vector(
@@ -177,6 +246,74 @@ class LocalChainIntegrationSpec extends AnyFunSuite with Matchers:
     ExportVerifier.verify(root.resolve("missing").toString).forall(_.ok) shouldBe false
 
     Files.walk(root).sorted(java.util.Comparator.reverseOrder()).forEach(p => Files.delete(p))
+  }
+
+  test("fixed run timestamp makes a rerun of the chain byte-reproducible") {
+    val r1 = Files.createTempDirectory("scholarchain-repro-1")
+    val r2 = Files.createTempDirectory("scholarchain-repro-2")
+    val f1 = dataFiles(runChain(r1))
+    val f2 = dataFiles(runChain(r2))
+    f1.keySet shouldBe f2.keySet
+    f1.keySet.exists(_.startsWith("pair_candidates/part-m-")) shouldBe true
+    f1.keySet.foreach(k => withClue(k)(f1(k) shouldBe f2(k)))
+    // Stage outputs too (not only the export)
+    val s1 = Seq("work_records", "teams", "pairs").map(d => dataFiles(r1.resolve(d)))
+    val s2 = Seq("work_records", "teams", "pairs").map(d => dataFiles(r2.resolve(d)))
+    s1 shouldBe s2
+    deleteTree(r1)
+    deleteTree(r2)
+  }
+
+  test("without a run timestamp, records carry the wall-clock time (default behavior)") {
+    val root   = Files.createTempDirectory("scholarchain-no-ts")
+    val before = java.time.Instant.now.minusSeconds(1)
+    val out    = runChain(root, timestamp = None)
+    val pc     = readLines(out.resolve("pair_candidates")).map(read[CoauthorPairCandidate](_))
+    pc should not be empty
+    pc.foreach { p =>
+      java.time.Instant.parse(p.provenance.timestamp).isBefore(before) shouldBe false
+    }
+    deleteTree(root)
+  }
+
+  test("driver rejects an invalid run timestamp with exit code 2 before running the job") {
+    val root = Files.createTempDirectory("scholarchain-bad-ts")
+    val out  = root.resolve("out")
+    runJob(
+      "dblp-extraction",
+      root.resolve("missing.xml").toString,
+      out,
+      root.resolve("c.json"),
+      Some("not-a-time")
+    ) shouldBe 2
+    Files.exists(out) shouldBe false
+    deleteTree(root)
+  }
+
+  test("ExportVerifier flags stray root part files and empty required outputs") {
+    val root = Files.createTempDirectory("scholarchain-verify")
+    val out  = runChain(root)
+    ExportVerifier.verifyExport(out.toString).ok shouldBe true
+
+    // A stray (even empty) root part file is unexpected
+    Files.write(out.resolve("part-m-00000.gz"), Array.emptyByteArray)
+    val withStray = ExportVerifier.verifyExport(out.toString)
+    withStray.unexpectedRootFiles shouldBe Vector("part-m-00000.gz")
+    withStray.ok shouldBe false
+    ExportVerifier.reportJson(withStray)("unexpectedRootFiles").arr.map(_.str) shouldBe
+      Seq("part-m-00000.gz")
+    Files.delete(out.resolve("part-m-00000.gz"))
+
+    // An empty required output (part file with no records) is a failure
+    val pcDir = out.resolve("pair_candidates")
+    Files.list(pcDir).iterator().asScala.toVector.foreach(Files.delete)
+    Files.write(pcDir.resolve("part-m-00000"), Array.emptyByteArray)
+    val empty = ExportVerifier.verifyExport(out.toString)
+    val pcRep = empty.dirs.find(_.dir == "pair_candidates").get
+    pcRep.empty shouldBe true
+    pcRep.ok shouldBe false
+    empty.ok shouldBe false
+    deleteTree(root)
   }
 
   test("driver returns 2 for an unknown or missing job name") {

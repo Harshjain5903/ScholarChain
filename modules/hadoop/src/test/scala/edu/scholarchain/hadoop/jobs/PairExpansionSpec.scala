@@ -183,3 +183,21 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
     pairs.head.provenance.pipelineRunId shouldBe "my-run"
     pairs.head.provenance.schemaVersion shouldBe "2.0.0"
   }
+
+  test("N44: pairs carry the input team's source dataset, not the pipeline name") {
+    val teamProv = prov.copy(
+      sourceDataset = "dblp",
+      sourceRecordId = "dblp:conf/x/K1",
+      pipelineRunId = "upstream-run"
+    )
+    val team = mkTeam(Vector(mkMention("m:p", 0), mkMention("m:q", 1))).copy(provenance = teamProv)
+    val pair = PairExpansionJob.expandPairs(team, "my-run", "1.0.0", "2026-11-23T00:00:00Z").head
+    pair.provenance.sourceDataset shouldBe "dblp"
+    pair.provenance.sourceDataset should not be "scholarchain"
+    pair.provenance.sourceRecordId shouldBe "dblp:conf/x/K1"
+    pair.provenance.pipelineRunId shouldBe "my-run"
+    pair.provenance.timestamp shouldBe "2026-11-23T00:00:00Z"
+    pair.provenance.transformationStep shouldBe Some("pair-expansion")
+    pair.provenance.producer shouldBe Some("hadoop/J07-pair-expansion")
+    pair.provenance.upstreamRunIds shouldBe Vector("upstream-run")
+  }

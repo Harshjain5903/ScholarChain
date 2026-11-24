@@ -4,6 +4,7 @@ import edu.scholarchain.core.{CoauthorPairCandidate, Provenance, PublicationTeam
 import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.counters.HadoopCounters
 import edu.scholarchain.hadoop.io.JsonLineInputFormat
+import edu.scholarchain.hadoop.provenance.HadoopLineage
 import org.apache.hadoop.conf.{Configuration, Configured}
 import org.apache.hadoop.io.{LongWritable, NullWritable, Text}
 import org.apache.hadoop.mapreduce.{Job, Mapper}
@@ -42,12 +43,17 @@ object PairExpansionJob:
     val mentions = team.authorMentions
     if mentions.size < 2 then return Vector.empty
 
-    val provenance = Provenance(
-      sourceDataset = "scholarchain",
-      sourceRecordId = team.workId,
-      pipelineRunId = pipelineRunId,
-      schemaVersion = schemaVersion,
-      timestamp = timestamp
+    // N44: sourceDataset is the true source propagated from the input team (e.g. "dblp"), not the
+    // pipeline name; the job identity goes in transformationStep / producer instead.
+    val provenance = HadoopLineage.PairExpansion.stamp(
+      Provenance(
+        sourceDataset = team.provenance.sourceDataset,
+        sourceRecordId = team.provenance.sourceRecordId,
+        pipelineRunId = pipelineRunId,
+        schemaVersion = schemaVersion,
+        timestamp = timestamp
+      ),
+      upstreamRunIds = team.provenance.upstreamRunIds :+ team.provenance.pipelineRunId
     )
 
     val pairs = Vector.newBuilder[CoauthorPairCandidate]
@@ -86,7 +92,7 @@ class PairExpansionMapper extends Mapper[LongWritable, Text, Text, NullWritable]
     val runId     = JobConfig.pipelineRunId(conf)
     val schemaVer = JobConfig.schemaVersion(conf)
     val threshold = JobConfig.largeTeamThreshold(conf)
-    val timestamp = java.time.Instant.now.toString
+    val timestamp = JobConfig.runTimestamp(conf)
 
     try
       val json = ujson.read(line)

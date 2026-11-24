@@ -13,7 +13,10 @@ import upickle.default.*
 /**
  * Verifies a J08 graph-export directory (the `--hadoop-output` consumed by Spark): every line of
  * `work_records/`, `teams/` and `pair_candidates/` must deserialize as the core type Spark's
- * DataLoader reads, and pair candidates must be canonical (mentionA < mentionB).
+ * DataLoader reads, and pair candidates must be canonical (mentionA < mentionB). Each of those
+ * required outputs must exist and hold at least one record, and the export root must not contain
+ * stray part files (records of unknown type, or the empty default-output files of review finding
+ * N49): Spark reads only the per-type subdirectories, so anything at the root is unexpected.
  *
  * Usage: `ExportVerifier <export-dir>`; prints a JSON report and exits 1 on any failure.
  */
@@ -29,7 +32,18 @@ object ExportVerifier:
     invariantFailures: Long,
     firstError: Option[String]
   ):
-    def ok: Boolean = files.nonEmpty && parseFailures == 0 && invariantFailures == 0
+    /** A required output with no part files or no records. */
+    def empty: Boolean = files.isEmpty || records == 0
+
+    def ok: Boolean = !empty && parseFailures == 0 && invariantFailures == 0
+
+  /** Whole-export verification result. */
+  case class ExportReport(
+    exportDir: String,
+    dirs: Vector[DirReport],
+    unexpectedRootFiles: Vector[String]
+  ):
+    def ok: Boolean = dirs.forall(_.ok) && unexpectedRootFiles.isEmpty
 
   private val visible: PathFilter = (p: Path) =>
     val n = p.getName
@@ -102,11 +116,29 @@ object ExportVerifier:
       )
     )
 
-  def reportJson(exportDir: String, reports: Vector[DirReport]): ujson.Obj =
+  /**
+   * Names of the visible files (not directories) directly under the export root, sorted. J08 writes
+   * every record type to its own subdirectory, so any such file is unexpected.
+   */
+  def unexpectedRootFiles(
+    exportDir: String,
+    conf: Configuration = new Configuration()
+  ): Vector[String] =
+    val root = new Path(exportDir)
+    val fs   = root.getFileSystem(conf)
+    if !fs.exists(root) || !fs.getFileStatus(root).isDirectory then Vector.empty
+    else fs.listStatus(root, visible).toVector.filter(_.isFile).map(_.getPath.getName).sorted
+
+  /** Verify the per-type outputs and the export root layout. */
+  def verifyExport(exportDir: String, conf: Configuration = new Configuration()): ExportReport =
+    ExportReport(exportDir, verify(exportDir, conf), unexpectedRootFiles(exportDir, conf))
+
+  def reportJson(report: ExportReport): ujson.Obj =
     ujson.Obj(
-      "exportDir" -> exportDir,
-      "ok"        -> reports.forall(_.ok),
-      "dirs" -> ujson.Arr.from(reports.map { r =>
+      "exportDir"           -> report.exportDir,
+      "ok"                  -> report.ok,
+      "unexpectedRootFiles" -> ujson.Arr.from(report.unexpectedRootFiles.map(ujson.Str(_))),
+      "dirs" -> ujson.Arr.from(report.dirs.map { r =>
         ujson.Obj(
           "dir"               -> r.dir,
           "coreType"          -> r.coreType,
@@ -114,6 +146,7 @@ object ExportVerifier:
           "records"           -> r.records.toDouble,
           "parseFailures"     -> r.parseFailures.toDouble,
           "invariantFailures" -> r.invariantFailures.toDouble,
+          "empty"             -> r.empty,
           "firstError"        -> r.firstError.map(ujson.Str(_)).getOrElse(ujson.Null),
           "ok"                -> r.ok
         )
@@ -124,6 +157,6 @@ object ExportVerifier:
     if args.length != 1 then
       System.err.println("Usage: ExportVerifier <export-dir>")
       sys.exit(2)
-    val reports = verify(args(0))
-    println(ujson.write(reportJson(args(0), reports), indent = 2))
-    sys.exit(if reports.forall(_.ok) then 0 else 1)
+    val report = verifyExport(args(0))
+    println(ujson.write(reportJson(report), indent = 2))
+    sys.exit(if report.ok then 0 else 1)

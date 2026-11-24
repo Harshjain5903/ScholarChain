@@ -136,3 +136,32 @@ class TeamExtractionSpec extends AnyFunSuite with Matchers:
     team.provenance.pipelineRunId shouldBe "my-run"
     team.provenance.schemaVersion shouldBe "2.0.0"
   }
+
+  test("extractTeam propagates the work's source dataset and stamps J06 lineage") {
+    val work = mkWork(Vector(mkMention("Author", 0)))
+      .copy(provenance = prov.copy(sourceDataset = "dblp", pipelineRunId = "j01-run"))
+    val team = TeamExtractionJob.extractTeam(work, "my-run", "1.0.0", "2026-11-23T00:00:00Z")
+    team.provenance.sourceDataset shouldBe "dblp"
+    team.provenance.timestamp shouldBe "2026-11-23T00:00:00Z"
+    team.provenance.transformationStep shouldBe Some("team-extraction")
+    team.provenance.producer shouldBe Some("hadoop/J06-team-extraction")
+    team.provenance.upstreamRunIds shouldBe Vector("j01-run")
+  }
+
+  test("authorPaperJson provenance is a core Provenance with J06 lineage") {
+    val json = TeamExtractionJob.authorPaperJson(
+      mkMention("Alice", 0),
+      "work:test:1",
+      "my-run",
+      "1.0.0",
+      "2026-11-23T00:00:00Z",
+      "dblp",
+      "test:1",
+      Seq("j01-run")
+    )
+    val p = upickle.default.read[Provenance](ujson.read(json)("provenance"))
+    p.sourceDataset shouldBe "dblp"
+    p.transformationStep shouldBe Some("team-extraction")
+    p.producer shouldBe Some("hadoop/J06-team-extraction")
+    p.upstreamRunIds shouldBe Vector("j01-run")
+  }

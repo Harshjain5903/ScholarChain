@@ -1,5 +1,6 @@
 package edu.scholarchain.hadoop.parsers
 
+import edu.scholarchain.hadoop.provenance.HadoopLineage
 import edu.scholarchain.core.*
 import edu.scholarchain.hadoop.util.NormalizationUtils
 import java.io.StringReader
@@ -97,27 +98,30 @@ object DblpParser:
         .find(_.contains("arxiv.org"))
         .flatMap(NormalizationUtils.normalizeArxivId)
 
-      val authorNames = getChildTexts(elem, "author")
-      if authorNames.isEmpty then
+      // Each <author> may carry a DBLP-asserted ORCID attribute (<author orcid="...">).
+      val authorEntries = getAuthors(elem)
+      if authorEntries.isEmpty then
         return Left(
           ("MISSING_AUTHORS", s"No authors in record $dblpKey")
         )
 
-      val provenance = Provenance(
-        sourceDataset = "dblp",
-        sourceRecordId = sourceRecordId,
-        pipelineRunId = pipelineRunId,
-        schemaVersion = schemaVersion,
-        timestamp = timestamp
+      val provenance = HadoopLineage.DblpExtraction.stamp(
+        Provenance(
+          sourceDataset = "dblp",
+          sourceRecordId = sourceRecordId,
+          pipelineRunId = pipelineRunId,
+          schemaVersion = schemaVersion,
+          timestamp = timestamp
+        )
       )
 
-      val mentions = authorNames.zipWithIndex.map { (rawName, idx) =>
+      val mentions = authorEntries.zipWithIndex.map { case ((rawName, orcid), idx) =>
         AuthorMention(
           mentionId = s"mention:dblp:$dblpKey:$idx",
           rawName = rawName.trim,
           normalizedName = NormalizationUtils.normalizeName(rawName.trim),
           position = idx,
-          orcid = None,
+          orcid = orcid,
           openAlexId = None,
           affiliationRaw = None,
           sourceRecordId = sourceRecordId,
@@ -172,6 +176,19 @@ object DblpParser:
     val nodes = parent.getElementsByTagName(tag)
     (0 until nodes.getLength).map { i =>
       nodes.item(i).getTextContent
+    }.toVector
+
+  /**
+   * `(name, orcid)` for every `<author>` element in document order. The ORCID comes from the DBLP
+   * `orcid` attribute, normalized to the bare `XXXX-XXXX-XXXX-XXXX` form; a missing, blank or
+   * malformed attribute yields None so a bad ORCID never rejects the record.
+   */
+  private[parsers] def getAuthors(parent: Element): Vector[(String, Option[String])] =
+    val nodes = parent.getElementsByTagName("author")
+    (0 until nodes.getLength).map { i =>
+      val author = nodes.item(i).asInstanceOf[Element]
+      val orcid  = Option(author.getAttribute("orcid")).flatMap(NormalizationUtils.validateOrcid)
+      (author.getTextContent, orcid)
     }.toVector
 
   /** Extract the venue name from a DBLP XML element. */

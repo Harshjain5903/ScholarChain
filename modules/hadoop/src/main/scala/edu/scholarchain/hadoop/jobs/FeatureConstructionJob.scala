@@ -5,6 +5,7 @@ import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.counters.HadoopCounters
 import edu.scholarchain.hadoop.io.JsonLineInputFormat
 import edu.scholarchain.hadoop.model.MatchCandidate
+import edu.scholarchain.hadoop.provenance.HadoopLineage
 import edu.scholarchain.hadoop.util.NormalizationUtils
 import org.apache.hadoop.conf.{Configuration, Configured}
 import org.apache.hadoop.io.{LongWritable, NullWritable, Text}
@@ -34,6 +35,17 @@ import upickle.default.*
  */
 object FeatureConstructionJob:
   val JobName = "feature-construction"
+
+  /** `sourceDataset` used when a candidate pair spans records from different source datasets. */
+  val CrossSourceDataset = "scholarchain"
+
+  /**
+   * Source dataset of a candidate pair: the shared input `sourceDataset` (for example `dblp`) when
+   * both records come from the same source, otherwise [[CrossSourceDataset]].
+   */
+  def pairSourceDataset(a: WorkRecord, b: WorkRecord): String =
+    if a.provenance.sourceDataset == b.provenance.sourceDataset then a.provenance.sourceDataset
+    else CrossSourceDataset
 
   /** Jaccard similarity on two sets. */
   def jaccard(a: Set[String], b: Set[String]): Double =
@@ -142,7 +154,7 @@ class FeatureConstructionReducer extends Reducer[Text, Text, Text, NullWritable]
     val conf      = context.getConfiguration
     val runId     = JobConfig.pipelineRunId(conf)
     val schemaVer = JobConfig.schemaVersion(conf)
-    val timestamp = java.time.Instant.now.toString
+    val timestamp = JobConfig.runTimestamp(conf)
 
     val maxBlockSize =
       JobConfig.maxBlockSize(conf)
@@ -189,12 +201,15 @@ class FeatureConstructionReducer extends Reducer[Text, Text, Text, NullWritable]
         )
         .increment(features.size.toLong)
 
-      val provenance = Provenance(
-        sourceDataset = "scholarchain",
-        sourceRecordId = s"${a.sourceRecordId}|${b.sourceRecordId}",
-        pipelineRunId = runId,
-        schemaVersion = schemaVer,
-        timestamp = timestamp
+      val provenance = HadoopLineage.FeatureConstruction.stamp(
+        Provenance(
+          sourceDataset = FeatureConstructionJob.pairSourceDataset(a, b),
+          sourceRecordId = s"${a.sourceRecordId}|${b.sourceRecordId}",
+          pipelineRunId = runId,
+          schemaVersion = schemaVer,
+          timestamp = timestamp
+        ),
+        upstreamRunIds = Seq(a.provenance.pipelineRunId, b.provenance.pipelineRunId)
       )
 
       val candidate = MatchCandidate(

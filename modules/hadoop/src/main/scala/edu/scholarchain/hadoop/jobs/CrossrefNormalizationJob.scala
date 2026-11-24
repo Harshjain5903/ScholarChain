@@ -1,5 +1,6 @@
 package edu.scholarchain.hadoop.jobs
 
+import edu.scholarchain.hadoop.provenance.HadoopLineage
 import edu.scholarchain.core.Provenance
 import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.counters.HadoopCounters
@@ -58,7 +59,7 @@ class CrossrefNormalizationMapper extends Mapper[LongWritable, Text, Text, NullW
     val conf      = context.getConfiguration
     val runId     = JobConfig.pipelineRunId(conf)
     val schemaVer = JobConfig.schemaVersion(conf)
-    val timestamp = java.time.Instant.now.toString
+    val timestamp = JobConfig.runTimestamp(conf)
 
     context
       .getCounter(HadoopCounters.SharedGroup, HadoopCounters.InputRecords)
@@ -89,12 +90,14 @@ class CrossrefNormalizationMapper extends Mapper[LongWritable, Text, Text, NullW
             )
             .increment(1)
         val sourceId = extractSourceId(line)
-        val provenance = Provenance(
-          sourceDataset = "crossref",
-          sourceRecordId = sourceId,
-          pipelineRunId = runId,
-          schemaVersion = schemaVer,
-          timestamp = timestamp
+        val provenance = HadoopLineage.CrossrefNormalization.stamp(
+          Provenance(
+            sourceDataset = "crossref",
+            sourceRecordId = sourceId,
+            pipelineRunId = runId,
+            schemaVersion = schemaVer,
+            timestamp = timestamp
+          )
         )
         RejectWriter.writeReject(
           multipleOutputs,

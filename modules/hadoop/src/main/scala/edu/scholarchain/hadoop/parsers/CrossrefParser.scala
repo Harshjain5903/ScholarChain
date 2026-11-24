@@ -1,5 +1,6 @@
 package edu.scholarchain.hadoop.parsers
 
+import edu.scholarchain.hadoop.provenance.HadoopLineage
 import edu.scholarchain.core.*
 import edu.scholarchain.hadoop.util.NormalizationUtils
 
@@ -47,12 +48,14 @@ object CrossrefParser:
         .filter(!_.isNull)
         .map(_.str)
 
-      val provenance = Provenance(
-        sourceDataset = "crossref",
-        sourceRecordId = sourceId,
-        pipelineRunId = pipelineRunId,
-        schemaVersion = schemaVersion,
-        timestamp = timestamp
+      val provenance = HadoopLineage.CrossrefNormalization.stamp(
+        Provenance(
+          sourceDataset = "crossref",
+          sourceRecordId = sourceId,
+          pipelineRunId = pipelineRunId,
+          schemaVersion = schemaVersion,
+          timestamp = timestamp
+        )
       )
 
       val authorsArr = obj

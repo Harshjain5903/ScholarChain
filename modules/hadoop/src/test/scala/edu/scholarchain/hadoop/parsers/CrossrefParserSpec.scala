@@ -151,3 +151,19 @@ class CrossrefParserSpec extends AnyFunSuite with Matchers:
     result.isLeft shouldBe true
     result.left.toOption.get._1 shouldBe "MISSING_SOURCE_ID"
   }
+
+  test("parse stamps J02c lineage on work provenance") {
+    val json = ujson
+      .Obj(
+        "source_id" -> "crossref:10.1/x",
+        "doi"       -> "10.1/x",
+        "title"     -> "T",
+        "year"      -> 2023,
+        "authors"   -> ujson.Arr(ujson.Obj("given_name" -> "A", "family_name" -> "B"))
+      )
+      .toString()
+    val (work, _) = CrossrefParser.parse(json, runId, schemaVer, ts).toOption.get
+    work.provenance.sourceDataset shouldBe "crossref"
+    work.provenance.transformationStep shouldBe Some("crossref-normalization")
+    work.provenance.producer shouldBe Some("hadoop/J02c-crossref-normalization")
+  }

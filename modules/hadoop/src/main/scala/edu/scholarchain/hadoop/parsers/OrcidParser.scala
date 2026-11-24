@@ -1,5 +1,6 @@
 package edu.scholarchain.hadoop.parsers
 
+import edu.scholarchain.hadoop.provenance.HadoopLineage
 import edu.scholarchain.core.*
 import edu.scholarchain.hadoop.util.NormalizationUtils
 
@@ -59,12 +60,14 @@ object OrcidParser:
         .filter(!_.isNull)
         .map(_.str)
 
-      val provenance = Provenance(
-        sourceDataset = "orcid",
-        sourceRecordId = sourceId,
-        pipelineRunId = pipelineRunId,
-        schemaVersion = schemaVersion,
-        timestamp = timestamp
+      val provenance = HadoopLineage.OrcidNormalization.stamp(
+        Provenance(
+          sourceDataset = "orcid",
+          sourceRecordId = sourceId,
+          pipelineRunId = pipelineRunId,
+          schemaVersion = schemaVersion,
+          timestamp = timestamp
+        )
       )
 
       val mention = AuthorMention(

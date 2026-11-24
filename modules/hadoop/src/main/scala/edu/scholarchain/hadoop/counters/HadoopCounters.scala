@@ -68,3 +68,6 @@ object HadoopCounters:
   val AuthorMentionsOut = "author_mentions_out"
   val TeamsOut          = "teams_out"
   val PairCandidatesOut = "pair_candidates_out"
+
+  /** J08 records of unknown type written to the export root (flagged by ExportVerifier). */
+  val UnknownRecordsOut = "unknown_records_out"

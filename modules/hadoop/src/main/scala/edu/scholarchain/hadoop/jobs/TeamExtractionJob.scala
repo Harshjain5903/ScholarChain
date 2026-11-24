@@ -4,6 +4,7 @@ import edu.scholarchain.core.{AuthorMention, Provenance, PublicationTeam, WorkRe
 import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.counters.HadoopCounters
 import edu.scholarchain.hadoop.io.JsonLineInputFormat
+import edu.scholarchain.hadoop.provenance.HadoopLineage
 import org.apache.hadoop.conf.{Configuration, Configured}
 import org.apache.hadoop.io.{LongWritable, NullWritable, Text}
 import org.apache.hadoop.mapreduce.{Job, Mapper}
@@ -31,12 +32,17 @@ object TeamExtractionJob:
     schemaVersion: String,
     timestamp: String
   ): PublicationTeam =
-    val provenance = Provenance(
-      sourceDataset = work.source.toString.toLowerCase,
-      sourceRecordId = work.sourceRecordId,
-      pipelineRunId = pipelineRunId,
-      schemaVersion = schemaVersion,
-      timestamp = timestamp
+    // sourceDataset is propagated from the input record's provenance (the true source, e.g.
+    // "dblp"), not re-derived or hardcoded.
+    val provenance = HadoopLineage.TeamExtraction.stamp(
+      Provenance(
+        sourceDataset = work.provenance.sourceDataset,
+        sourceRecordId = work.sourceRecordId,
+        pipelineRunId = pipelineRunId,
+        schemaVersion = schemaVersion,
+        timestamp = timestamp
+      ),
+      upstreamRunIds = Seq(work.provenance.pipelineRunId)
     )
     PublicationTeam(
       workId = work.workId,
@@ -54,19 +60,24 @@ object TeamExtractionJob:
     schemaVersion: String,
     timestamp: String,
     sourceDataset: String,
-    sourceRecordId: String
+    sourceRecordId: String,
+    upstreamRunIds: Seq[String] = Nil
   ): String =
+    val provenance = HadoopLineage.TeamExtraction.stamp(
+      Provenance(
+        sourceDataset = sourceDataset,
+        sourceRecordId = sourceRecordId,
+        pipelineRunId = pipelineRunId,
+        schemaVersion = schemaVersion,
+        timestamp = timestamp
+      ),
+      upstreamRunIds
+    )
     val authorPaper = ujson.Obj(
       "mention_id" -> ujson.Str(mention.mentionId),
       "work_id"    -> ujson.Str(workId),
       "position"   -> ujson.Num(mention.position.toDouble),
-      "provenance" -> ujson.Obj(
-        "sourceDataset"  -> ujson.Str(sourceDataset),
-        "sourceRecordId" -> ujson.Str(sourceRecordId),
-        "pipelineRunId"  -> ujson.Str(pipelineRunId),
-        "schemaVersion"  -> ujson.Str(schemaVersion),
-        "timestamp"      -> ujson.Str(timestamp)
-      )
+      "provenance" -> writeJs(provenance)
     )
     ujson.write(authorPaper)
 
@@ -91,7 +102,7 @@ class TeamExtractionMapper extends Mapper[LongWritable, Text, Text, NullWritable
     val runId     = JobConfig.pipelineRunId(conf)
     val schemaVer = JobConfig.schemaVersion(conf)
     val threshold = JobConfig.largeTeamThreshold(conf)
-    val timestamp = java.time.Instant.now.toString
+    val timestamp = JobConfig.runTimestamp(conf)
 
     context
       .getCounter(HadoopCounters.SharedGroup, HadoopCounters.InputRecords)
@@ -120,7 +131,7 @@ class TeamExtractionMapper extends Mapper[LongWritable, Text, Text, NullWritable
       context.write(outKey, NullWritable.get())
 
       // Emit author-paper records with provenance
-      val sourceDataset = work.source.toString.toLowerCase
+      val sourceDataset = work.provenance.sourceDataset
       work.authors.foreach { mention =>
         val apJson = TeamExtractionJob.authorPaperJson(
           mention,
@@ -129,7 +140,8 @@ class TeamExtractionMapper extends Mapper[LongWritable, Text, Text, NullWritable
           schemaVer,
           timestamp,
           sourceDataset,
-          work.sourceRecordId
+          work.sourceRecordId,
+          Seq(work.provenance.pipelineRunId)
         )
         context
           .getCounter(

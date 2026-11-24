@@ -221,3 +221,48 @@ class DblpParserSpec extends AnyFunSuite with Matchers:
     val (w2, _, _) = result2.toOption.get
     w1.workId shouldBe w2.workId
   }
+
+  test("parse carries DBLP author orcid attributes into AuthorMention.orcid") {
+    val xml =
+      """<inproceedings key="conf/x/Orcid24">
+        |<author orcid="0000-0002-8605-8240">With Orcid</author>
+        |<author>No Orcid</author>
+        |<author orcid="https://orcid.org/0000-0003-3440-190X">Url Orcid</author>
+        |<author orcid="not-an-orcid">Bad Orcid</author>
+        |<author orcid="">Blank Orcid</author>
+        |<title>T</title>
+        |<year>2024</year>
+        |</inproceedings>""".stripMargin
+    val (work, mentions, _) = DblpParser.parse(xml, runId, schemaVer, ts).toOption.get
+    mentions.map(_.orcid) shouldBe Vector(
+      Some("0000-0002-8605-8240"),
+      None,
+      Some("0000-0003-3440-190X"),
+      None,
+      None
+    )
+    mentions.map(_.rawName) shouldBe Vector(
+      "With Orcid",
+      "No Orcid",
+      "Url Orcid",
+      "Bad Orcid",
+      "Blank Orcid"
+    )
+    work.authors shouldBe mentions
+  }
+
+  test("parse stamps J01 lineage on work and mention provenance") {
+    val xml =
+      """<article key="journals/test/Lineage">
+        |<author>Test Author</author>
+        |<title>Test Title</title>
+        |<year>2023</year>
+        |</article>""".stripMargin
+    val (work, mentions, _) = DblpParser.parse(xml, runId, schemaVer, ts).toOption.get
+    (work.provenance +: mentions.map(_.provenance)).foreach { p =>
+      p.sourceDataset shouldBe "dblp"
+      p.timestamp shouldBe ts
+      p.transformationStep shouldBe Some("dblp-extraction")
+      p.producer shouldBe Some("hadoop/J01-dblp-extraction")
+    }
+  }

@@ -1,5 +1,6 @@
 package edu.scholarchain.hadoop.parsers
 
+import edu.scholarchain.hadoop.provenance.HadoopLineage
 import edu.scholarchain.core.*
 import edu.scholarchain.hadoop.util.NormalizationUtils
 import ujson.Value
@@ -50,12 +51,14 @@ object OpenAlexParser:
         .filter(!_.isNull)
         .map(_.str)
 
-      val provenance = Provenance(
-        sourceDataset = "openalex",
-        sourceRecordId = sourceId,
-        pipelineRunId = pipelineRunId,
-        schemaVersion = schemaVersion,
-        timestamp = timestamp
+      val provenance = HadoopLineage.OpenAlexNormalization.stamp(
+        Provenance(
+          sourceDataset = "openalex",
+          sourceRecordId = sourceId,
+          pipelineRunId = pipelineRunId,
+          schemaVersion = schemaVersion,
+          timestamp = timestamp
+        )
       )
 
       val authorsArr = obj

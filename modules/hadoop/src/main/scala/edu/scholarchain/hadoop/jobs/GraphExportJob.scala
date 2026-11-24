@@ -9,7 +9,12 @@ import org.apache.hadoop.io.{LongWritable, NullWritable, Text}
 import org.apache.hadoop.io.compress.GzipCodec
 import org.apache.hadoop.mapreduce.{Job, Mapper, Partitioner}
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat
-import org.apache.hadoop.mapreduce.lib.output.{FileOutputFormat, MultipleOutputs, TextOutputFormat}
+import org.apache.hadoop.mapreduce.lib.output.{
+  FileOutputFormat,
+  LazyOutputFormat,
+  MultipleOutputs,
+  TextOutputFormat
+}
 import org.apache.hadoop.util.{Tool, ToolRunner}
 import upickle.default.*
 
@@ -45,6 +50,18 @@ object GraphExportJob:
   val TopicsOutput         = "topics"
   val InstitutionsOutput   = "institutions"
   val MalformedOutput      = "malformed"
+
+  /** Every named output subdirectory J08 may create. */
+  val AllOutputs: Vector[String] = Vector(
+    WorkRecordsOutput,
+    AuthorMentionsOutput,
+    TeamsOutput,
+    PairCandidatesOutput,
+    AuthorPaperOutput,
+    TopicsOutput,
+    InstitutionsOutput,
+    MalformedOutput
+  )
 
   /**
    * MultipleOutputs base path for a named output: each record type is written to its own
@@ -191,7 +208,12 @@ class GraphExportMapper extends Mapper[LongWritable, Text, Text, NullWritable]:
           GraphExportJob.basePath(GraphExportJob.MalformedOutput)
         )
       case _ =>
-        // Write unknown types to main output
+        // Unknown record types go to the default output at the export root. The default output is
+        // lazy (see GraphExportTool), so root part files exist only when such records occur, and
+        // ExportVerifier flags them as unexpected.
+        context
+          .getCounter(HadoopCounters.ExportGroup, HadoopCounters.UnknownRecordsOut)
+          .increment(1)
         context.write(outText, NullWritable.get())
 
   override def cleanup(
@@ -224,6 +246,11 @@ class GraphExportTool extends Configured with Tool:
     job.setOutputKeyClass(classOf[Text])
     job.setOutputValueClass(classOf[NullWritable])
 
+    // N49: every known record type goes to a named output subdirectory. A lazy default output
+    // creates root `part-m-NNNNN.gz` files only when a record is actually written to it, so a
+    // normal export has no (empty) part files at its root.
+    LazyOutputFormat.setOutputFormatClass(job, classOf[TextOutputFormat[Text, NullWritable]])
+
     // Enable gzip compression for output
     FileOutputFormat.setCompressOutput(job, true)
     FileOutputFormat.setOutputCompressorClass(job, classOf[GzipCodec])
@@ -236,17 +263,7 @@ class GraphExportTool extends Configured with Tool:
     )
 
     // Register named outputs for partitioned data
-    val namedOutputs = Seq(
-      GraphExportJob.WorkRecordsOutput,
-      GraphExportJob.AuthorMentionsOutput,
-      GraphExportJob.TeamsOutput,
-      GraphExportJob.PairCandidatesOutput,
-      GraphExportJob.AuthorPaperOutput,
-      GraphExportJob.TopicsOutput,
-      GraphExportJob.InstitutionsOutput,
-      GraphExportJob.MalformedOutput
-    )
-    namedOutputs.foreach { name =>
+    GraphExportJob.AllOutputs.foreach { name =>
       MultipleOutputs.addNamedOutput(
         job,
         GraphExportJob.namedOutput(name),

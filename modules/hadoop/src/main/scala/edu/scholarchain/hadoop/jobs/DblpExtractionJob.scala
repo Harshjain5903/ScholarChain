@@ -1,5 +1,6 @@
 package edu.scholarchain.hadoop.jobs
 
+import edu.scholarchain.hadoop.provenance.HadoopLineage
 import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.counters.HadoopCounters
 import edu.scholarchain.hadoop.io.{DblpInputFormat, RejectWriter}
@@ -60,7 +61,7 @@ class DblpExtractionMapper extends Mapper[LongWritable, Text, Text, Text]:
     val conf      = context.getConfiguration
     val runId     = JobConfig.pipelineRunId(conf)
     val schemaVer = JobConfig.schemaVersion(conf)
-    val timestamp = java.time.Instant.now.toString
+    val timestamp = JobConfig.runTimestamp(conf)
     val xmlStr    = value.toString
 
     context
@@ -90,12 +91,14 @@ class DblpExtractionMapper extends Mapper[LongWritable, Text, Text, Text]:
           .getCounter(HadoopCounters.RejectReasonGroup, code)
           .increment(1)
         val sourceId = extractSourceId(xmlStr)
-        val provenance = Provenance(
-          sourceDataset = "dblp",
-          sourceRecordId = sourceId,
-          pipelineRunId = runId,
-          schemaVersion = schemaVer,
-          timestamp = timestamp
+        val provenance = HadoopLineage.DblpExtraction.stamp(
+          Provenance(
+            sourceDataset = "dblp",
+            sourceRecordId = sourceId,
+            pipelineRunId = runId,
+            schemaVersion = schemaVer,
+            timestamp = timestamp
+          )
         )
         RejectWriter.writeReject(
           multipleOutputs,
