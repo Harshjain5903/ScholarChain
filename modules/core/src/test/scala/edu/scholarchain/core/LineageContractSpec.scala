@@ -173,6 +173,12 @@ class LineageContractSpec extends AnyFlatSpec with Matchers {
     read[ResearcherMetrics](legacyMetricsJson(8, 0.72)).bridgeScoreMethod shouldBe "exact"
   }
 
+  it should "read a legacy skipped 0.0 placeholder back as exact (documented N59 caveat)" in {
+    val legacy = read[ResearcherMetrics](legacyMetricsJson(8, 0.0))
+    legacy.bridgeScore shouldBe 0.0
+    legacy.bridgeScoreMethod shouldBe BridgeScoreMethod.Exact
+  }
+
   it should "distinguish a skipped betweenness from a computed zero" in {
     val computedZero = sampleResearcherMetrics.copy(bridgeScore = 0.0)
     val skipped      = computedZero.copy(bridgeScoreMethod = BridgeScoreMethod.NotComputed)

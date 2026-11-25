@@ -116,6 +116,60 @@ class IdGenSpec extends AnyFlatSpec with Matchers {
     a should not be b
   }
 
+  "evidenceId" should "follow the documented format" in {
+    IdGen.evidenceId("q-42", 7) shouldBe "evidence:q-42:0007"
+    IdGen.evidenceId("q-42", 0) shouldBe "evidence:q-42:0000"
+    IdGen.evidenceId("q-42", 9999) shouldBe "evidence:q-42:9999"
+  }
+
+  it should "be deterministic" in {
+    IdGen.evidenceId("query:abc", 3) shouldBe IdGen.evidenceId("query:abc", 3)
+  }
+
+  it should "differ by query and by ordinal" in {
+    IdGen.evidenceId("q1", 1) should not be IdGen.evidenceId("q2", 1)
+    IdGen.evidenceId("q1", 1) should not be IdGen.evidenceId("q1", 2)
+  }
+
+  it should "round-trip through parseEvidenceId" in {
+    val cases = Seq(
+      ("q-42", 0),
+      ("q-42", 7),
+      ("q-42", 9999),
+      ("query:with:colons", 12),
+      ("query:2026-11-24T00:00:00Z", 5),
+      ("unicode-\u00e9", 100)
+    )
+    for (q, n) <- cases do IdGen.parseEvidenceId(IdGen.evidenceId(q, n)) shouldBe Some((q, n))
+  }
+
+  it should "sort lexicographically in ordinal order within a query" in {
+    val ids = (0 to 120).map(IdGen.evidenceId("q", _))
+    ids.sorted shouldBe ids
+  }
+
+  it should "reject an empty or blank queryId" in {
+    an[IllegalArgumentException] should be thrownBy IdGen.evidenceId("", 0)
+    an[IllegalArgumentException] should be thrownBy IdGen.evidenceId("   ", 0)
+  }
+
+  it should "reject out-of-range ordinals" in {
+    an[IllegalArgumentException] should be thrownBy IdGen.evidenceId("q", -1)
+    an[IllegalArgumentException] should be thrownBy
+      IdGen.evidenceId("q", IdGen.MaxEvidenceOrdinal + 1)
+  }
+
+  "parseEvidenceId" should "reject malformed IDs" in {
+    IdGen.parseEvidenceId("ev:q:0001") shouldBe None
+    IdGen.parseEvidenceId("evidence:q") shouldBe None
+    IdGen.parseEvidenceId("evidence::0001") shouldBe None
+    IdGen.parseEvidenceId("evidence:q:1") shouldBe None
+    IdGen.parseEvidenceId("evidence:q:00001") shouldBe None
+    IdGen.parseEvidenceId("evidence:q:00a1") shouldBe None
+    IdGen.parseEvidenceId("evidence:q:-001") shouldBe None
+    IdGen.parseEvidenceId("") shouldBe None
+  }
+
   "runId" should "start with run: prefix" in {
     IdGen.runId() should startWith("run:")
   }

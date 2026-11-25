@@ -67,13 +67,27 @@ class GraphSchemaSpec extends AnyFlatSpec with Matchers {
     PropertyKey.WorkDescriptiveKeys shouldBe Vector("title", "year", "venue")
   }
 
-  it should "list every declared key exactly once in All, grouped vertex then edge" in {
+  it should "list every declared key exactly once in All, grouped vertex, researcher, work, edge" in {
     PropertyKey.All shouldBe Vector(
       "nodeId",
       "researcherId",
       "componentId",
       "workId",
       "displayName",
+      "publicationCount",
+      "distinctCoauthorCount",
+      "totalCoauthorOccurrences",
+      "averageCoauthorsPerPaper",
+      "maximumCoauthorsOnOnePaper",
+      "maximumTeamWorkIds",
+      "weightedDegree",
+      "componentSize",
+      "communityId",
+      "bridgeScore",
+      "bridgeScoreMethod",
+      "coreness",
+      "windowStartYear",
+      "windowEndYear",
       "title",
       "year",
       "venue",
@@ -86,7 +100,61 @@ class GraphSchemaSpec extends AnyFlatSpec with Matchers {
       "provenance"
     )
     PropertyKey.All.distinct shouldBe PropertyKey.All
-    PropertyKey.All.size shouldBe 15
+    PropertyKey.All.size shouldBe 29
+  }
+
+  it should "pin the exact Researcher metric key values and order (DOM-P13-02)" in {
+    PropertyKey.PublicationCount shouldBe "publicationCount"
+    PropertyKey.DistinctCoauthorCount shouldBe "distinctCoauthorCount"
+    PropertyKey.TotalCoauthorOccurrences shouldBe "totalCoauthorOccurrences"
+    PropertyKey.AverageCoauthorsPerPaper shouldBe "averageCoauthorsPerPaper"
+    PropertyKey.MaximumCoauthorsOnOnePaper shouldBe "maximumCoauthorsOnOnePaper"
+    PropertyKey.MaximumTeamWorkIds shouldBe "maximumTeamWorkIds"
+    PropertyKey.WeightedDegree shouldBe "weightedDegree"
+    PropertyKey.ComponentSize shouldBe "componentSize"
+    PropertyKey.CommunityId shouldBe "communityId"
+    PropertyKey.BridgeScore shouldBe "bridgeScore"
+    PropertyKey.BridgeScoreMethod shouldBe "bridgeScoreMethod"
+    PropertyKey.Coreness shouldBe "coreness"
+    PropertyKey.WindowStartYear shouldBe "windowStartYear"
+    PropertyKey.WindowEndYear shouldBe "windowEndYear"
+    PropertyKey.ResearcherMetricKeys shouldBe Vector(
+      "publicationCount",
+      "distinctCoauthorCount",
+      "totalCoauthorOccurrences",
+      "averageCoauthorsPerPaper",
+      "maximumCoauthorsOnOnePaper",
+      "maximumTeamWorkIds",
+      "weightedDegree",
+      "componentId",
+      "componentSize",
+      "communityId",
+      "bridgeScore",
+      "bridgeScoreMethod",
+      "coreness",
+      "windowStartYear",
+      "windowEndYear"
+    )
+    PropertyKey.ResearcherMetricKeys.distinct shouldBe PropertyKey.ResearcherMetricKeys
+    PropertyKey.ResearcherMetricKeys.foreach(k => PropertyKey.All should contain(k))
+  }
+
+  it should "name every ResearcherMetrics field except identity and provenance" in {
+    val full = sampleResearcherMetrics.copy(
+      maximumTeamWorkIds = Vector("W1"),
+      bridgeScoreMethod = BridgeScoreMethod.Sampled,
+      componentSize = Some(7L)
+    )
+    val fields = writeJs(full).obj.keySet.toSet -- Set("researcherId", "provenance")
+    PropertyKey.ResearcherMetricKeys.toSet shouldBe fields
+  }
+
+  it should "keep Researcher metric keys disjoint from descriptive and edge keys" in {
+    val metrics     = PropertyKey.ResearcherMetricKeys.toSet
+    val descriptive = PropertyKey.ResearcherDescriptiveKeys ++ PropertyKey.WorkDescriptiveKeys
+    (metrics intersect descriptive.toSet) shouldBe empty
+    (metrics intersect PropertyKey.CoauthorEdgeKeys.toSet) shouldBe empty
+    (metrics intersect PropertyKey.VertexKeys.toSet) shouldBe Set("componentId")
   }
 
   it should "keep descriptive keys disjoint from identity and edge keys" in {

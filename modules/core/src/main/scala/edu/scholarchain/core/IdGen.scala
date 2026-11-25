@@ -60,6 +60,54 @@ object IdGen:
   ): String =
     s"chunk:${sha256hex(s"$entityId|$sourceVersion|$docType|$textHash")}"
 
+  /** Prefix of every evidence ID. */
+  val EvidenceIdPrefix: String = "evidence:"
+
+  /** Width of the zero-padded ordinal suffix in an evidence ID. */
+  val EvidenceOrdinalWidth: Int = 4
+
+  /** Largest ordinal representable in an evidence ID. */
+  val MaxEvidenceOrdinal: Int = 9999
+
+  /**
+   * Deterministic evidence ID for the `ordinal`-th evidence item of a query.
+   *
+   * Format: `evidence:<queryId>:<ordinal>` where `<ordinal>` is a zero-padded, 4-digit decimal in
+   * `[0, 9999]`. Example: `evidenceId("q-42", 7)` gives `evidence:q-42:0007`.
+   *
+   * The ordinal is always the final `:`-separated segment, so a `queryId` may itself contain colons
+   * and still round-trip through [[parseEvidenceId]]. Zero-padding makes lexicographic order equal
+   * to ordinal order within one query.
+   *
+   * @throws IllegalArgumentException
+   *   if `queryId` is empty or blank, or `ordinal` is outside `[0, 9999]`
+   */
+  def evidenceId(queryId: String, ordinal: Int): String =
+    require(queryId.trim.nonEmpty, "queryId must not be empty")
+    require(
+      ordinal >= 0 && ordinal <= MaxEvidenceOrdinal,
+      s"ordinal must be in [0, $MaxEvidenceOrdinal], got $ordinal"
+    )
+    s"$EvidenceIdPrefix$queryId:${s"%0${EvidenceOrdinalWidth}d".format(ordinal)}"
+
+  /**
+   * Inverse of [[evidenceId]]. Returns `Some((queryId, ordinal))` for a well-formed evidence ID, or
+   * `None` otherwise.
+   */
+  def parseEvidenceId(id: String): Option[(String, Int)] =
+    if !id.startsWith(EvidenceIdPrefix) then None
+    else
+      val body = id.substring(EvidenceIdPrefix.length)
+      val sep  = body.lastIndexOf(':')
+      if sep <= 0 then None
+      else
+        val queryId = body.substring(0, sep)
+        val digits  = body.substring(sep + 1)
+        if queryId.trim.isEmpty || digits.length != EvidenceOrdinalWidth ||
+          !digits.forall(c => c >= '0' && c <= '9')
+        then None
+        else Some((queryId, digits.toInt))
+
   /** Non-deterministic run ID based on a random UUID. */
   def runId(): String =
     s"run:${UUID.randomUUID().toString}"

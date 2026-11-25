@@ -38,8 +38,8 @@ class AppConfigSpec extends AnyFlatSpec with Matchers {
     config.retrieval.minScore shouldBe 0.5
 
     config.models.embeddingModelId shouldBe "amazon.titan-embed-text-v2:0"
-    config.models.generationModelId shouldBe
-      "anthropic.claude-3-sonnet-20240229-v1:0"
+    // Claude Haiku 5.5 via the Bedrock US inference profile: human decision 2026-11-24.
+    config.models.generationModelId shouldBe "us.anthropic.claude-haiku-5-5"
     config.models.region shouldBe "us-east-2"
 
     config.operations.maxConcurrency shouldBe 8
@@ -54,31 +54,10 @@ class AppConfigSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "throw on type mismatch (string where int expected)" in {
-    val bad = ConfigFactory.parseString("""
-      scholarchain.storage.s3-raw-bucket = "scholarchain-raw"
-      scholarchain.storage.s3-processed-bucket = "scholarchain-processed"
-      scholarchain.storage.s3-vectors-bucket = "scholarchain-vectors"
-      scholarchain.neptune.endpoint = "localhost"
-      scholarchain.neptune.port = "not-a-number"
-      scholarchain.neptune.region = "us-east-1"
-      scholarchain.s3-vectors.dimensions = 1024
-      scholarchain.s3-vectors.distance-metric = "cosine"
-      scholarchain.s3-vectors.embedding-model-id = "model"
-      scholarchain.entity-resolution.blocking-key-fields = ["normalizedName"]
-      scholarchain.entity-resolution.match-threshold = 0.85
-      scholarchain.entity-resolution.reject-threshold = 0.3
-      scholarchain.entity-resolution.policy-version = "v1"
-      scholarchain.retrieval.top-k = 10
-      scholarchain.retrieval.max-hops = 3
-      scholarchain.retrieval.min-score = 0.5
-      scholarchain.models.embedding-model-id = "model"
-      scholarchain.models.generation-model-id = "model"
-      scholarchain.models.region = "us-east-1"
-      scholarchain.operations.max-concurrency = 8
-      scholarchain.operations.timeout-seconds = 30
-      scholarchain.operations.retry-count = 3
-    """)
-    an[Exception] should be thrownBy {
+    val bad = ConfigFactory
+      .parseString("""scholarchain.neptune.port = "not-a-number"""")
+      .withFallback(ConfigFactory.load())
+    an[ConfigException.WrongType] should be thrownBy {
       AppConfig.load(bad)
     }
   }
@@ -115,11 +94,16 @@ class AppConfigSpec extends AnyFlatSpec with Matchers {
       .withFallback(unresolvedReference)
       .resolve(ConfigResolveOptions.defaults().setUseSystemEnvironment(false))
 
+  /**
+   * Overrides layered over the unresolved reference, so `embedding.dimensions` (which defaults to
+   * `s3-vectors.dimensions`) follows the overridden index dimension.
+   */
   private def withS3Vectors(hocon: String): Config =
     ConfigFactory
       .parseString(hocon)
       .atPath("scholarchain.s3-vectors")
-      .withFallback(ConfigFactory.load())
+      .withFallback(unresolvedReference)
+      .resolve(ConfigResolveOptions.defaults().setUseSystemEnvironment(false))
 
   "S3 Vectors config" should "default to dimension 1024, cosine, Titan v2 with no env set" in {
     val config = AppConfig.load(resolveWithEnv())
@@ -286,5 +270,89 @@ class AppConfigSpec extends AnyFlatSpec with Matchers {
     S3VectorsConfig.validated(1024, "cosine", "m") shouldBe Right(
       S3VectorsConfig(1024, DistanceMetric.Cosine, "m")
     )
+  }
+
+  // --- Metric window (must equal the Spark run's --window-start / --window-end) ---
+
+  "Metric window config" should "default to 1980..2026 with no env set" in {
+    val config = AppConfig.load(resolveWithEnv())
+    config.retrieval.metricWindowStart shouldBe 1980
+    config.retrieval.metricWindowEnd shouldBe 2026
+  }
+
+  it should "default to 1980..2026 from ConfigFactory.load()" in {
+    val config = AppConfig.load(ConfigFactory.load())
+    config.retrieval.metricWindowStart shouldBe RetrievalConfig.DefaultMetricWindowStart
+    config.retrieval.metricWindowEnd shouldBe RetrievalConfig.DefaultMetricWindowEnd
+  }
+
+  it should "be overridden by SCHOLARCHAIN_METRIC_WINDOW_START and _END" in {
+    val config = AppConfig.load(
+      resolveWithEnv(
+        "SCHOLARCHAIN_METRIC_WINDOW_START" -> "2000",
+        "SCHOLARCHAIN_METRIC_WINDOW_END"   -> "2024"
+      )
+    )
+    config.retrieval.metricWindowStart shouldBe 2000
+    config.retrieval.metricWindowEnd shouldBe 2024
+    // unrelated retrieval settings keep their defaults
+    config.retrieval.topK shouldBe 10
+  }
+
+  it should "be overridden by inline HOCON" in {
+    val overrides = ConfigFactory.parseString("""
+      scholarchain.retrieval.metric-window-start = 2015
+      scholarchain.retrieval.metric-window-end = 2015
+    """)
+    val config = AppConfig.load(overrides.withFallback(ConfigFactory.load()))
+    config.retrieval.metricWindowStart shouldBe 2015
+    config.retrieval.metricWindowEnd shouldBe 2015
+  }
+
+  it should "reject start > end" in {
+    val ex = the[ConfigException.BadValue] thrownBy AppConfig.load(
+      resolveWithEnv(
+        "SCHOLARCHAIN_METRIC_WINDOW_START" -> "2030",
+        "SCHOLARCHAIN_METRIC_WINDOW_END"   -> "2020"
+      )
+    )
+    ex.getMessage should include("metric-window-start (2030) must be <=")
+  }
+
+  it should "reject years outside 1900..2100" in {
+    Seq(
+      "SCHOLARCHAIN_METRIC_WINDOW_START" -> "1899",
+      "SCHOLARCHAIN_METRIC_WINDOW_END"   -> "2101",
+      "SCHOLARCHAIN_METRIC_WINDOW_START" -> "-5",
+      "SCHOLARCHAIN_METRIC_WINDOW_END"   -> "0"
+    ).foreach { kv =>
+      withClue(kv) {
+        an[ConfigException.BadValue] should be thrownBy AppConfig.load(resolveWithEnv(kv))
+      }
+    }
+  }
+
+  it should "accept the boundary years 1900 and 2100" in {
+    val config = AppConfig.load(
+      resolveWithEnv(
+        "SCHOLARCHAIN_METRIC_WINDOW_START" -> "1900",
+        "SCHOLARCHAIN_METRIC_WINDOW_END"   -> "2100"
+      )
+    )
+    config.retrieval.metricWindowStart shouldBe 1900
+    config.retrieval.metricWindowEnd shouldBe 2100
+  }
+
+  it should "reject a non-integer env value" in {
+    an[ConfigException.WrongType] should be thrownBy AppConfig.load(
+      resolveWithEnv("SCHOLARCHAIN_METRIC_WINDOW_START" -> "nineteen-eighty")
+    )
+  }
+
+  "RetrievalConfig.validateMetricWindow" should "return the window or an error" in {
+    RetrievalConfig.validateMetricWindow(1980, 2026) shouldBe Right((1980, 2026))
+    RetrievalConfig.validateMetricWindow(2026, 1980).isLeft shouldBe true
+    RetrievalConfig.validateMetricWindow(1800, 2026).isLeft shouldBe true
+    RetrievalConfig.validateMetricWindow(1980, 2200).isLeft shouldBe true
   }
 }

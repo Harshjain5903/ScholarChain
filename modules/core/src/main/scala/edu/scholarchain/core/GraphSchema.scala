@@ -100,6 +100,58 @@ object GraphSchema:
      */
     val Venue: String = "venue"
 
+    // --- Researcher metric properties (DOM-P13-02) ---
+    // Spark-computed [[ResearcherMetrics]] are stored as properties on the `Researcher` vertex so
+    // the runtime can cite them without a separate table. Each value equals the mirrored
+    // `ResearcherMetrics` field name; the wire format of the values is owned by
+    // [[ResearcherMetrics.toGraphProperties]] and [[ResearcherMetrics.fromGraphProperties]].
+
+    /** P_r: publications in the window; mirrors [[ResearcherMetrics.publicationCount]]. */
+    val PublicationCount: String = "publicationCount"
+
+    /** C_r: distinct coauthors; mirrors [[ResearcherMetrics.distinctCoauthorCount]]. */
+    val DistinctCoauthorCount: String = "distinctCoauthorCount"
+
+    /** T_r: coauthor occurrences; mirrors [[ResearcherMetrics.totalCoauthorOccurrences]]. */
+    val TotalCoauthorOccurrences: String = "totalCoauthorOccurrences"
+
+    /** A_r: mean coauthors per paper; mirrors [[ResearcherMetrics.averageCoauthorsPerPaper]]. */
+    val AverageCoauthorsPerPaper: String = "averageCoauthorsPerPaper"
+
+    /** M_r: largest coauthor count; mirrors [[ResearcherMetrics.maximumCoauthorsOnOnePaper]]. */
+    val MaximumCoauthorsOnOnePaper: String = "maximumCoauthorsOnOnePaper"
+
+    /**
+     * M_r evidence work IDs (JSON array string); mirrors [[ResearcherMetrics.maximumTeamWorkIds]].
+     */
+    val MaximumTeamWorkIds: String = "maximumTeamWorkIds"
+
+    /** W_r: weighted degree; mirrors [[ResearcherMetrics.weightedDegree]]. */
+    val WeightedDegree: String = "weightedDegree"
+
+    /**
+     * Size of the researcher's connected component; mirrors [[ResearcherMetrics.componentSize]].
+     */
+    val ComponentSize: String = "componentSize"
+
+    /** Community membership; mirrors [[ResearcherMetrics.communityId]]. */
+    val CommunityId: String = "communityId"
+
+    /** Betweenness-based bridge score; mirrors [[ResearcherMetrics.bridgeScore]]. */
+    val BridgeScore: String = "bridgeScore"
+
+    /** How `bridgeScore` was obtained; mirrors [[ResearcherMetrics.bridgeScoreMethod]]. */
+    val BridgeScoreMethod: String = "bridgeScoreMethod"
+
+    /** k-core number; mirrors [[ResearcherMetrics.coreness]]. */
+    val Coreness: String = "coreness"
+
+    /** Metric window start year; mirrors [[ResearcherMetrics.windowStartYear]]. */
+    val WindowStartYear: String = "windowStartYear"
+
+    /** Metric window end year; mirrors [[ResearcherMetrics.windowEndYear]]. */
+    val WindowEndYear: String = "windowEndYear"
+
     /** Vertex identity and lookup keys, in declaration order. */
     val VertexKeys: Vector[String] = Vector(NodeId, ResearcherId, ComponentId, WorkId)
 
@@ -108,6 +160,28 @@ object GraphSchema:
 
     /** Descriptive `Work` vertex properties (not identity keys), in declaration order. */
     val WorkDescriptiveKeys: Vector[String] = Vector(Title, Year, Venue)
+
+    /**
+     * `Researcher` vertex metric properties mirroring [[ResearcherMetrics]], in declaration order.
+     * `componentId` is shared with [[VertexKeys]] (it is also a lookup key); [[All]] lists it once.
+     */
+    val ResearcherMetricKeys: Vector[String] = Vector(
+      PublicationCount,
+      DistinctCoauthorCount,
+      TotalCoauthorOccurrences,
+      AverageCoauthorsPerPaper,
+      MaximumCoauthorsOnOnePaper,
+      MaximumTeamWorkIds,
+      WeightedDegree,
+      ComponentId,
+      ComponentSize,
+      CommunityId,
+      BridgeScore,
+      BridgeScoreMethod,
+      Coreness,
+      WindowStartYear,
+      WindowEndYear
+    )
 
     /**
      * Properties a stored `COAUTHORED_WITH` edge must carry; storage parses an edge as a
@@ -125,7 +199,8 @@ object GraphSchema:
 
     /** Every declared property key, without duplicates, in declaration order. */
     val All: Vector[String] =
-      (VertexKeys ++ ResearcherDescriptiveKeys ++ WorkDescriptiveKeys ++ CoauthorEdgeKeys).distinct
+      (VertexKeys ++ ResearcherDescriptiveKeys ++ ResearcherMetricKeys ++ WorkDescriptiveKeys ++
+        CoauthorEdgeKeys).distinct
 
   /**
    * Identifier pattern a relationship type must match to be placed in openCypher query text

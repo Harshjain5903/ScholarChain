@@ -185,7 +185,14 @@ object BridgeScoreMethod:
  * @param bridgeScoreMethod
  *   how `bridgeScore` was obtained; one of [[BridgeScoreMethod.All]]. Defaults to
  *   [[BridgeScoreMethod.Exact]] so JSON written before this field existed still reads. When it is
- *   [[BridgeScoreMethod.NotComputed]], `bridgeScore` must be the 0.0 placeholder.
+ *   [[BridgeScoreMethod.NotComputed]], `bridgeScore` must be the 0.0 placeholder. Caveat (review
+ *   N59): legacy JSON without this field always reads back as `exact`, even when its `bridgeScore`
+ *   was a skipped 0.0 placeholder; such records cannot be told apart from a measured zero. A legacy
+ *   `bridgeScore` of 0.0 should therefore not be ranked or reported as a measured value.
+ * @param componentSize
+ *   number of researchers in this researcher's connected component (componentSize(r) in the
+ *   README), when known. Defaults to `None` so JSON and constructor calls written before this field
+ *   existed still work; when present it must be at least 1 (the component contains `r`).
  */
 case class ResearcherMetrics(
   researcherId: String,
@@ -203,8 +210,14 @@ case class ResearcherMetrics(
   windowEndYear: Int,
   provenance: Provenance,
   maximumTeamWorkIds: Vector[String] = Vector.empty,
-  bridgeScoreMethod: String = BridgeScoreMethod.Exact
+  bridgeScoreMethod: String = BridgeScoreMethod.Exact,
+  componentSize: Option[Long] = None
 ) derives ReadWriter:
+
+  require(
+    componentSize.forall(_ >= 1L),
+    s"componentSize must be >= 1 when present, got ${componentSize.getOrElse(0L)}"
+  )
 
   require(
     windowStartYear <= windowEndYear,
@@ -225,3 +238,164 @@ case class ResearcherMetrics(
     bridgeScoreMethod != BridgeScoreMethod.NotComputed || bridgeScore == 0.0,
     s"bridgeScore must be the 0.0 placeholder when bridgeScoreMethod is not-computed, got $bridgeScore"
   )
+
+/**
+ * Graph-property wire format for [[ResearcherMetrics]] stored on the Neptune `Researcher` vertex
+ * (work order DOM-P13-02). Spark (writer) and storage (reader) must both go through this object so
+ * the encoding lives in one place. Keys are [[GraphSchema.PropertyKey.ResearcherMetricKeys]].
+ *
+ * Encoding of every value as a string:
+ *   - `Int` and `Long` fields: decimal digits with an optional leading `-` (`Int.toString`).
+ *   - `Double` fields: `Double.toString` (for example `2.86`, `1.0E-4`, `NaN`); the reader also
+ *     accepts plain integers such as `3`.
+ *   - `Option` fields (`componentId`, `communityId`, `componentSize`): the key is omitted when
+ *     `None`. The reader treats an absent key or an empty string as `None`.
+ *   - `maximumTeamWorkIds`: a compact JSON array of strings, for example `["W1","W2"]`, always
+ *     written (as `[]` when empty). The reader treats an absent key or an empty string as empty.
+ *   - `bridgeScoreMethod`: one of [[BridgeScoreMethod.All]], always written. Unlike the JSON codec
+ *     the reader does NOT default it to `exact` when absent (review N59): a missing method is an
+ *     error so a skipped 0.0 placeholder is never read back as a measured score.
+ *
+ * `researcherId` and `provenance` are not metric properties: the vertex already carries them under
+ * their own keys, so the reader takes them as arguments. Unrelated keys in the property map (for
+ * example `displayName`) are ignored.
+ */
+object ResearcherMetrics:
+
+  private val IntPattern    = "-?[0-9]+".r
+  private val DoublePattern = "-?(?:[0-9]+(?:\\.[0-9]+)?(?:[eE][-+]?[0-9]+)?|Infinity)|NaN".r
+
+  /**
+   * Encodes `m` as `Researcher` vertex properties in
+   * [[GraphSchema.PropertyKey.ResearcherMetricKeys]] order, omitting `None` options.
+   *
+   * @throws IllegalArgumentException
+   *   if `componentId` or `communityId` is `Some("")`, which could not be told apart from `None`
+   *   after a round-trip
+   */
+  def toGraphProperties(m: ResearcherMetrics): Vector[(String, String)] =
+    import GraphSchema.PropertyKey as K
+    require(
+      m.componentId.forall(_.nonEmpty),
+      s"ResearcherMetrics ${m.researcherId}: componentId must not be an empty string in graph properties"
+    )
+    require(
+      m.communityId.forall(_.nonEmpty),
+      s"ResearcherMetrics ${m.researcherId}: communityId must not be an empty string in graph properties"
+    )
+    Vector(
+      Some(K.PublicationCount           -> m.publicationCount.toString),
+      Some(K.DistinctCoauthorCount      -> m.distinctCoauthorCount.toString),
+      Some(K.TotalCoauthorOccurrences   -> m.totalCoauthorOccurrences.toString),
+      Some(K.AverageCoauthorsPerPaper   -> m.averageCoauthorsPerPaper.toString),
+      Some(K.MaximumCoauthorsOnOnePaper -> m.maximumCoauthorsOnOnePaper.toString),
+      Some(K.MaximumTeamWorkIds -> ujson.write(ujson.Arr(m.maximumTeamWorkIds.map(ujson.Str(_))*))),
+      Some(K.WeightedDegree     -> m.weightedDegree.toString),
+      m.componentId.map(K.ComponentId -> _),
+      m.componentSize.map(s => K.ComponentSize -> s.toString),
+      m.communityId.map(K.CommunityId -> _),
+      Some(K.BridgeScore       -> m.bridgeScore.toString),
+      Some(K.BridgeScoreMethod -> m.bridgeScoreMethod),
+      Some(K.Coreness          -> m.coreness.toString),
+      Some(K.WindowStartYear   -> m.windowStartYear.toString),
+      Some(K.WindowEndYear     -> m.windowEndYear.toString)
+    ).flatten
+
+  /**
+   * Decodes metrics from a `Researcher` vertex property map written by [[toGraphProperties]].
+   *
+   * @return
+   *   `Right(metrics)`, or `Left(message)` naming the researcher and every missing or malformed key
+   *   (all problems are reported together, separated by `; `), or the violated
+   *   [[ResearcherMetrics]] invariant
+   */
+  def fromGraphProperties(
+    researcherId: String,
+    properties: Map[String, String],
+    provenance: Provenance
+  ): Either[String, ResearcherMetrics] =
+    import GraphSchema.PropertyKey as K
+    val errors = Vector.newBuilder[String]
+
+    def present(key: String): Option[String] = properties.get(key).filter(_.nonEmpty)
+
+    def required[A](key: String, kind: String)(parse: String => Option[A]): Option[A] =
+      properties.get(key) match
+        case None    => errors += s"missing required key '$key'"; None
+        case Some(v) => parseOrRecord(key, kind, v)(parse)
+
+    def optional[A](key: String, kind: String)(parse: String => Option[A]): Option[Option[A]] =
+      present(key) match
+        case None    => Some(None)
+        case Some(v) => parseOrRecord(key, kind, v)(parse).map(Some(_))
+
+    def parseOrRecord[A](key: String, kind: String, v: String)(parse: String => Option[A]) =
+      val parsed = parse(v)
+      if parsed.isEmpty then errors += s"key '$key' must be $kind, got '${truncate(v)}'"
+      parsed
+
+    def int(v: String): Option[Int]   = if IntPattern.matches(v) then v.toIntOption else None
+    def long(v: String): Option[Long] = if IntPattern.matches(v) then v.toLongOption else None
+    def double(v: String): Option[Double] =
+      if DoublePattern.matches(v) then v.toDoubleOption else None
+    def text(v: String): Option[String]   = Some(v)
+    def method(v: String): Option[String] = Some(v).filter(BridgeScoreMethod.isValid)
+    def workIds(v: String): Option[Vector[String]] =
+      scala.util.Try(ujson.read(v)).toOption.flatMap {
+        case ujson.Arr(items) if items.forall(_.strOpt.isDefined) =>
+          Some(items.map(_.str).toVector)
+        case _ => None
+      }
+
+    val publicationCount  = required(K.PublicationCount, "an integer")(int)
+    val distinctCoauthors = required(K.DistinctCoauthorCount, "an integer")(int)
+    val totalOccurrences  = required(K.TotalCoauthorOccurrences, "an integer")(int)
+    val average           = required(K.AverageCoauthorsPerPaper, "a number")(double)
+    val maxCoauthors      = required(K.MaximumCoauthorsOnOnePaper, "an integer")(int)
+    val teamWorkIds =
+      optional(K.MaximumTeamWorkIds, "a JSON array of strings")(workIds)
+        .map(_.getOrElse(Vector.empty))
+    val weightedDegree = required(K.WeightedDegree, "a number")(double)
+    val componentId    = optional(K.ComponentId, "a string")(text)
+    val componentSize  = optional(K.ComponentSize, "a 64-bit integer")(long)
+    val communityId    = optional(K.CommunityId, "a string")(text)
+    val bridgeScore    = required(K.BridgeScore, "a number")(double)
+    val bridgeMethod = required(
+      K.BridgeScoreMethod,
+      s"one of ${BridgeScoreMethod.All.mkString(", ")}"
+    )(method)
+    val coreness    = required(K.Coreness, "an integer")(int)
+    val windowStart = required(K.WindowStartYear, "an integer")(int)
+    val windowEnd   = required(K.WindowEndYear, "an integer")(int)
+
+    val problems = errors.result()
+    val prefix   = s"invalid ResearcherMetrics graph properties for researcher '$researcherId'"
+    if problems.nonEmpty then Left(s"$prefix: ${problems.mkString("; ")}")
+    else
+      scala.util
+        .Try(
+          ResearcherMetrics(
+            researcherId = researcherId,
+            publicationCount = publicationCount.get,
+            distinctCoauthorCount = distinctCoauthors.get,
+            totalCoauthorOccurrences = totalOccurrences.get,
+            averageCoauthorsPerPaper = average.get,
+            maximumCoauthorsOnOnePaper = maxCoauthors.get,
+            weightedDegree = weightedDegree.get,
+            componentId = componentId.get,
+            communityId = communityId.get,
+            bridgeScore = bridgeScore.get,
+            coreness = coreness.get,
+            windowStartYear = windowStart.get,
+            windowEndYear = windowEnd.get,
+            provenance = provenance,
+            maximumTeamWorkIds = teamWorkIds.get,
+            bridgeScoreMethod = bridgeMethod.get,
+            componentSize = componentSize.get
+          )
+        )
+        .toEither
+        .left
+        .map(e => s"$prefix: ${e.getMessage}")
+
+  private def truncate(v: String): String = if v.length <= 80 then v else v.take(80) + "..."
