@@ -206,8 +206,9 @@ object ScholarChainPipeline:
     )
 
     logger.info("Computing connected components (Job 4)")
-    val ccResult      = ConnectedComponentsJob.compute(graph, mapping)
-    val metricsWithCC = ConnectedComponentsJob.enrichMetrics(initialMetrics, ccResult)
+    val ccResult = ConnectedComponentsJob.compute(graph, mapping)
+    // componentId and componentSize are attached with a distributed join (no collect).
+    val metricsWithCC = CollaborationMetricsJob.withComponents(initialMetrics, ccResult.assignments)
 
     logger.info("Computing communities (Job 6)")
     val communityResult = CommunityDetectionJob.compute(graph, mapping, config.lpaMaxIterations)
@@ -380,7 +381,18 @@ object ScholarChainPipeline:
       .reduceByKey(_ + _)
       .collect()
       .sortBy(_._1)
-    val pubSum = finalMetrics.map(_.publicationCount.toLong).fold(0L)(_ + _)
+    val pubSum    = finalMetrics.map(_.publicationCount.toLong).fold(0L)(_ + _)
+    val sizeStats = ConnectedComponentsJob.componentSizeStats(finalMetrics)
+    val sizeStatsConsistent =
+      sizeStats.largestComponentSize == ccResult.largestComponentSize &&
+        sizeStats.singletonCount == ccResult.singletonCount &&
+        sizeStats.withComponentSize == sizeStats.researchers
+    if !sizeStatsConsistent then
+      logger.warn(
+        s"componentSize statistics from researcher metrics ($sizeStats) disagree with the " +
+          s"connected-components result (largest=${ccResult.largestComponentSize}, " +
+          s"singletons=${ccResult.singletonCount})"
+      )
 
     val configJson = ujson.Obj(
       "hadoopOutputPath"        -> config.hadoopOutputPath,
@@ -575,7 +587,16 @@ object ScholarChainPipeline:
         "largestSize"     -> ccResult.largestComponentSize.toDouble,
         "largestFraction" -> ccResult.largestComponentFraction,
         "largestId"       -> ccResult.largestComponentId.getOrElse[String](""),
-        "singletons"      -> ccResult.singletonCount.toDouble
+        "singletons"      -> ccResult.singletonCount.toDouble,
+        // componentSize(r) as carried on the researcher metrics (README statistics).
+        "componentSize" -> ujson.Obj(
+          "researchers"              -> sizeStats.researchers.toDouble,
+          "withComponentSize"        -> sizeStats.withComponentSize.toDouble,
+          "largestComponentSize"     -> sizeStats.largestComponentSize.toDouble,
+          "largestComponentFraction" -> sizeStats.largestComponentFraction,
+          "singletonCount"           -> sizeStats.singletonCount.toDouble,
+          "consistentWithComponents" -> sizeStatsConsistent
+        )
       ),
       "communities" -> communitiesJson,
       "kcore"       -> kcoreJson,

@@ -17,7 +17,10 @@ object RunManifest:
   /** Environment variable that supplies the code git SHA when `--git-sha` is absent. */
   val GitShaEnv: String = "SCHOLARCHAIN_GIT_SHA"
 
-  /** Environment variable (`true`/`false`) that supplies the dirty flag when `--git-dirty` is absent. */
+  /**
+   * Environment variable (`true`/`false`) that supplies the dirty flag when `--git-dirty` is
+   * absent.
+   */
   val GitDirtyEnv: String = "SCHOLARCHAIN_GIT_DIRTY"
 
   /**
@@ -121,20 +124,22 @@ object RunManifest:
    * very large inputs. A missing root contributes no files.
    */
   def inputFiles(conf: Configuration, roots: Seq[String]): Vector[InputFile] =
-    roots.toVector.flatMap { root =>
-      val raw      = new Path(root)
-      val fs       = raw.getFileSystem(conf)
-      val rootPath = fs.makeQualified(raw)
-      if !fs.exists(rootPath) then Vector.empty
-      else
-        val it  = fs.listFiles(rootPath, true)
-        val buf = Vector.newBuilder[InputFile]
-        while it.hasNext do
-          val status = it.next()
-          val p      = fs.makeQualified(status.getPath)
-          // Path components below the root only: a dot-prefixed ancestor of the root is not hidden.
-          val parts = Iterator.iterate(p)(_.getParent).takeWhile(x => x != null && x != rootPath)
-          if status.isFile && !parts.exists(x => hidden(x.getName)) then
-            buf += InputFile(p.toString, status.getLen, sha256(fs.open(p)))
-        buf.result()
-    }.sortBy(_.path)
+    roots.toVector
+      .flatMap { root =>
+        val raw      = new Path(root)
+        val fs       = raw.getFileSystem(conf)
+        val rootPath = fs.makeQualified(raw)
+        if !fs.exists(rootPath) then Vector.empty
+        else
+          val it  = fs.listFiles(rootPath, true)
+          val buf = Vector.newBuilder[InputFile]
+          while it.hasNext do
+            val status = it.next()
+            val p      = fs.makeQualified(status.getPath)
+            // Path components below the root only: a dot-prefixed ancestor of the root is not hidden.
+            val parts = Iterator.iterate(p)(_.getParent).takeWhile(x => x != null && x != rootPath)
+            if status.isFile && !parts.exists(x => hidden(x.getName)) then
+              buf += InputFile(p.toString, status.getLen, sha256(fs.open(p)))
+          buf.result()
+      }
+      .sortBy(_.path)

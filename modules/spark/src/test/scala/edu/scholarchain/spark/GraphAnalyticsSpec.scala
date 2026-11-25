@@ -86,6 +86,57 @@ class GraphAnalyticsSpec extends SparkTestBase:
     assignments.find(_._1 == "R6").map(_._3) shouldBe Some(1L)
   }
 
+  test("withComponents fills componentId and componentSize from the CC output by join") {
+    val ccResult = ConnectedComponentsJob.compute(graph, mapping)
+    val base = CollaborationMetricsJob.compute(
+      sc,
+      edgesRdd,
+      sc.parallelize(TestFixtures.authorships),
+      2000,
+      2030,
+      TestFixtures.lineage()
+    )
+    // R6 has no authorships or edges in the fixture; give it metrics so the singleton is covered.
+    val r6 = base
+      .first()
+      .copy(researcherId = "R6", maximumCoauthorsOnOnePaper = 0, maximumTeamWorkIds = Vector.empty)
+    // A researcher without a CC assignment keeps its (absent) component fields.
+    val ghost   = r6.copy(researcherId = "R-ghost")
+    val metrics = base.union(sc.parallelize(Seq(r6, ghost)))
+    val enriched = CollaborationMetricsJob
+      .withComponents(metrics, ccResult.assignments)
+      .collect()
+      .map(m => m.researcherId -> m)
+      .toMap
+    enriched.keySet shouldBe Set("R1", "R2", "R3", "R4", "R5", "R6", "R-ghost")
+    Seq("R1", "R2", "R3", "R4", "R5").foreach { r =>
+      enriched(r).componentSize shouldBe Some(5L)
+      enriched(r).componentId shouldBe Some("component:R1")
+    }
+    enriched("R6").componentSize shouldBe Some(1L)
+    enriched("R6").componentId shouldBe Some("component:R6")
+    enriched("R-ghost").componentSize shouldBe None
+    enriched("R-ghost").componentId shouldBe None
+    // enrichMetrics delegates to the same join.
+    ConnectedComponentsJob
+      .enrichMetrics(metrics, ccResult)
+      .collect()
+      .map(m => m.researcherId -> m.componentSize)
+      .toMap shouldBe enriched.view.mapValues(_.componentSize).toMap
+
+    val stats = ConnectedComponentsJob.componentSizeStats(sc.parallelize(enriched.values.toSeq))
+    stats.researchers shouldBe 7L
+    stats.withComponentSize shouldBe 6L
+    stats.largestComponentSize shouldBe 5L
+    stats.largestComponentFraction shouldBe (5.0 / 7.0 +- 1e-12)
+    stats.singletonCount shouldBe 1L
+  }
+
+  test("componentSizeStats of no researchers is all zero") {
+    ConnectedComponentsJob.componentSizeStats(sc.emptyRDD[ResearcherMetrics]) shouldBe
+      ConnectedComponentsJob.ComponentSizeStats(0L, 0L, 0L, 0.0, 0L)
+  }
+
   // ---- Shortest paths ----
 
   test("shortest path between connected pair R1-R5") {

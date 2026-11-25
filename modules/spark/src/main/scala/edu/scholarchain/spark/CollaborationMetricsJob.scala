@@ -13,7 +13,9 @@ import org.apache.spark.SparkContext
  * M_r: `maximumTeamWorkIds`, the work IDs on which the researcher had M_r coauthors (sorted, capped
  * at [[MaxTeamWorkIdsCap]], empty when M_r is 0).
  *
- * Component, community, bridge, and coreness fields are left as defaults and filled by later jobs.
+ * Component, community, bridge, and coreness fields are left as defaults by [[compute]]. The
+ * component fields (`componentId`, `componentSize`) are filled by [[withComponents]] from the
+ * [[ConnectedComponentsJob]] output; community, bridge and coreness by their own jobs.
  */
 object CollaborationMetricsJob:
 
@@ -119,3 +121,29 @@ object CollaborationMetricsJob:
       }
 
     allResearchers
+
+  /**
+   * Fill `componentId` and `componentSize` (componentSize(r) in the README) from the
+   * connected-components assignments `(researcherId, componentId, componentSize)` produced by
+   * [[ConnectedComponentsJob.compute]].
+   *
+   * The assignments are attached with a distributed left outer join keyed by researcher ID; neither
+   * the graph nor the assignments are collected to the driver. A researcher without an assignment
+   * keeps its existing component fields (normally `None`), so a missing assignment is visible as an
+   * absent `componentSize` rather than an invented value.
+   */
+  def withComponents(
+    metrics: RDD[ResearcherMetrics],
+    assignments: RDD[(String, String, Long)]
+  ): RDD[ResearcherMetrics] =
+    val byResearcher = assignments.map { case (rid, componentId, size) =>
+      (rid, (componentId, size))
+    }
+    metrics
+      .map(m => (m.researcherId, m))
+      .leftOuterJoin(byResearcher)
+      .map { case (_, (m, component)) =>
+        component.fold(m) { case (componentId, size) =>
+          m.copy(componentId = Some(componentId), componentSize = Some(size))
+        }
+      }

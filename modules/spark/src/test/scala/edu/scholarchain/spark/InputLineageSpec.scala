@@ -23,12 +23,16 @@ class InputLineageSpec extends AnyFunSuite with Matchers:
   test("ER policy is derived from a single-policy decision input") {
     L.resolvePolicyVersion(None, Seq("er-mention-v1-uncalibrated")) shouldBe
       Right("er-mention-v1-uncalibrated")
-    L.resolvePolicyVersion(Some("er-mention-v1-uncalibrated"), Seq("er-mention-v1-uncalibrated")) shouldBe
+    L.resolvePolicyVersion(
+      Some("er-mention-v1-uncalibrated"),
+      Seq("er-mention-v1-uncalibrated")
+    ) shouldBe
       Right("er-mention-v1-uncalibrated")
   }
 
   test("an explicit --policy-version that disagrees with the decisions fails fast") {
-    val err = L.resolvePolicyVersion(Some("v1"), Seq("er-mention-v1-uncalibrated")).left.toOption.get
+    val err =
+      L.resolvePolicyVersion(Some("v1"), Seq("er-mention-v1-uncalibrated")).left.toOption.get
     err should include("--policy-version 'v1' disagrees")
     err should include("er-mention-v1-uncalibrated")
   }

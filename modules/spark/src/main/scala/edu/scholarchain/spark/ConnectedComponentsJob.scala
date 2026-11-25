@@ -86,17 +86,56 @@ object ConnectedComponentsJob:
       largestComponentSize = largestSize
     )
 
-  /** Update ResearcherMetrics with component IDs. */
+  /**
+   * Update ResearcherMetrics with component IDs and component sizes. Delegates to
+   * [[CollaborationMetricsJob.withComponents]] (a distributed join).
+   */
   def enrichMetrics(
     metrics: RDD[ResearcherMetrics],
     result: ComponentResult
   ): RDD[ResearcherMetrics] =
-    val compMap = result.assignments.map { case (rid, compId, _) =>
-      (rid, compId)
-    }
-    metrics
-      .map(m => (m.researcherId, m))
-      .leftOuterJoin(compMap)
-      .map { case (_, (m, compOpt)) =>
-        m.copy(componentId = compOpt.orElse(m.componentId))
+    CollaborationMetricsJob.withComponents(metrics, result.assignments)
+
+  /**
+   * componentSize(r) statistics over the final researcher metrics, as required by the README:
+   *
+   * @param researchers
+   *   researchers with metrics (the denominator of [[largestComponentFraction]])
+   * @param withComponentSize
+   *   researchers whose `componentSize` is known
+   * @param largestComponentSize
+   *   the largest `componentSize` of any researcher (0 when none is known)
+   * @param largestComponentFraction
+   *   `largestComponentSize / researchers` (0.0 when there are no researchers)
+   * @param singletonCount
+   *   researchers with `componentSize == 1`, i.e. the number of singleton components
+   */
+  final case class ComponentSizeStats(
+    researchers: Long,
+    withComponentSize: Long,
+    largestComponentSize: Long,
+    largestComponentFraction: Double,
+    singletonCount: Long
+  )
+
+  /**
+   * Compute [[ComponentSizeStats]] from `metrics.componentSize` with one distributed fold; only the
+   * scalar result reaches the driver.
+   */
+  def componentSizeStats(metrics: RDD[ResearcherMetrics]): ComponentSizeStats =
+    val (researchers, known, largest, singletons) = metrics
+      .map { m =>
+        val size = m.componentSize.getOrElse(0L)
+        (1L, if m.componentSize.isDefined then 1L else 0L, size, if size == 1L then 1L else 0L)
       }
+      .fold((0L, 0L, 0L, 0L)) { case ((r1, k1, l1, s1), (r2, k2, l2, s2)) =>
+        (r1 + r2, k1 + k2, math.max(l1, l2), s1 + s2)
+      }
+    ComponentSizeStats(
+      researchers = researchers,
+      withComponentSize = known,
+      largestComponentSize = largest,
+      largestComponentFraction =
+        if researchers > 0 then largest.toDouble / researchers.toDouble else 0.0,
+      singletonCount = singletons
+    )

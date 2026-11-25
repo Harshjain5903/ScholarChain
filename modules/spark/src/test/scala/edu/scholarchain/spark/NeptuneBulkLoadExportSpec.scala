@@ -12,10 +12,10 @@ import scala.jdk.CollectionConverters.*
  * openCypher queries match on.
  *
  * Expected key sets are derived from [[GraphSchema]] (`VertexKeys`, `ResearcherDescriptiveKeys`,
- * `WorkDescriptiveKeys`, `CoauthorEdgeKeys`, `Provenance`), not hand-copied, so a schema change
- * that the export does not follow fails here. The spark module cannot depend on storage (module
- * boundaries), so a direct cross-module assertion against the storage queries belongs in the
- * `tests/contracts` tree.
+ * `ResearcherMetricKeys`, `WorkDescriptiveKeys`, `CoauthorEdgeKeys`, `Provenance`), not
+ * hand-copied, so a schema change that the export does not follow fails here. The spark module
+ * cannot depend on storage (module boundaries), so a direct cross-module assertion against the
+ * storage queries belongs in the `tests/contracts` tree.
  */
 class NeptuneBulkLoadExportSpec extends SparkTestBase:
 
@@ -27,7 +27,7 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
   /**
    * Expected property keys per header, derived from GraphSchema: identity keys are the `VertexKeys`
    * that belong to the label (a Work has no researcher/component identity; a Researcher has no work
-   * identity), plus the label's descriptive keys and `provenance`.
+   * identity), plus the label's descriptive keys, the Researcher metric keys and `provenance`.
    */
   private object Expected:
 
@@ -35,7 +35,13 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
     private val researcherOnly: Set[String] = Set(Key.ResearcherId, Key.ComponentId)
 
     val researcherKeys: Set[String] =
-      Key.VertexKeys.toSet.diff(workOnly) ++ Key.ResearcherDescriptiveKeys + Key.Provenance
+      Key.VertexKeys.toSet.diff(workOnly) ++ Key.ResearcherDescriptiveKeys ++
+        Key.ResearcherMetricKeys + Key.Provenance
+
+    /** The Researcher header columns, in order, derived from GraphSchema. */
+    val researcherColumnKeys: Vector[String] =
+      Vector(Key.NodeId, Key.ResearcherId) ++ Key.ResearcherMetricKeys ++
+        Key.ResearcherDescriptiveKeys :+ Key.Provenance
 
     val workKeys: Set[String] =
       Key.VertexKeys.toSet.diff(researcherOnly) ++ Key.WorkDescriptiveKeys + Key.Provenance
@@ -88,28 +94,75 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
     policyVersion = Some("er-policy-1")
   )
 
-  private lazy val outDir: Path =
-    val dir = Files.createTempDirectory("neptune-export")
-    val metrics = sc.parallelize(
-      Seq("R1", "R2", "R3").map(r =>
-        ResearcherMetrics(
-          r,
-          1,
-          1,
-          1,
-          1.0,
-          1,
-          1.0,
-          Some("component:R1"),
-          None,
-          0.0,
-          1,
-          2000,
-          2030,
-          prov(r)
-        )
-      )
+  /** A JSON work ID containing a comma and quotes (needs CSV quoting and JSON escaping). */
+  private val trickyWorkId = "work:conf/a,b \"x\""
+
+  /**
+   * Metrics covering every value shape: R1 has M_r ties (several maximum-team works, one with a
+   * comma), a non-terminating average, sampled bridges and every option present; R2 has every
+   * option absent, M_r = 0 and a scientific-notation bridge score; R3 has not-computed bridges.
+   */
+  private lazy val exportedMetrics: Seq[ResearcherMetrics] = Seq(
+    ResearcherMetrics(
+      researcherId = "R1",
+      publicationCount = 3,
+      distinctCoauthorCount = 2,
+      totalCoauthorOccurrences = 4,
+      averageCoauthorsPerPaper = 4.0 / 3.0,
+      maximumCoauthorsOnOnePaper = 2,
+      weightedDegree = 3.0,
+      componentId = Some("component:R1"),
+      communityId = Some("community:R1"),
+      bridgeScore = 0.125,
+      coreness = 2,
+      windowStartYear = 2000,
+      windowEndYear = 2030,
+      provenance = prov("R1"),
+      maximumTeamWorkIds = Vector("work:w1", "work:w3", trickyWorkId),
+      bridgeScoreMethod = BridgeScoreMethod.Sampled,
+      componentSize = Some(3L)
+    ),
+    ResearcherMetrics(
+      researcherId = "R2",
+      publicationCount = 1,
+      distinctCoauthorCount = 0,
+      totalCoauthorOccurrences = 0,
+      averageCoauthorsPerPaper = 0.0,
+      maximumCoauthorsOnOnePaper = 0,
+      weightedDegree = 0.0,
+      componentId = Some("component:R1"),
+      communityId = None,
+      bridgeScore = 1.0e-4,
+      coreness = 0,
+      windowStartYear = 2000,
+      windowEndYear = 2030,
+      provenance = prov("R2, \"quoted\""),
+      componentSize = None
+    ),
+    ResearcherMetrics(
+      researcherId = "R3",
+      publicationCount = 1,
+      distinctCoauthorCount = 1,
+      totalCoauthorOccurrences = 1,
+      averageCoauthorsPerPaper = 1.0,
+      maximumCoauthorsOnOnePaper = 1,
+      weightedDegree = 1.0,
+      componentId = Some("component:R1"),
+      communityId = Some("community:R1"),
+      bridgeScore = 0.0,
+      coreness = 1,
+      windowStartYear = 2000,
+      windowEndYear = 2030,
+      provenance = prov("R3"),
+      maximumTeamWorkIds = Vector("work:w2"),
+      bridgeScoreMethod = BridgeScoreMethod.NotComputed,
+      componentSize = Some(5000000000L)
     )
+  )
+
+  private lazy val outDir: Path =
+    val dir     = Files.createTempDirectory("neptune-export")
+    val metrics = sc.parallelize(exportedMetrics)
     val edges = sc.parallelize(
       Seq(
         CoauthorEdge("R1", "R2", 2, 2019, 2020, Vector("work:w1", "work:w2"), prov("e1")),
@@ -122,7 +175,10 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
         N.WorkNode("work:w2", prov("w2"), None, Some(2020), None)
       )
     )
-    val names = sc.parallelize(Seq("R1" -> "Ada Lovelace", "R2" -> "Alan Turing"))
+    // R9 has a display name but no metrics (outside the window): it must be excluded.
+    val names = sc.parallelize(
+      Seq("R1" -> "Ada Lovelace", "R2" -> "Alan Turing", "R9" -> "Outside Window")
+    )
     val authorships = sc.parallelize(
       Seq(
         "R1" -> "work:w1",
@@ -163,6 +219,145 @@ class NeptuneBulkLoadExportSpec extends SparkTestBase:
       .asScala
       .toSeq
       .filter(_.getFileName.toString.startsWith("part-"))
+
+  /**
+   * Minimal RFC 4180 parser, independent of Spark, standing in for the Neptune loader: fields are
+   * separated by commas, a quoted field may contain commas, newlines and doubled quotes. An empty
+   * unquoted field is `None` (Neptune: property not set); a quoted field is always `Some`.
+   */
+  private def parseCsv(text: String): Vector[Vector[Option[String]]] =
+    val records = Vector.newBuilder[Vector[Option[String]]]
+    var fields  = Vector.newBuilder[Option[String]]
+    val field   = new StringBuilder
+    var quoted  = false
+    var inQuote = false
+    var i       = 0
+    def endField(): Unit =
+      fields += (if quoted || field.nonEmpty then Some(field.toString) else None)
+      field.clear(); quoted = false
+    while i < text.length do
+      val c = text.charAt(i)
+      if inQuote then
+        if c == '"' then
+          if i + 1 < text.length && text.charAt(i + 1) == '"' then
+            field += '"'; i += 1
+          else inQuote = false
+        else field += c
+      else
+        c match
+          case '"'  => inQuote = true; quoted = true
+          case ','  => endField()
+          case '\r' => ()
+          case '\n' =>
+            endField(); records += fields.result(); fields = Vector.newBuilder
+          case other => field += other
+      i += 1
+    if field.nonEmpty || quoted then
+      endField(); records += fields.result()
+    records.result()
+
+  /** Researcher node rows from the raw part files: header -> cell (None = empty unquoted cell). */
+  private lazy val rawResearcherRows: Seq[Map[String, Option[String]]] =
+    partFiles(N.Dir.ResearcherNodes).filter(f => Files.size(f) > 0).flatMap { f =>
+      val records = parseCsv(Files.readString(f))
+      val header  = records.head.map(_.get)
+      header shouldBe N.ResearcherNodeHeader
+      records.tail.map { r =>
+        r should have size header.size.toLong
+        header.zip(r).toMap
+      }
+    }
+
+  /** Decode one raw row the way a reader of the loaded vertex would. */
+  private def decode(row: Map[String, Option[String]]): Either[String, ResearcherMetrics] =
+    val properties = row.collect {
+      case (h, Some(v)) if !N.System.All.contains(h) => N.propertyKeyOf(h) -> v
+    }
+    ResearcherMetrics.fromGraphProperties(
+      row(N.System.Id).get,
+      properties,
+      upickle.default.read[Provenance](properties(Key.Provenance))
+    )
+
+  test("Researcher header has one column per GraphSchema metric key, in GraphSchema order") {
+    N.ResearcherNodeHeader
+      .filterNot(N.System.All.contains)
+      .map(N.propertyKeyOf) shouldBe Expected.researcherColumnKeys
+    N.ResearcherNodeHeader.distinct shouldBe N.ResearcherNodeHeader
+    Key.ResearcherMetricKeys.foreach { k =>
+      N.ResearcherNodeHeader.count(h => N.propertyKeyOf(h) == k) shouldBe 1
+    }
+  }
+
+  test("Researcher metric columns carry the openCypher bulk-load type suffix") {
+    val typeOf = N.ResearcherNodeHeader
+      .filterNot(N.System.All.contains)
+      .map(h => N.propertyKeyOf(h) -> h.drop(N.propertyKeyOf(h).length + 1))
+      .toMap
+    Seq(
+      Key.PublicationCount,
+      Key.DistinctCoauthorCount,
+      Key.TotalCoauthorOccurrences,
+      Key.MaximumCoauthorsOnOnePaper,
+      Key.Coreness,
+      Key.WindowStartYear,
+      Key.WindowEndYear
+    ).foreach(k => typeOf(k) shouldBe "Int")
+    typeOf(Key.ComponentSize) shouldBe "Long"
+    Seq(Key.AverageCoauthorsPerPaper, Key.WeightedDegree, Key.BridgeScore).foreach(k =>
+      typeOf(k) shouldBe "Double"
+    )
+    Seq(Key.ComponentId, Key.CommunityId, Key.BridgeScoreMethod, Key.MaximumTeamWorkIds).foreach(
+      k => typeOf(k) shouldBe "String"
+    )
+    // Every metric key is typed; the type table and GraphSchema agree exactly.
+    N.ResearcherMetricTypes.keySet shouldBe Key.ResearcherMetricKeys.toSet
+  }
+
+  test("round-trip: export, parse the CSV row, fromGraphProperties equals the original metrics") {
+    val rows = rawResearcherRows.map(r => r(N.System.Id).get -> r).toMap
+    rows.keySet shouldBe exportedMetrics.map(_.researcherId).toSet
+    exportedMetrics.foreach { m =>
+      decode(rows(m.researcherId)) shouldBe Right(m)
+    }
+    // R1: M_r ties are one JSON-array string, including the work ID with a comma and quotes.
+    val r1Ids = rows("R1")(N.property(Key.MaximumTeamWorkIds)).get
+    upickle.default.read[Vector[String]](r1Ids) shouldBe Vector("work:w1", "work:w3", trickyWorkId)
+    rows("R1")(N.property(Key.ComponentSize, "Long")) shouldBe Some("3")
+    rows("R3")(N.property(Key.ComponentSize, "Long")) shouldBe Some("5000000000")
+    // The same rows read back through Spark's CSV reader (as other consumers do) also decode.
+    read(N.Dir.ResearcherNodes).collect().foreach { r =>
+      val row = r.schema.fieldNames.map(h => h -> Option(r.getAs[String](h))).toMap
+      decode(row).map(_.researcherId) shouldBe Right(row(N.System.Id).get)
+    }
+  }
+
+  test("absent options are empty unquoted cells, and quoting follows RFC 4180") {
+    val r2 = rawResearcherRows.find(_(N.System.Id).contains("R2")).get
+    r2(N.property(Key.CommunityId)) shouldBe None
+    r2(N.property(Key.ComponentSize, "Long")) shouldBe None
+    r2(N.property(Key.MaximumTeamWorkIds)) shouldBe Some("[]")
+    r2(N.property(Key.BridgeScore, "Double")) shouldBe Some("1.0E-4")
+    val raw = partFiles(N.Dir.ResearcherNodes).map(f => Files.readString(f)).mkString
+    // The JSON array is one quoted CSV field: CSV doubles the quotes, JSON escapes the inner ones.
+    raw should include("\"[\"\"work:w1\"\",\"\"work:w3\"\",\"\"work:conf/a,b \\\"\"x\\\"\"\"\"]\"")
+    // R2's row has bare empty fields for communityId and componentSize (no quoted "").
+    val r2Line = raw.linesIterator.find(_.startsWith("R2,")).get
+    r2Line should include(",component:R1,,")
+    r2Line should not include ",\"\","
+  }
+
+  test("researchers without metrics are excluded and every exported row decodes") {
+    rawResearcherRows.map(_(N.System.Id).get) should not contain "R9"
+    rawResearcherRows.foreach(r => decode(r).isRight shouldBe true)
+    // No exported row has an empty cell for a key the reader requires.
+    val requiredKeys = Key.ResearcherMetricKeys.filterNot(
+      Set(Key.ComponentId, Key.ComponentSize, Key.CommunityId, Key.MaximumTeamWorkIds)
+    )
+    rawResearcherRows.foreach { r =>
+      requiredKeys.foreach(k => r(N.property(k, N.researcherMetricType(k))) shouldBe defined)
+    }
+  }
 
   test("written labels and relationship types are GraphSchema values") {
     read(N.Dir.ResearcherNodes).select(":LABEL").collect().map(_.getString(0)).toSet shouldBe Set(

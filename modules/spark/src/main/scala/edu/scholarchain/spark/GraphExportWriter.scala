@@ -115,7 +115,8 @@ object GraphExportWriter:
           ArrayType(StringType, containsNull = false),
           nullable = false
         ),
-        StructField("bridgeScoreMethod", StringType, nullable = false)
+        StructField("bridgeScoreMethod", StringType, nullable = false),
+        StructField("componentSize", LongType, nullable = true)
       )
     )
     val rows = metrics.map { m =>
@@ -135,7 +136,8 @@ object GraphExportWriter:
         m.windowEndYear,
         write(m.provenance),
         m.maximumTeamWorkIds,
-        m.bridgeScoreMethod
+        m.bridgeScoreMethod,
+        m.componentSize.map(Long.box).orNull
       )
     }
     val df = spark.createDataFrame(rows, schema)

@@ -23,7 +23,8 @@ import java.security.MessageDigest
  * other header vectors for the exact columns:
  * {{{
  *   nodes/researcher/       :ID, :LABEL=<VertexLabel.Researcher>, nodeId, researcherId,
- *                           componentId, displayName, provenance
+ *                           <one typed column per PropertyKey.ResearcherMetricKeys entry,
+ *                           including componentId>, displayName, provenance
  *   nodes/work/             :ID, :LABEL=<VertexLabel.Work>, nodeId, workId, title, year:Int,
  *                           venue, provenance
  *   relationships/coauthor/ :ID, :START_ID, :END_ID, :TYPE=<EdgeType.Coauthor>, researcherA,
@@ -47,6 +48,24 @@ import java.security.MessageDigest
  *   - `provenance` (an object) and `representativeWorkIds` (a list) are stored as JSON text in a
  *     String property, because Neptune properties cannot hold maps. Consumers must decode these two
  *     properties from JSON.
+ *   - Researcher metric columns: one per [[GraphSchema.PropertyKey.ResearcherMetricKeys]] entry,
+ *     typed by [[researcherMetricType]] (`:Int` / `:Long` counts, coreness and window years;
+ *     `:Double` averages, weighted degree and bridgeScore; `:String` componentId, communityId,
+ *     bridgeScoreMethod and maximumTeamWorkIds). Every value is the text produced by
+ *     [[ResearcherMetrics.toGraphProperties]], so the wire format is defined in core only and a
+ *     reader recovers the metrics with [[ResearcherMetrics.fromGraphProperties]]. A key that
+ *     `toGraphProperties` omits (a `None` option) is an empty unquoted cell, which the Neptune
+ *     loader treats as "property not set". `maximumTeamWorkIds` is one JSON-array string in a
+ *     single `:String` column (not a `String[]` multi-value column), CSV-quoted like any other
+ *     field.
+ *   - Researchers without metrics are EXCLUDED, not exported with empty metric cells: the
+ *     researcher node set is exactly the researchers in `metrics` (one row each). Empty cells for
+ *     required metric keys would make every reader fail (`fromGraphProperties` requires them, and
+ *     deliberately does not default `bridgeScoreMethod`). In the pipeline `metrics` covers every
+ *     researcher with an in-window authorship or coauthor edge, so every relationship endpoint
+ *     still exists; a display name for a researcher outside the window is dropped.
+ *   - All values are written as text (Spark `StringType`); the `:Int`/`:Long`/`:Double` suffix in
+ *     the header tells the loader how to type them.
  *   - Fields with RFC 4180 quoting (`"` doubled); no whitespace trimming; no compression.
  *   - No `_SUCCESS` marker is written under `neptune/`, so the directory can be used directly as a
  *     bulk-load source prefix. (Local `file://` runs still produce Hadoop `.crc` side files; S3
@@ -91,13 +110,46 @@ object NeptuneBulkLoadExport:
   /** The property key of a non-system header (the part before the type suffix). */
   def propertyKeyOf(header: String): String = header.takeWhile(_ != ':')
 
+  /**
+   * openCypher bulk-load type of each [[GraphSchema.PropertyKey.ResearcherMetricKeys]] entry. Every
+   * metric key must have an entry; this is checked when the object initialises, so a metric key
+   * added to `GraphSchema` without a type fails fast instead of silently defaulting.
+   */
+  val ResearcherMetricTypes: Map[String, String] = Map(
+    Key.PublicationCount           -> "Int",
+    Key.DistinctCoauthorCount      -> "Int",
+    Key.TotalCoauthorOccurrences   -> "Int",
+    Key.AverageCoauthorsPerPaper   -> "Double",
+    Key.MaximumCoauthorsOnOnePaper -> "Int",
+    Key.MaximumTeamWorkIds         -> "String",
+    Key.WeightedDegree             -> "Double",
+    Key.ComponentId                -> "String",
+    Key.ComponentSize              -> "Long",
+    Key.CommunityId                -> "String",
+    Key.BridgeScore                -> "Double",
+    Key.BridgeScoreMethod          -> "String",
+    Key.Coreness                   -> "Int",
+    Key.WindowStartYear            -> "Int",
+    Key.WindowEndYear              -> "Int"
+  )
+
+  require(
+    ResearcherMetricTypes.keySet == Key.ResearcherMetricKeys.toSet,
+    "ResearcherMetricTypes must type exactly GraphSchema.PropertyKey.ResearcherMetricKeys; " +
+      s"missing ${Key.ResearcherMetricKeys.toSet.diff(ResearcherMetricTypes.keySet)}, " +
+      s"extra ${ResearcherMetricTypes.keySet.diff(Key.ResearcherMetricKeys.toSet)}"
+  )
+
+  /** openCypher CSV type of a researcher metric key (see [[ResearcherMetricTypes]]). */
+  def researcherMetricType(key: String): String = ResearcherMetricTypes(key)
+
   val ResearcherNodeHeader: Vector[String] = Vector(
     System.Id,
     System.Label,
     property(Key.NodeId),
-    property(Key.ResearcherId),
-    property(Key.ComponentId)
-  ) ++ Key.ResearcherDescriptiveKeys.map(k => property(k)) :+ property(Key.Provenance)
+    property(Key.ResearcherId)
+  ) ++ Key.ResearcherMetricKeys.map(k => property(k, researcherMetricType(k))) ++
+    Key.ResearcherDescriptiveKeys.map(k => property(k)) :+ property(Key.Provenance)
 
   /** openCypher CSV type of each `Work` descriptive key. */
   private def workPropertyType(key: String): String = if key == Key.Year then "Int" else "String"
@@ -151,7 +203,11 @@ object NeptuneBulkLoadExport:
 
   /**
    * Rows for Researcher nodes, one per researcher in `metrics`; `displayNames` (researcherId, name)
-   * supplies `displayName`, which is left empty for researchers without one.
+   * supplies `displayName`, which is left empty for researchers without one. Names of researchers
+   * that have no metrics are dropped (such researchers are excluded, see the object docs).
+   *
+   * Metric cells are the values of [[ResearcherMetrics.toGraphProperties]] in
+   * [[GraphSchema.PropertyKey.ResearcherMetricKeys]] order; an omitted key is null (empty cell).
    */
   def researcherRows(
     metrics: RDD[ResearcherMetrics],
@@ -162,15 +218,12 @@ object NeptuneBulkLoadExport:
       .map(m => (m.researcherId, m))
       .leftOuterJoin(oneName)
       .map { case (_, (m, name)) =>
-        Row(
-          m.researcherId,
-          Label.Researcher,
-          m.researcherId,
-          m.researcherId,
-          m.componentId.orNull,
-          name.orNull,
-          write(m.provenance)
-        )
+        val props = ResearcherMetrics.toGraphProperties(m).toMap
+        val cells: Vector[Any] =
+          Vector(m.researcherId, Label.Researcher, m.researcherId, m.researcherId) ++
+            Key.ResearcherMetricKeys.map(k => props.get(k).orNull) ++
+            Vector(name.orNull, write(m.provenance))
+        Row.fromSeq(cells)
       }
 
   /**
@@ -196,7 +249,7 @@ object NeptuneBulkLoadExport:
           workId,
           workId,
           w.title.filter(_.nonEmpty).orNull,
-          w.year.map(Int.box).orNull,
+          w.year.map(_.toString).orNull,
           w.venue.filter(_.nonEmpty).orNull,
           write(w.provenance)
         )
@@ -226,9 +279,9 @@ object NeptuneBulkLoadExport:
         Rel.Coauthor,
         e.researcherA,
         e.researcherB,
-        e.jointPublicationCount,
-        e.firstCollaborationYear,
-        e.lastCollaborationYear,
+        e.jointPublicationCount.toString,
+        e.firstCollaborationYear.toString,
+        e.lastCollaborationYear.toString,
         write(e.representativeWorkIds),
         write(e.provenance)
       )
@@ -244,11 +297,13 @@ object NeptuneBulkLoadExport:
       Row(id, rid, workId, Rel.Authored, write(lineage.prov(Job, "authorship-export", id)))
     }
 
+  /**
+   * Every column is written as text: numeric values are pre-encoded (by `toString` or by
+   * [[ResearcherMetrics.toGraphProperties]]) and the header's type suffix tells the loader how to
+   * type them.
+   */
   private def schemaOf(header: Vector[String]): StructType =
-    StructType(header.map { h =>
-      val dataType = if h.endsWith(":Int") then IntegerType else StringType
-      StructField(h, dataType, nullable = true)
-    })
+    StructType(header.map(h => StructField(h, StringType, nullable = true)))
 
   /** Hadoop committer flag controlling the `_SUCCESS` marker. */
   private val SuccessMarkerKey = "mapreduce.fileoutputcommitter.marksuccessfuljobs"

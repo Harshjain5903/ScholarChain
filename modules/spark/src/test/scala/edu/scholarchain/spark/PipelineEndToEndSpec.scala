@@ -206,6 +206,14 @@ class PipelineEndToEndSpec extends SparkTestBase:
     num(s("components")("largestSize")) shouldBe 4L
     num(s("components")("singletons")) shouldBe 1L
     s("components")("largestId").str shouldBe "component:m:W1:0"
+    // componentSize(r) statistics from the researcher metrics: 4 of 7 researchers, 1 singleton.
+    val cs = s("components")("componentSize")
+    num(cs("researchers")) shouldBe 7L
+    num(cs("withComponentSize")) shouldBe 7L
+    num(cs("largestComponentSize")) shouldBe 4L
+    cs("largestComponentFraction").num shouldBe (4.0 / 7.0 +- 1e-12)
+    num(cs("singletonCount")) shouldBe 1L
+    cs("consistentWithComponents").bool shouldBe true
     num(s("communities")("count")) shouldBe 3L
     s("communities")("algorithm").str should include("propagateLabels")
     num(s("kcore")("maxCoreness")) shouldBe 2L
@@ -382,6 +390,44 @@ class PipelineEndToEndSpec extends SparkTestBase:
       BridgeScoreMethod.Exact
     )
     statsA("bridges")("method").str shouldBe BridgeScoreMethod.Exact
+    // componentSize(r): {W1 team + W2:1} = 4, {W4 pair} = 2, {W3:0} = 1.
+    def size(r: String): Long = rows(r).getAs[Long]("componentSize")
+    size("m:W1:0") shouldBe 4L
+    size("m:W2:1") shouldBe 4L
+    size("m:W4:1") shouldBe 2L
+    size("m:W3:0") shouldBe 1L
+  }
+
+  test("Neptune researcher nodes decode to the exported metrics, including componentSize") {
+    statsA
+    val metrics = spark.read
+      .parquet(outA.resolve("metrics").toString)
+      .collect()
+      .map(r => r.getAs[String]("researcherId") -> r)
+      .toMap
+    val nodes = csvRows(outA, NeptuneBulkLoadExport.Dir.ResearcherNodes)
+    nodes.map(_(":ID")).toSet shouldBe metrics.keySet
+    nodes.foreach { row =>
+      val properties = row.collect {
+        case (h, v) if v != null && !NeptuneBulkLoadExport.System.All.contains(h) =>
+          NeptuneBulkLoadExport.propertyKeyOf(h) -> v
+      }
+      val id = row(":ID")
+      val decoded = ResearcherMetrics
+        .fromGraphProperties(
+          id,
+          properties,
+          provOf(properties(GraphSchema.PropertyKey.Provenance))
+        )
+        .fold(e => fail(e), identity)
+      val m = metrics(id)
+      decoded.componentSize shouldBe Some(m.getAs[Long]("componentSize"))
+      decoded.componentId shouldBe Some(m.getAs[String]("componentId"))
+      decoded.publicationCount shouldBe m.getAs[Int]("publicationCount")
+      decoded.coreness shouldBe m.getAs[Int]("coreness")
+      decoded.bridgeScore shouldBe m.getAs[Double]("bridgeScore")
+      decoded.maximumTeamWorkIds shouldBe m.getSeq[String](m.fieldIndex("maximumTeamWorkIds"))
+    }
   }
 
   test("the manifest records code, argv, inputs, lineage, algorithms and output counts") {
