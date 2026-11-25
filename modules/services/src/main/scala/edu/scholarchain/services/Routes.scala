@@ -1,27 +1,51 @@
 package edu.scholarchain.services
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
-import java.io.{ByteArrayOutputStream, InputStream}
+import java.io.ByteArrayOutputStream
 import java.net.InetSocketAddress
 import java.util.UUID
-import java.util.concurrent.{ConcurrentHashMap, Executors}
+import java.util.concurrent.Executors
 import upickle.default.*
 import edu.scholarchain.core.*
-import edu.scholarchain.rag.{AuditRecord, WorkflowResult}
+import edu.scholarchain.rag.QueryPlannerAgent
 
-/** HTTP route definitions for the ScholarChain REST API. */
+/**
+ * HTTP route definitions for the ScholarChain REST API.
+ *
+ * Results are durable: `POST /v1/query` persists the response and a job record through `results`
+ * before answering, and the jobs, evidence and explain routes read only from `results` and
+ * `auditStore`, so any task behind the load balancer can serve them.
+ *
+ * @param results
+ *   durable result store; the default in-memory store is for stub mode and tests only
+ * @param readiness
+ *   configuration-presence readiness reported by `/readyz`
+ */
 class Routes(
   workflow: WorkflowPort,
   graphStore: ServiceGraphStore,
   auditStore: ServiceAuditStore,
   config: ServiceConfig,
-  idempotencyStore: Option[IdempotencyStore] = None
+  idempotencyStore: Option[IdempotencyStore] = None,
+  results: ResultStore = InMemoryResultStore(),
+  readiness: Readiness = Readiness(RuntimeMode.Stub, Vector.empty)
 ):
 
+  private val runner = DeadlineRunner(config.maxConcurrentQueries)
+
   private val idempotency =
-    idempotencyStore.getOrElse(IdempotencyStore(config.syncDeadlineMs))
-  private val queryResults = new ConcurrentHashMap[String, WorkflowResult]()
-  private val jobStore     = new ConcurrentHashMap[String, JobResponse]()
+    idempotencyStore.getOrElse(
+      IdempotencyStore(
+        awaitTimeoutMs = config.syncDeadlineMs,
+        leaderDeadlineMs = config.syncDeadlineMs,
+        ttlMs = config.idempotencyTtlMs,
+        maxEntries = config.idempotencyMaxEntries,
+        maxKeyLength = config.idempotencyMaxKeyLength,
+        runner = runner
+      )
+    )
+
+  private val planner = QueryPlannerAgent()
 
   def start(): HttpServer =
     val server = HttpServer.create(
@@ -91,85 +115,131 @@ class Routes(
         }
         .toMap
 
-  private val queryHandler: HttpHandler = (exchange: HttpExchange) =>
+  /** Runs `body` and maps any failure to the typed error response. */
+  private def handle(exchange: HttpExchange)(body: String => Unit): Unit =
     val tid = newTraceId()
-    try
-      exchange.getRequestMethod match
-        case "POST" =>
-          val body = readBody(exchange)
-          if body.trim.isEmpty then throw BadRequestException("Request body must not be empty")
-
-          val request =
-            try read[QueryRequest](body)
-            catch
-              case _: upickle.core.AbortException =>
-                throw BadRequestException("Invalid JSON in request body")
-              case _: ujson.IncompleteParseException =>
-                throw BadRequestException("Invalid JSON in request body")
-              case _: ujson.ParseException =>
-                throw BadRequestException("Invalid JSON in request body")
-              case _: upickle.core.Abort =>
-                throw BadRequestException("Invalid JSON in request body")
-
-          if request.question.trim.isEmpty then
-            throw BadRequestException("question must not be empty")
-
-          val idempotencyKey = Option(
-            exchange.getRequestHeaders.getFirst("Idempotency-Key")
-          )
-
-          def executeQuery(): String =
-            val constraints = buildConstraints(request)
-            val result =
-              workflow.execute(request.question, constraints)
-            val queryId = result.response.queryId
-            queryResults.put(queryId, result)
-
-            val claims = result.response.claims.map { c =>
-              ClaimPayload(
-                claimId = c.claimId,
-                text = c.statement,
-                evidenceIds = c.supportingEvidence,
-                verificationStatus = c.verificationStatus.toString,
-                uncertainty = None
-              )
-            }
-
-            val response = QueryResponse(
-              queryId = queryId,
-              mode = "synchronous",
-              answer = Some(
-                AnswerPayload(
-                  summary = result.response.generatedText,
-                  researchers = Vector.empty
-                )
-              ),
-              claims = Some(claims),
-              links = Some(
-                LinksPayload(
-                  evidence = s"/v1/evidence/$queryId",
-                  explain = s"/v1/explain/$queryId"
-                )
-              )
-            )
-
-            write(response)
-
-          // Atomic single-flight: concurrent duplicates await the first request's result.
-          val json = idempotencyKey match
-            case Some(key) => idempotency.getOrCompute(key)(executeQuery())
-            case None      => executeQuery()
-          sendJson(exchange, 200, json, tid)
-
-        case _ =>
-          throw BadRequestException("Only POST is supported on /v1/query")
+    try body(tid)
     catch
-      case e: ServiceException =>
-        val (status, err) = ErrorHandler.toErrorResponse(e, tid)
-        sendJson(exchange, status, write(err), tid)
       case e: Exception =>
         val (status, err) = ErrorHandler.toErrorResponse(e, tid)
         sendJson(exchange, status, write(err), tid)
+
+  /** Path segment after `prefix`, URL-decoded. */
+  private def pathTail(exchange: HttpExchange, prefix: String): String =
+    exchange.getRequestURI.getPath.stripPrefix(prefix)
+
+  private def requireGet(exchange: HttpExchange, route: String): Unit =
+    if exchange.getRequestMethod != "GET" then
+      throw BadRequestException(s"Only GET is supported on $route")
+
+  private def parseRequest(body: String): QueryRequest =
+    try read[QueryRequest](body)
+    catch
+      case _: upickle.core.AbortException | _: ujson.IncompleteParseException |
+          _: ujson.ParseException | _: upickle.core.Abort =>
+        throw BadRequestException("Invalid JSON in request body")
+
+  private val queryHandler: HttpHandler = (exchange: HttpExchange) =>
+    handle(exchange) { tid =>
+      if exchange.getRequestMethod != "POST" then
+        throw BadRequestException("Only POST is supported on /v1/query")
+      val body = readBody(exchange)
+      if body.trim.isEmpty then throw BadRequestException("Request body must not be empty")
+      val request = parseRequest(body)
+      if request.question.trim.isEmpty then throw BadRequestException("question must not be empty")
+
+      val idempotencyKey = Option(exchange.getRequestHeaders.getFirst("Idempotency-Key"))
+
+      // Atomic single-flight bound to the canonical request (same key + other body = 409).
+      val json = idempotencyKey match
+        case Some(key) =>
+          val fingerprint = IdempotencyStore.fingerprint(write(request))
+          idempotency.getOrCompute(key, fingerprint)(executeQuery(request))
+        case None =>
+          runner.run(config.syncDeadlineMs, "Query")(executeQuery(request))
+      sendJson(exchange, 200, json, tid)
+    }
+
+  /** Executes the workflow, persists the result and job record, and returns the response JSON. */
+  private def executeQuery(request: QueryRequest): String =
+    val constraints = buildConstraints(request)
+    val result =
+      try workflow.execute(request.question, constraints)
+      catch
+        case e: Exception if Routes.isDownstreamFailure(e) =>
+          throw DownstreamException(s"Downstream call failed: ${e.getClass.getSimpleName}")
+    val queryId = result.response.queryId
+    val jobId   = StoredQuery.jobIdFor(queryId)
+
+    val claims = result.response.claims.map { c =>
+      ClaimPayload(
+        claimId = c.claimId,
+        text = c.statement,
+        evidenceIds = c.supportingEvidence,
+        verificationStatus = c.verificationStatus.toString,
+        uncertainty = None
+      )
+    }
+
+    val response = QueryResponse(
+      queryId = queryId,
+      mode = "synchronous",
+      answer = Some(
+        AnswerPayload(
+          summary = result.response.generatedText,
+          researchers = Vector.empty
+        )
+      ),
+      claims = Some(claims),
+      links = Some(
+        LinksPayload(
+          evidence = s"/v1/evidence/$queryId",
+          explain = s"/v1/explain/$queryId",
+          job = Some(s"/v1/jobs/$jobId"),
+          result = Some(s"/v1/jobs/$jobId/result")
+        )
+      ),
+      jobId = Some(jobId)
+    )
+
+    val plan = planner.plan(request.question, constraints)
+    val now  = java.time.Instant.now().toString
+    val stored = StoredQuery(
+      queryId = queryId,
+      jobId = jobId,
+      createdAt = now,
+      response = response,
+      workflow = result,
+      plan = Some(
+        QueryPlanPayload(
+          operations = plan.operations.map(_.toString),
+          filters = plan.filters,
+          schemaVersion = plan.provenance.schemaVersion,
+          source = StoredQuery.PlanSource
+        )
+      )
+    )
+    val job = JobResponse(
+      jobId = jobId,
+      queryId = queryId,
+      state = "SUCCEEDED",
+      stage = "COMPLETE",
+      createdAt = now,
+      updatedAt = now,
+      resultUrl = Some(s"/v1/jobs/$jobId/result"),
+      error = None
+    )
+    persist("query result")(results.putQuery(stored))
+    persist("job record")(results.putJob(job))
+    write(response)
+
+  /** No answer without a durable record: a persistence failure is a retryable 502. */
+  private def persist(what: String)(f: => Unit): Unit =
+    try f
+    catch
+      case e: ServiceException => throw e
+      case e: Exception =>
+        throw DownstreamException(s"Failed to persist $what: ${e.getClass.getSimpleName}")
 
   private def buildConstraints(
     request: QueryRequest
@@ -184,173 +254,125 @@ class Routes(
     }
     b.result()
 
+  /** Reads a downstream store, mapping unexpected failures to a retryable 502. */
+  private def fromStore[A](what: String)(f: => A): A =
+    try f
+    catch
+      case e: ServiceException => throw e
+      case e: Exception =>
+        throw DownstreamException(s"Failed to read $what: ${e.getClass.getSimpleName}")
+
+  // GET /v1/jobs/{jobId} and /v1/jobs/{jobId}/result
   private val jobHandler: HttpHandler = (exchange: HttpExchange) =>
-    val tid = newTraceId()
-    try
-      exchange.getRequestMethod match
-        case "GET" =>
-          val path  = exchange.getRequestURI.getPath
-          val jobId = path.stripPrefix("/v1/jobs/")
-          if jobId.isEmpty then throw BadRequestException("Job ID must not be empty")
-          val job = jobStore.get(jobId)
-          if job == null then throw NotFoundException(s"Job $jobId not found")
-          sendJson(exchange, 200, write(job), tid)
-        case _ =>
-          throw BadRequestException("Only GET is supported on /v1/jobs/")
-    catch
-      case e: ServiceException =>
-        val (status, err) = ErrorHandler.toErrorResponse(e, tid)
-        sendJson(exchange, status, write(err), tid)
-      case e: Exception =>
-        val (status, err) = ErrorHandler.toErrorResponse(e, tid)
-        sendJson(exchange, status, write(err), tid)
+    handle(exchange) { tid =>
+      requireGet(exchange, "/v1/jobs/")
+      val tail = pathTail(exchange, "/v1/jobs/")
+      val (jobId, wantResult) =
+        if tail.endsWith("/result") then (tail.stripSuffix("/result"), true) else (tail, false)
+      if jobId.isEmpty || jobId.contains("/") then
+        throw BadRequestException("Expected /v1/jobs/{jobId} or /v1/jobs/{jobId}/result")
+      val job = fromStore("job record")(results.getJob(jobId))
+        .getOrElse(throw NotFoundException(s"Job $jobId not found"))
+      if !wantResult then sendJson(exchange, 200, write(job), tid)
+      else
+        val stored = fromStore("query result")(results.getQuery(job.queryId))
+          .getOrElse(throw NotFoundException(s"Result for job $jobId not found"))
+        sendJson(exchange, 200, write(stored.response), tid)
+    }
 
+  private def evidencePayload(item: EvidenceItem): EvidenceResponse =
+    EvidenceResponse(
+      evidenceId = item.evidenceId,
+      evidenceType = item.evidenceType.toString,
+      sourceEntityId = item.sourceEntityId,
+      sourceDataset = item.provenance.sourceDataset,
+      text = item.content,
+      textS3Uri = "",
+      score = item.score,
+      provenance = ProvenancePayload(
+        runId = item.provenance.pipelineRunId,
+        textHash = IdempotencyStore.fingerprint(item.content),
+        schemaVersion = item.provenance.schemaVersion
+      )
+    )
+
+  // GET /v1/evidence/{evidenceId} (one item) or /v1/evidence/{queryId} (all items of a query)
   private val evidenceHandler: HttpHandler = (exchange: HttpExchange) =>
-    val tid = newTraceId()
-    try
-      exchange.getRequestMethod match
-        case "GET" =>
-          val path       = exchange.getRequestURI.getPath
-          val evidenceId = path.stripPrefix("/v1/evidence/")
-          if evidenceId.isEmpty then throw BadRequestException("Evidence ID must not be empty")
+    handle(exchange) { tid =>
+      requireGet(exchange, "/v1/evidence/")
+      val id = pathTail(exchange, "/v1/evidence/")
+      if id.isEmpty then throw BadRequestException("Evidence ID must not be empty")
+      IdGen.parseEvidenceId(id) match
+        case Some((queryId, _)) =>
+          val item = fromStore("query result")(results.getQuery(queryId))
+            .flatMap(_.workflow.response.evidenceBundle.items.find(_.evidenceId == id))
+            .getOrElse(throw NotFoundException(s"Evidence $id not found"))
+          sendJson(exchange, 200, write(evidencePayload(item)), tid)
+        case None if ResultStore.isQueryId(id) =>
+          val stored = fromStore("query result")(results.getQuery(id))
+            .getOrElse(throw NotFoundException(s"Evidence $id not found"))
+          val items = stored.workflow.response.evidenceBundle.items.map(evidencePayload)
+          sendJson(exchange, 200, write(EvidenceListResponse(id, items)), tid)
+        case None =>
+          throw NotFoundException(s"Evidence $id not found")
+    }
 
-          val found                        = queryResults.values().iterator()
-          var result: Option[EvidenceItem] = None
-          while found.hasNext && result.isEmpty do
-            val wr = found.next()
-            result = wr.response.evidenceBundle.items.find(
-              _.evidenceId == evidenceId
-            )
+  /** Declared, well-formed edge types; anything else is a 400 (review finding N43). */
+  private def parseEdgeTypes(raw: Option[String]): Vector[String] =
+    val types = raw.toVector.flatMap(_.split(",").map(_.trim).filter(_.nonEmpty))
+    types.foreach { t =>
+      if !GraphSchema.isValidEdgeTypeIdentifier(t) || !GraphSchema.isDeclaredEdgeType(t) then
+        throw BadRequestException(
+          s"Undeclared edge type '${t.take(64)}'; expected one of " +
+            GraphSchema.EdgeType.All.mkString(", ")
+        )
+    }
+    types.distinct
 
-          result match
-            case Some(item) =>
-              val resp = EvidenceResponse(
-                evidenceId = item.evidenceId,
-                evidenceType = item.evidenceType.toString,
-                sourceEntityId = item.sourceEntityId,
-                sourceDataset = item.provenance.sourceDataset,
-                text = item.content,
-                textS3Uri = "",
-                score = item.score,
-                provenance = ProvenancePayload(
-                  runId = item.provenance.pipelineRunId,
-                  textHash = "",
-                  schemaVersion = item.provenance.schemaVersion
-                )
-              )
-              sendJson(exchange, 200, write(resp), tid)
-            case None =>
-              throw NotFoundException(
-                s"Evidence $evidenceId not found"
-              )
-        case _ =>
-          throw BadRequestException(
-            "Only GET is supported on /v1/evidence/"
-          )
-    catch
-      case e: ServiceException =>
-        val (status, err) = ErrorHandler.toErrorResponse(e, tid)
-        sendJson(exchange, status, write(err), tid)
-      case e: Exception =>
-        val (status, err) = ErrorHandler.toErrorResponse(e, tid)
-        sendJson(exchange, status, write(err), tid)
+  private def intParam(params: Map[String, String], name: String, default: Int): Int =
+    params.get(name) match
+      case None => default
+      case Some(v) =>
+        v.trim.toIntOption.getOrElse(throw BadRequestException(s"$name must be an integer"))
 
   private val graphHandler: HttpHandler = (exchange: HttpExchange) =>
-    val tid = newTraceId()
-    try
-      exchange.getRequestMethod match
-        case "GET" =>
-          val path = exchange.getRequestURI.getPath
-          // /v1/graph/nodes/{nodeId}/neighbors
-          val stripped = path.stripPrefix("/v1/graph/nodes/")
-          val parts    = stripped.split("/")
-          if parts.length < 2 || parts(1) != "neighbors" then
-            throw BadRequestException(
-              "Expected /v1/graph/nodes/{nodeId}/neighbors"
-            )
-          val nodeId = parts(0)
+    handle(exchange) { tid =>
+      requireGet(exchange, "/v1/graph/nodes/")
+      // /v1/graph/nodes/{nodeId}/neighbors
+      val parts = pathTail(exchange, "/v1/graph/nodes/").split("/")
+      if parts.length != 2 || parts(0).isEmpty || parts(1) != "neighbors" then
+        throw BadRequestException("Expected /v1/graph/nodes/{nodeId}/neighbors")
+      val nodeId = parts(0)
 
-          val params =
-            parseQueryParams(exchange.getRequestURI.getQuery)
-          val depth =
-            params.get("depth").map(_.toInt).getOrElse(1)
-          val limit =
-            params.get("limit").map(_.toInt).getOrElse(50)
-          val edgeTypes = params
-            .get("edgeTypes")
-            .map(_.split(",").toVector)
-            .getOrElse(Vector.empty)
+      val params    = parseQueryParams(exchange.getRequestURI.getRawQuery)
+      val depth     = intParam(params, "depth", 1)
+      val limit     = intParam(params, "limit", 50)
+      val edgeTypes = parseEdgeTypes(params.get("edgeTypes"))
 
-          if depth < 1 || depth > config.maxGraphDepth then
-            throw BadRequestException(
-              s"depth must be between 1 and ${config.maxGraphDepth}"
-            )
-          if limit < 1 || limit > config.maxGraphLimit then
-            throw BadRequestException(
-              s"limit must be between 1 and ${config.maxGraphLimit}"
-            )
+      if depth < 1 || depth > config.maxGraphDepth then
+        throw BadRequestException(s"depth must be between 1 and ${config.maxGraphDepth}")
+      if limit < 1 || limit > config.maxGraphLimit then
+        throw BadRequestException(s"limit must be between 1 and ${config.maxGraphLimit}")
 
-          val neighbors =
-            graphStore.getNeighbors(nodeId, edgeTypes, depth, limit)
-          val response = neighbors.map(n =>
-            NeighborResponse(
-              nodeId = n.nodeId,
-              nodeType = n.nodeType,
-              properties = n.properties
-            )
-          )
-          sendJson(exchange, 200, write(response), tid)
-        case _ =>
-          throw BadRequestException(
-            "Only GET is supported on /v1/graph/nodes/"
-          )
-    catch
-      case e: ServiceException =>
-        val (status, err) = ErrorHandler.toErrorResponse(e, tid)
-        sendJson(exchange, status, write(err), tid)
-      case e: Exception =>
-        val (status, err) = ErrorHandler.toErrorResponse(e, tid)
-        sendJson(exchange, status, write(err), tid)
+      val neighbors = fromStore("graph")(graphStore.getNeighbors(nodeId, edgeTypes, depth, limit))
+      val response = neighbors.map(n =>
+        NeighborResponse(nodeId = n.nodeId, nodeType = n.nodeType, properties = n.properties)
+      )
+      sendJson(exchange, 200, write(response), tid)
+    }
 
   private val explainHandler: HttpHandler = (exchange: HttpExchange) =>
-    val tid = newTraceId()
-    try
-      exchange.getRequestMethod match
-        case "GET" =>
-          val path    = exchange.getRequestURI.getPath
-          val queryId = path.stripPrefix("/v1/explain/")
-          if queryId.isEmpty then throw BadRequestException("Query ID must not be empty")
-
-          val audit = auditStore.getAudit(queryId)
-          audit match
-            case Some(a) =>
-              val resp = ExplainResponse(
-                queryId = a.queryId,
-                queryPlan = "collaboration-analysis",
-                retrievalModes = Vector("graph", "vector", "metrics"),
-                promptVersions = Vector(a.promptVersion),
-                modelVersions = Vector(a.modelVersion),
-                evidenceIds = a.evidenceIds,
-                verificationSummary = a.verificationSummary,
-                latencyMs = a.latencyMs,
-                cacheHits = 0
-              )
-              sendJson(exchange, 200, write(resp), tid)
-            case None =>
-              throw NotFoundException(
-                s"Explain record for query $queryId not found"
-              )
-        case _ =>
-          throw BadRequestException(
-            "Only GET is supported on /v1/explain/"
-          )
-    catch
-      case e: ServiceException =>
-        val (status, err) = ErrorHandler.toErrorResponse(e, tid)
-        sendJson(exchange, status, write(err), tid)
-      case e: Exception =>
-        val (status, err) = ErrorHandler.toErrorResponse(e, tid)
-        sendJson(exchange, status, write(err), tid)
+    handle(exchange) { tid =>
+      requireGet(exchange, "/v1/explain/")
+      val queryId = pathTail(exchange, "/v1/explain/")
+      if queryId.isEmpty then throw BadRequestException("Query ID must not be empty")
+      if !ResultStore.isQueryId(queryId) then
+        throw NotFoundException(s"Explain record for query $queryId not found")
+      val audit = fromStore("audit record")(auditStore.getAudit(queryId))
+        .getOrElse(throw NotFoundException(s"Explain record for query $queryId not found"))
+      val stored = fromStore("query result")(results.getQuery(queryId))
+      sendJson(exchange, 200, write(Explain.build(audit, stored)), tid)
+    }
 
   private val healthHandler: HttpHandler = (exchange: HttpExchange) =>
     val tid = newTraceId()
@@ -358,4 +380,23 @@ class Routes(
 
   private val readyHandler: HttpHandler = (exchange: HttpExchange) =>
     val tid = newTraceId()
-    sendJson(exchange, 200, """{"status":"ready"}""", tid)
+    val body = ReadinessResponse(
+      status = if readiness.ready then "ready" else "not-ready",
+      mode = readiness.mode.wireName,
+      missing = readiness.missing
+    )
+    sendJson(exchange, if readiness.ready then 200 else 503, write(body), tid)
+
+object Routes:
+
+  /**
+   * AWS, Neptune, S3 Vectors and model-call failures that escape the workflow (for example the
+   * audit write, which must succeed before an answer is returned) are retryable 502s, not 500s.
+   */
+  def isDownstreamFailure(e: Throwable): Boolean = e match
+    case _: software.amazon.awssdk.core.exception.SdkException => true
+    case _: edu.scholarchain.storage.NeptuneRequestException   => true
+    case _: edu.scholarchain.storage.S3VectorsRequestException => true
+    case _: edu.scholarchain.rag.ModelCallException            => true
+    case _: java.io.IOException                                => true
+    case _                                                     => false

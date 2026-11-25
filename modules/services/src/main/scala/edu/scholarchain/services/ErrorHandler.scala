@@ -21,6 +21,11 @@ object ErrorHandler:
         )
       case e: TimeoutException =>
         (504, ErrorResponse("TIMEOUT", e.getMessage, traceId, true))
+      case e: UnavailableException =>
+        (
+          503,
+          ErrorResponse("SERVICE_UNAVAILABLE", e.getMessage, traceId, true)
+        )
       case e: DownstreamException =>
         (
           502,
