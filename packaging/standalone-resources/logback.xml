@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Logging for the standalone (non-EMR) job jars built by hadoopStandalone and
+     sparkStandalone. Without it logback defaults to DEBUG for every logger.
+     Override at runtime with -Dlogback.configurationFile=<path>. -->
+<configuration>
+  <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+    <target>System.err</target>
+    <encoder>
+      <pattern>%d{ISO8601} %-5level [%thread] %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+  <logger name="edu.scholarchain" level="INFO"/>
+  <root level="WARN">
+    <appender-ref ref="STDERR"/>
+  </root>
+</configuration>

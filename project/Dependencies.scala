@@ -6,6 +6,8 @@ import sbt._
  * Rules:
  *   - Every version is pinned (no "latest", no ranges).
  *   - Hadoop and Spark deps are Provided (the runtime supplies them).
+ *     Exception: the *StandaloneRuntime groups below are Compile scope and are used
+ *     only by the hadoopStandalone and sparkStandalone assembly projects (non-EMR runtime).
  *   - Test-only libraries live in Test scope.
  *   - Logging implementation (logback) is Runtime scope.
  *   - JSON library: uPickle everywhere.
@@ -30,9 +32,13 @@ object Dependencies {
     val slf4j   = "2.0.16"
     val logback = "1.5.12"
 
-    // Hadoop & Spark (provided at runtime)
+    // Hadoop & Spark (provided at runtime on EMR)
     val hadoop = "3.3.6"
     val spark  = "3.5.3"
+
+    // Hadoop client version that Spark 3.5.3 is built against (hadoop-client-api/runtime).
+    // hadoop-aws in the standalone Spark jar must match it exactly.
+    val sparkHadoop = "3.3.4"
 
     // AWS SDK
     val awsSdk2 = "2.29.26"
@@ -80,10 +86,38 @@ object Dependencies {
       .exclude("org.slf4j", "slf4j-log4j12")
   )
 
+  // ---------------------------------------------------------------------------
+  // Standalone (non-EMR) runtime groups: Hadoop/Spark bundled into the jar,
+  // plus hadoop-aws (S3AFileSystem for s3a:// paths). hadoop-aws pulls the
+  // matching com.amazonaws:aws-java-sdk-bundle transitively (SDK v1, which is
+  // what Hadoop 3.3.x S3A uses for credentials, including ECS task roles).
+  // ---------------------------------------------------------------------------
+  val hadoopStandaloneRuntime = Seq(
+    ("org.apache.hadoop" % "hadoop-client" % V.hadoop)
+      .exclude("org.slf4j", "slf4j-reload4j")
+      .exclude("org.slf4j", "slf4j-log4j12"),
+    "org.apache.hadoop" % "hadoop-aws" % V.hadoop
+  )
+
+  val sparkStandaloneRuntime = Seq(
+    ("org.apache.spark" %% "spark-core" % V.spark)
+      .cross(CrossVersion.for3Use2_13)
+      .exclude("org.slf4j", "slf4j-log4j12"),
+    ("org.apache.spark" %% "spark-sql" % V.spark)
+      .cross(CrossVersion.for3Use2_13)
+      .exclude("org.slf4j", "slf4j-log4j12"),
+    ("org.apache.spark" %% "spark-graphx" % V.spark)
+      .cross(CrossVersion.for3Use2_13)
+      .exclude("org.slf4j", "slf4j-log4j12"),
+    "org.apache.hadoop" % "hadoop-aws" % V.sparkHadoop
+  )
+
   val awsS3 = Seq(
     "software.amazon.awssdk" % "s3"       % V.awsSdk2,
     "software.amazon.awssdk" % "dynamodb" % V.awsSdk2,
     "software.amazon.awssdk" % "neptune"  % V.awsSdk2,
+    // SQS client for the storage-module queue adapter (embedding work queue)
+    "software.amazon.awssdk" % "sqs" % V.awsSdk2,
     // Explicit SigV4 signing deps for raw HTTP calls to Neptune (neptune-db)
     // and S3 Vectors (s3vectors). Same SDK version; previously transitive via s3.
     "software.amazon.awssdk" % "auth"          % V.awsSdk2,
