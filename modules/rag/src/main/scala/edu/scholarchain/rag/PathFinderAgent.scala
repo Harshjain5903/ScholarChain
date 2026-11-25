@@ -10,21 +10,32 @@ case class PathResult(
   coauthorEdges: Vector[CoauthorEdge]
 ) derives ReadWriter
 
-/** Finds shortest paths between researcher pairs in the collaboration graph. */
-class PathFinderAgent(graph: GraphStore):
+/**
+ * Finds shortest coauthorship paths between researcher pairs, and direct coauthors.
+ *
+ * @param defaultMaxDepth
+ *   path depth used when the caller gives none; every depth is clamped to 1..10 (the graph store
+ *   may bound it further)
+ */
+class PathFinderAgent(graph: GraphStore, defaultMaxDepth: Int = 6):
+
+  /** Upper bound on pairs searched per call (paths are pairwise and each is a graph query). */
+  val MaxPairs: Int = 10
 
   def findPaths(
     pairs: Vector[(String, String)],
-    maxDepth: Int = 6
+    maxDepth: Int = defaultMaxDepth
   ): Vector[PathResult] =
     val boundedDepth = math.max(1, math.min(10, maxDepth))
-    pairs.map { case (fromId, toId) =>
-      val pathOpt      = graph.shortestPath(fromId, toId, boundedDepth)
-      val coauthorEdgs = graph.getDirectCoauthors(fromId, 100)
+    pairs.take(MaxPairs).map { case (fromId, toId) =>
       PathResult(
         fromId = fromId,
         toId = toId,
-        path = pathOpt,
-        coauthorEdges = coauthorEdgs
+        path = graph.shortestPath(fromId, toId, boundedDepth),
+        coauthorEdges = Vector.empty
       )
     }
+
+  /** Strongest direct coauthor edges of a researcher; `limit` is clamped to 1..100. */
+  def directCoauthors(researcherId: String, limit: Int): Vector[CoauthorEdge] =
+    graph.getDirectCoauthors(researcherId, math.max(1, math.min(limit, 100)))

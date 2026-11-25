@@ -52,10 +52,10 @@ class AdversarialRagSpec extends AnyFlatSpec with Matchers:
 
   // --- 4. LLM returning fabricated researcher IDs not in evidence ---
 
-  "AnswerSynthesisAgent" should "strip fabricated evidence IDs that are not in the evidence bundle" in {
+  "AnswerSynthesisAgent" should "drop claims citing evidence IDs that are not in the bundle" in {
     // LLM claims to cite evidence IDs that don't exist in the bundle
     val fabricatedJson =
-      """[{"claimId":"c1","statement":"Fabricated claim.","confidence":0.9,"supportingEvidence":["ev-fake-999","ev-nonexistent"]}]"""
+      """{"claims":[{"claimId":"c1","statement":"Fabricated claim.","confidence":0.9,"evidenceIds":["ev-fake-999","ev-nonexistent"]}]}"""
     val llm   = new FakeLlmClient(fabricatedJson)
     val agent = new AnswerSynthesisAgent(llm)
 
@@ -79,7 +79,8 @@ class AdversarialRagSpec extends AnyFlatSpec with Matchers:
 
     val claims = agent.synthesize(plan, evidence, Vector.empty)
     claims should have size 1
-    // Fabricated evidence IDs should be stripped since they are not in the bundle
+    // The fabricated claim is dropped; only an abstention remains
+    AnswerSynthesisAgent.isAbstention(claims.head) shouldBe true
     claims.head.supportingEvidence should not contain "ev-fake-999"
     claims.head.supportingEvidence should not contain "ev-nonexistent"
   }
@@ -200,10 +201,10 @@ class AdversarialRagSpec extends AnyFlatSpec with Matchers:
 
   // --- 9. LLM output confidence clamping ---
 
-  "AnswerSynthesisAgent" should "clamp LLM-provided confidence to [0, 1] range" in {
+  "AnswerSynthesisAgent" should "reject LLM-provided confidence outside [0, 1] as schema-invalid" in {
     // LLM returns confidence > 1.0
     val overconfidentJson =
-      """[{"claimId":"c-over","statement":"Overclaiming.","confidence":5.0,"supportingEvidence":["ev1"]}]"""
+      """{"claims":[{"claimId":"c-over","statement":"Overclaiming.","confidence":5.0,"evidenceIds":["ev1"]}]}"""
     val llm   = new FakeLlmClient(overconfidentJson)
     val agent = new AnswerSynthesisAgent(llm)
 
@@ -227,6 +228,6 @@ class AdversarialRagSpec extends AnyFlatSpec with Matchers:
 
     val claims = agent.synthesize(plan, evidence, Vector.empty)
     claims should have size 1
-    claims.head.confidence should be <= 1.0
-    claims.head.confidence should be >= 0.0
+    AnswerSynthesisAgent.isAbstention(claims.head) shouldBe true
+    claims.head.confidence shouldBe 0.0
   }

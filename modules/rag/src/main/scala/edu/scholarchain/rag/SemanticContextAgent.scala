@@ -63,6 +63,13 @@ class SemanticContextAgent(
       val embedded =
         try Right(embedder.embed(queryText, queryModel))
         catch
+          case e: EmbeddingDimensionException =>
+            Left(
+              SemanticRetrievalFailure(
+                SemanticFailureReason.EmbeddingDimensionMismatch,
+                s"embedding backend returned length ${e.actual}; expected ${e.expected}"
+              )
+            )
           case NonFatal(e) =>
             Left(
               SemanticRetrievalFailure(

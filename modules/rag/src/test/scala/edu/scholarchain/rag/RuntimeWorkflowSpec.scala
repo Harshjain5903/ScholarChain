@@ -145,6 +145,25 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
       callCount += 1
       responses.next()
 
+  /** Cites the first evidence ID in the prompt (the first metric item) with `statement`. */
+  class FirstEvidenceLlmClient(statement: String) extends LlmClient:
+
+    def generate(prompt: String, maxTokens: Int): String =
+      val id =
+        "id=\"(evidence:[^\"]+)\"".r.findFirstMatchIn(prompt).map(_.group(1)).getOrElse("none")
+      ujson.write(
+        ujson.Obj(
+          "claims" -> ujson.Arr(
+            ujson.Obj(
+              "claimId"     -> "c1",
+              "statement"   -> statement,
+              "confidence"  -> 0.9,
+              "evidenceIds" -> ujson.Arr(id)
+            )
+          )
+        )
+      )
+
   class FakeAuditStore extends AuditStore:
     var records: Vector[AuditRecord] = Vector.empty
 
@@ -339,7 +358,7 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
 
   "AnswerSynthesisAgent" should "generate claims with evidence IDs from valid LLM JSON" in {
     val validJson =
-      """[{"claimId":"c1","statement":"Alice has 42 publications.","confidence":0.95,"supportingEvidence":["ev-metric-R001"]}]"""
+      """{"claims":[{"claimId":"c1","statement":"Alice has 42 publications.","confidence":0.95,"evidenceIds":["ev-metric-R001"]}]}"""
     val llm   = new FakeLlmClient(validJson)
     val agent = new AnswerSynthesisAgent(llm)
 
@@ -373,7 +392,7 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
     claims.head.supportingEvidence should contain("ev-metric-R001")
   }
 
-  it should "retry on malformed LLM output and eventually abstain" in {
+  it should "retry malformed LLM output once and then abstain" in {
     val responses = Iterator("not json", "still not json", "nope")
     val llm       = new CountingLlmClient(responses)
     val agent     = new AnswerSynthesisAgent(llm)
@@ -406,7 +425,7 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
     val claims = agent.synthesize(plan, evidence, Vector.empty)
     claims should have size 1
     claims.head.statement should include("Insufficient evidence")
-    llm.callCount shouldBe 3 // initial + 2 retries
+    llm.callCount shouldBe 2 // initial + at most one retry
   }
 
   // --- ClaimVerification tests ---
@@ -426,7 +445,7 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
       bundleId = "b1",
       queryId = "q1",
       items = Vector(
-        EvidenceItem("ev1", EvidenceType.MetricRecord, "R001", "test", 1.0, testProv)
+        EvidenceItem("ev1", EvidenceType.MetricRecord, "R001", "publications=42", 1.0, testProv)
       ),
       totalScore = 1.0,
       provenance = testProv
@@ -494,10 +513,8 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
     )
     val vectorStore = new FakeVectorStore
     val textStore   = new FakeTextStore
-    val validJson =
-      """[{"claimId":"c1","statement":"Alice has 42 publications.","confidence":0.95,"supportingEvidence":["ev-metric-R001"]}]"""
-    val llmClient  = new FakeLlmClient(validJson)
-    val auditStore = new FakeAuditStore
+    val llmClient   = new FirstEvidenceLlmClient("Alice Smith has 42 publications.")
+    val auditStore  = new FakeAuditStore
 
     val workflow = new RuntimeWorkflow(
       planner = new QueryPlannerAgent,
@@ -524,7 +541,12 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
     )
 
     result.response.claims should not be empty
+    result.response.claims.head.verificationStatus shouldBe VerificationStatus.Verified
+    result.response.claims.head.supportingEvidence shouldBe Vector(
+      IdGen.evidenceId(result.response.queryId, 0)
+    )
     result.auditRecord.queryId should not be empty
+    result.auditRecord.promptVersion shouldBe SynthesisPrompt.Version
     auditStore.records should have size 1
   }
 
@@ -534,10 +556,8 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
     val graphStore   = new FakeGraphStore()
     val vectorStore  = new FakeVectorStore
     val textStore    = new FakeTextStore
-    val validJson =
-      """[{"claimId":"c1","statement":"test","confidence":0.5,"supportingEvidence":[]}]"""
-    val llmClient  = new FakeLlmClient(validJson)
-    val auditStore = new FakeAuditStore
+    val llmClient    = new FakeLlmClient("must not be called")
+    val auditStore   = new FakeAuditStore
 
     val workflow = new RuntimeWorkflow(
       planner = new QueryPlannerAgent,
@@ -564,7 +584,9 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
     )
 
     result.response.claims should not be empty
+    result.response.claims.head.statement should include("no researcher matches 'Nobody'")
     result.auditRecord.resolvedIds shouldBe empty
+    result.auditRecord.abstentionReason shouldBe Some("unresolved-researcher")
   }
 
   private def workflowWith(
@@ -574,8 +596,6 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
     val lookup       = new FakeResearcherLookup(Map("Alice Smith" -> Vector(aliceResearcher)))
     val metricsStore = new FakeMetricsStore(Map("R001" -> aliceMetrics))
     val graphStore   = new FakeGraphStore(members = Map("comm-1" -> Vector("R001")))
-    val validJson =
-      """[{"claimId":"c1","statement":"Alice has 42 publications.","confidence":0.95,"supportingEvidence":["ev-metric-R001"]}]"""
     new RuntimeWorkflow(
       planner = new QueryPlannerAgent,
       resolver = new ResearcherResolverAgent(lookup),
@@ -584,7 +604,8 @@ class RuntimeWorkflowSpec extends AnyFlatSpec with Matchers:
       community = new CommunityAnalystAgent(metricsStore, graphStore),
       semantic = semantic,
       evidenceBuilder = new EvidenceBuilderAgent,
-      synthesis = new AnswerSynthesisAgent(new FakeLlmClient(validJson)),
+      synthesis =
+        new AnswerSynthesisAgent(new FirstEvidenceLlmClient("Alice Smith has 42 publications.")),
       verification = new ClaimVerificationAgent,
       audit = auditStore,
       generationModelId = TestGenerationModel
