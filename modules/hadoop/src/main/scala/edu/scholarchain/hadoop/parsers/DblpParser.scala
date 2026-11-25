@@ -129,7 +129,9 @@ object DblpParser:
         )
       }
 
-      val workId          = IdGen.workId(SourceType.DBLP, sourceRecordId)
+      // N50: IdGen.workId adds the `work:dblp:` prefix itself, so it takes the bare DBLP key; the
+      // `dblp:<key>` form stays the provenance sourceRecordId.
+      val workId          = IdGen.workId(SourceType.DBLP, dblpKey)
       val normalizedVenue = venue.map(NormalizationUtils.normalizeVenue)
 
       val work = WorkRecord(
@@ -181,13 +183,15 @@ object DblpParser:
   /**
    * `(name, orcid)` for every `<author>` element in document order. The ORCID comes from the DBLP
    * `orcid` attribute, normalized to the bare `XXXX-XXXX-XXXX-XXXX` form; a missing, blank or
-   * malformed attribute yields None so a bad ORCID never rejects the record.
+   * malformed attribute, or one failing the ISO 7064 MOD 11-2 checksum (N60), yields None so a bad
+   * ORCID never rejects the record.
    */
   private[parsers] def getAuthors(parent: Element): Vector[(String, Option[String])] =
     val nodes = parent.getElementsByTagName("author")
     (0 until nodes.getLength).map { i =>
       val author = nodes.item(i).asInstanceOf[Element]
-      val orcid  = Option(author.getAttribute("orcid")).flatMap(NormalizationUtils.validateOrcid)
+      val orcid =
+        Option(author.getAttribute("orcid")).flatMap(NormalizationUtils.validateOrcidChecksummed)
       (author.getTextContent, orcid)
     }.toVector
 

@@ -1,6 +1,6 @@
 package edu.scholarchain.hadoop.jobs
 
-import edu.scholarchain.core.WorkRecord
+import edu.scholarchain.core.{AuthorMention, WorkRecord}
 import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.counters.HadoopCounters
 import edu.scholarchain.hadoop.io.JsonLineInputFormat
@@ -76,8 +76,23 @@ class IdentifierExtractionMapper extends Mapper[LongWritable, Text, Text, Text]:
       .increment(1)
 
     try
-      val work  = read[WorkRecord](line)
-      val pairs = IdentifierExtractionJob.extractIdentifiers(work)
+      val fields = ujson.read(line).obj
+      val pairs =
+        if fields.contains("workId") then
+          IdentifierExtractionJob.extractIdentifiers(read[WorkRecord](line))
+        else if fields.contains("mentionId") then
+          // ORCID normalizer output: the profile mention links its ORCID to the ORCID record.
+          val m = read[AuthorMention](line)
+          m.orcid
+            .flatMap(NormalizationUtils.validateOrcid)
+            .map(o => s"orcid:$o" -> m.sourceRecordId)
+            .toVector
+        else if fields.contains("researcherId") then
+          context
+            .getCounter(HadoopCounters.IdentifierGroup, HadoopCounters.SkippedResearcherRecords)
+            .increment(1)
+          return
+        else throw new IllegalArgumentException("not a work or mention record")
 
       if pairs.isEmpty then
         context
@@ -115,24 +130,33 @@ class IdentifierExtractionReducer extends Reducer[Text, Text, Text, Text]:
     val iter    = values.iterator()
     while iter.hasNext do sources += iter.next().toString
 
-    if sources.size > 1 then
-      // Multiple sources map to the same identifier -- could be
-      // duplicate or conflict depending on whether source types differ
-      val sourceTypes = sources.map(_.split(":").head).toSet
-      if sourceTypes.size > 1 then
-        context
-          .getCounter(
-            HadoopCounters.IdentifierGroup,
-            HadoopCounters.Conflicts
-          )
-          .increment(1)
-      else
-        context
-          .getCounter(
-            HadoopCounters.IdentifierGroup,
-            HadoopCounters.Duplicates
-          )
-          .increment(1)
+    val idType = key.toString.takeWhile(_ != ':')
+    val ids    = sources.toVector
+    val byType = ids.groupBy(_.takeWhile(_ != ':'))
+    val counter = (name: String, n: Long) =>
+      context.getCounter(HadoopCounters.IdentifierGroup, name).increment(n)
+
+    counter(s"${idType}_keys", 1)
+    if byType.size > 1 then
+      // The same identifier is carried by records of different source datasets: a cross-source
+      // link when they describe one work (DOI), a shared person key (ORCID, OpenAlex author).
+      counter(HadoopCounters.Conflicts, 1)
+      counter(s"${idType}_cross_source", 1)
+    else if ids.size > 1 then
+      counter(HadoopCounters.Duplicates, 1)
+      counter(s"${idType}_same_source_duplicates", 1)
+    if byType.values.exists(_.size > 1) && byType.size > 1 then
+      counter(s"${idType}_same_source_duplicates", 1)
+
+    if idType == "doi" then
+      val dblp  = byType.get("dblp").map(_.size).getOrElse(0)
+      val hasCr = byType.contains("crossref")
+      val hasOa = byType.contains("openalex")
+      if dblp > 0 && hasCr then counter(HadoopCounters.DblpWorksCrossrefDoiMatch, dblp)
+      if dblp > 0 && hasOa then counter(HadoopCounters.DblpWorksOpenAlexDoiMatch, dblp)
+      if dblp > 0 && hasCr && hasOa then counter(HadoopCounters.DblpWorksBothDoiMatch, dblp)
+      if dblp > 0 && (hasCr || hasOa) then counter(HadoopCounters.DblpWorksAnyDoiMatch, dblp)
+      if hasCr && hasOa then counter(HadoopCounters.CrossrefOpenAlexDoiMatches, 1)
 
     context.write(key, new Text(sources.mkString(",")))
 
@@ -165,10 +189,8 @@ class IdentifierExtractionTool extends Configured with Tool:
       "org.apache.hadoop.io.compress.GzipCodec"
     )
 
-    FileInputFormat.addInputPath(
-      job,
-      new org.apache.hadoop.fs.Path(args(0))
-    )
+    // A comma-separated list of input paths is accepted (several upstream stage outputs).
+    FileInputFormat.addInputPaths(job, args(0))
     FileOutputFormat.setOutputPath(
       job,
       new org.apache.hadoop.fs.Path(args(1))

@@ -201,3 +201,15 @@ class PairExpansionSpec extends AnyFunSuite with Matchers:
     pair.provenance.producer shouldBe Some("hadoop/J07-pair-expansion")
     pair.provenance.upstreamRunIds shouldBe Vector("upstream-run")
   }
+
+  test("N56: pairs list upstream run IDs once and never their own run ID") {
+    val teamProv = prov.copy(
+      sourceDataset = "dblp",
+      sourceRecordId = "dblp:conf/x/K1",
+      pipelineRunId = "j06-run",
+      upstreamRunIds = Vector("j01-run", "my-run")
+    )
+    val team = mkTeam(Vector(mkMention("m:p", 0), mkMention("m:q", 1))).copy(provenance = teamProv)
+    val pair = PairExpansionJob.expandPairs(team, "my-run", "1.0.0", "2026-11-23T00:00:00Z").head
+    pair.provenance.upstreamRunIds shouldBe Vector("j01-run", "j06-run")
+  }

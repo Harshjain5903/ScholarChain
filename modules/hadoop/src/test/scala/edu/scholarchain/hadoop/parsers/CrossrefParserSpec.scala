@@ -46,6 +46,8 @@ class CrossrefParserSpec extends AnyFunSuite with Matchers:
       CrossrefParser.parse(json, runId, schemaVer, ts)
     result.isRight shouldBe true
     val (work, mentions) = result.toOption.get
+    work.workId shouldBe "work:crossref:10.1109/TSE.2023.0001234"
+    work.sourceRecordId shouldBe "crossref:10.1109/TSE.2023.0001234"
 
     work.source shouldBe SourceType.Crossref
     work.title shouldBe "Scalable Graph Partitioning"

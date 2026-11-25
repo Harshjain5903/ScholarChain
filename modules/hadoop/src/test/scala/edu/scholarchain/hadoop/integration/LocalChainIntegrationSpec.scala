@@ -5,6 +5,7 @@ import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.driver.{ExportVerifier, HadoopJobDriver, JobCompletion}
 import edu.scholarchain.hadoop.io.RejectWriter
 import edu.scholarchain.hadoop.model.RejectRecord
+import edu.scholarchain.hadoop.parsers.WorkIds
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path}
 import java.util.zip.GZIPInputStream
@@ -160,6 +161,12 @@ class LocalChainIntegrationSpec extends AnyFunSuite with Matchers:
       "dblp:journals/x/Solo20",
       "dblp:journals/x/Three20"
     )
+    // N50: work IDs are work:dblp:<key>; the provenance record ID keeps the dblp:<key> form
+    workRecs.map(_.workId).sorted shouldBe Vector(
+      "work:dblp:conf/igarss/SobjaergS03a",
+      "work:dblp:journals/x/Solo20",
+      "work:dblp:journals/x/Three20"
+    )
     workRecs.find(_.sourceRecordId.endsWith("Three20")).get.title shouldBe "ftd: Three authors."
     val rejects = readLines(works.resolve(RejectWriter.RejectDirectory)).map(read[RejectRecord](_))
     rejects.map(r => (r.sourceRecordId, r.reasonCode)) shouldBe Vector(
@@ -224,6 +231,17 @@ class LocalChainIntegrationSpec extends AnyFunSuite with Matchers:
     val exportedWorks = readLines(exportDir.resolve("work_records")).map(read[WorkRecord](_))
     exportedWorks.foreach(_.provenance.producer shouldBe Some("hadoop/J01-dblp-extraction"))
     exportedWorks.flatMap(_.authors).flatMap(_.orcid) shouldBe Vector("0000-0001-6914-8597")
+
+    // N50: no emitted work ID, in any exported record type, doubles its source segment
+    val emittedWorkIds =
+      exportedWorks.map(_.workId) ++ exportedTeams.map(_.workId) ++ pc.map(_.workId) ++
+        readLines(exportDir.resolve("author_paper")).map(l => ujson.read(l)("work_id").str)
+    emittedWorkIds should not be empty
+    emittedWorkIds.foreach { id =>
+      id should startWith("work:dblp:")
+      id should not include "work:dblp:dblp:"
+      WorkIds.hasDoubledSourceSegment(id) shouldBe false
+    }
 
     // N49: no stray part files at the export root
     ExportVerifier.unexpectedRootFiles(exportDir.toString) shouldBe Vector.empty

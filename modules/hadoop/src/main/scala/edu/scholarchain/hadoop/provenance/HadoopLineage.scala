@@ -21,11 +21,15 @@ final case class JobLineage(jobId: String, jobName: String):
 
   /**
    * Return `p` with this job's transformation step and producer. `upstreamRunIds` (pipeline run IDs
-   * of the input records) are added when given; empty IDs are dropped and the result is sorted and
-   * de-duplicated so the output is deterministic.
+   * of the input records) are added when given; empty IDs and the record's own `pipelineRunId` are
+   * dropped (an upstream ID equal to the current run adds no lineage, review finding N56), and the
+   * result is sorted and de-duplicated so the output is deterministic.
    */
   def stamp(p: Provenance, upstreamRunIds: Iterable[String] = Nil): Provenance =
-    val upstream = (p.upstreamRunIds ++ upstreamRunIds).filter(_.nonEmpty).distinct.sorted
+    val upstream = (p.upstreamRunIds ++ upstreamRunIds)
+      .filter(id => id.nonEmpty && id != p.pipelineRunId)
+      .distinct
+      .sorted
     p.copy(
       transformationStep = Some(transformationStep),
       producer = Some(producer),

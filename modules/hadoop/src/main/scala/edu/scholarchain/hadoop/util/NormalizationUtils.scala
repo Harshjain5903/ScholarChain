@@ -93,6 +93,27 @@ object NormalizationUtils:
     val pattern = "^\\d{4}-\\d{4}-\\d{4}-[\\dX]{4}$".r
     pattern.findFirstIn(trimmed)
 
+  /**
+   * True when `orcid` (bare `XXXX-XXXX-XXXX-XXXX` form) carries a correct ISO 7064 MOD 11-2 check
+   * character: the first 15 characters must be digits and the 16th must equal the computed check
+   * digit (`X` standing for 10).
+   */
+  def orcidChecksumValid(orcid: String): Boolean =
+    val chars = orcid.filterNot(_ == '-')
+    if chars.length != 16 || !chars.take(15).forall(_.isDigit) then false
+    else
+      val total    = chars.take(15).foldLeft(0)((acc, c) => (acc + (c - '0')) * 2)
+      val result   = (12 - total % 11) % 11
+      val expected = if result == 10 then 'X' else ('0' + result).toChar
+      chars.last == expected
+
+  /**
+   * [[validateOrcid]] plus the ISO 7064 MOD 11-2 checksum (review finding N60). Returns None for a
+   * malformed ORCID or one whose check character is wrong.
+   */
+  def validateOrcidChecksummed(raw: String): Option[String] =
+    validateOrcid(raw).filter(orcidChecksumValid)
+
   /** Normalize a venue name: lowercase, trim, collapse whitespace. */
   def normalizeVenue(raw: String): String =
     val nfkd = Normalizer.normalize(raw, Normalizer.Form.NFKD)

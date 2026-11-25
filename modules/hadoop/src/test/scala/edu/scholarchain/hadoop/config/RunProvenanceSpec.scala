@@ -65,8 +65,17 @@ class RunProvenanceSpec extends AnyFunSuite with Matchers:
     val s = HadoopLineage.PairExpansion.stamp(p, Seq("run-b", "run-a", "", "run-b"))
     s.transformationStep shouldBe Some("pair-expansion")
     s.producer shouldBe Some("hadoop/J07-pair-expansion")
-    s.upstreamRunIds shouldBe Vector("run-a", "run-b")
+    s.upstreamRunIds shouldBe Vector("run-a")
     s.sourceDataset shouldBe "dblp"
     s.timestamp shouldBe p.timestamp
     JobLineage("J99", "x").stamp(p).upstreamRunIds shouldBe Vector.empty
+  }
+
+  test("N56: stamp keeps a different upstream run ID and never repeats the record's own run ID") {
+    val p = Provenance("dblp", "dblp:k", "run-now", "1.0.0", "2026-11-23T00:00:00Z")
+    HadoopLineage.TeamExtraction.stamp(p, Seq("run-j01")).upstreamRunIds shouldBe Vector("run-j01")
+    HadoopLineage.TeamExtraction.stamp(p, Seq("run-now")).upstreamRunIds shouldBe Vector.empty
+    HadoopLineage.TeamExtraction
+      .stamp(p.copy(upstreamRunIds = Vector("run-now", "run-j01")), Seq("run-now"))
+      .upstreamRunIds shouldBe Vector("run-j01")
   }

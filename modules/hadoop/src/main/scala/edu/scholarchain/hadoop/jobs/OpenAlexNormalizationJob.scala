@@ -4,7 +4,7 @@ import edu.scholarchain.hadoop.provenance.HadoopLineage
 import edu.scholarchain.core.Provenance
 import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.counters.HadoopCounters
-import edu.scholarchain.hadoop.io.{JsonLineInputFormat, RejectWriter}
+import edu.scholarchain.hadoop.io.{InputLayout, RejectWriter}
 import edu.scholarchain.hadoop.parsers.OpenAlexParser
 import org.apache.hadoop.conf.{Configuration, Configured}
 import org.apache.hadoop.io.{LongWritable, NullWritable, Text}
@@ -53,8 +53,20 @@ class OpenAlexNormalizationMapper extends Mapper[LongWritable, Text, Text, NullW
       NullWritable
     ]#Context
   ): Unit =
-    val line = value.toString.trim
-    if line.isEmpty then return
+    val blob = value.toString.trim
+    if blob.isEmpty then return
+    // One input file is one API response of up to 50 works (or one bare work).
+    OpenAlexParser.splitRecords(blob).foreach(work => mapOne(work, context))
+
+  private def mapOne(
+    line: String,
+    context: Mapper[
+      LongWritable,
+      Text,
+      Text,
+      NullWritable
+    ]#Context
+  ): Unit =
 
     val conf      = context.getConfiguration
     val runId     = JobConfig.pipelineRunId(conf)
@@ -122,8 +134,11 @@ class OpenAlexNormalizationMapper extends Mapper[LongWritable, Text, Text, NullW
   /** Best-effort source ID extraction from raw JSON for reject records. */
   private def extractSourceId(json: String): String =
     try
-      val obj = ujson.read(json).obj
-      obj.get("source_id").map(_.str).getOrElse("unknown")
+      OpenAlexParser
+        .flatten(ujson.read(json).obj)
+        .get("source_id")
+        .collect { case ujson.Str(s) => s }
+        .getOrElse("unknown")
     catch case _: Exception => "unknown"
 
 class OpenAlexNormalizationTool extends Configured with Tool:
@@ -136,10 +151,12 @@ class OpenAlexNormalizationTool extends Configured with Tool:
       return 1
 
     val conf = getConf
-    val job  = Job.getInstance(conf, OpenAlexNormalizationJob.JobName)
+    val pre  = InputLayout.preflight(conf, args(0), "OpenAlex")
+    if pre.isDefined then return pre.get
+    val job = Job.getInstance(conf, OpenAlexNormalizationJob.JobName)
     job.setJarByClass(classOf[OpenAlexNormalizationTool])
 
-    job.setInputFormatClass(classOf[JsonLineInputFormat])
+    InputLayout.configure(job)
     job.setMapperClass(classOf[OpenAlexNormalizationMapper])
     job.setNumReduceTasks(0)
 

@@ -175,15 +175,14 @@ class FeatureComputationSpec extends AnyFunSuite with Matchers:
     features("venue_match") shouldBe 0.0
   }
 
-  test("pairSourceDataset is the shared input source, or scholarchain across sources") {
+  test("N56: pairSourceDataset is the shared input source, or <a>+<b> across sources") {
     val a = mkWork("dblp:a", "T", 2020, None, Vector.empty)
       .copy(provenance = prov.copy(sourceDataset = "dblp"))
     val b = a.copy(sourceRecordId = "dblp:b")
     val c =
       a.copy(sourceRecordId = "openalex:c", provenance = prov.copy(sourceDataset = "openalex"))
     FeatureConstructionJob.pairSourceDataset(a, b) shouldBe "dblp"
-    FeatureConstructionJob.pairSourceDataset(
-      a,
-      c
-    ) shouldBe FeatureConstructionJob.CrossSourceDataset
+    FeatureConstructionJob.pairSourceDataset(a, c) shouldBe "dblp+openalex"
+    FeatureConstructionJob.pairSourceDataset(c, a) shouldBe "dblp+openalex"
+    FeatureConstructionJob.pairSourceDataset(a, c) should not be "scholarchain"
   }

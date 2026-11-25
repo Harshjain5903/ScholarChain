@@ -165,3 +165,11 @@ class TeamExtractionSpec extends AnyFunSuite with Matchers:
     p.producer shouldBe Some("hadoop/J06-team-extraction")
     p.upstreamRunIds shouldBe Vector("j01-run")
   }
+
+  test("N56: extractTeam does not list its own run ID as upstream") {
+    val work = mkWork(Vector(mkMention("Author", 0)))
+      .copy(provenance = prov.copy(sourceDataset = "dblp", pipelineRunId = "my-run"))
+    val team = TeamExtractionJob.extractTeam(work, "my-run", "1.0.0", "2026-11-23T00:00:00Z")
+    team.provenance.pipelineRunId shouldBe "my-run"
+    team.provenance.upstreamRunIds shouldBe Vector.empty
+  }

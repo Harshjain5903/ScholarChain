@@ -4,7 +4,7 @@ import edu.scholarchain.hadoop.provenance.HadoopLineage
 import edu.scholarchain.core.Provenance
 import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.counters.HadoopCounters
-import edu.scholarchain.hadoop.io.{JsonLineInputFormat, RejectWriter}
+import edu.scholarchain.hadoop.io.{InputLayout, RejectWriter}
 import edu.scholarchain.hadoop.parsers.CrossrefParser
 import org.apache.hadoop.conf.{Configuration, Configured}
 import org.apache.hadoop.io.{LongWritable, NullWritable, Text}
@@ -122,8 +122,11 @@ class CrossrefNormalizationMapper extends Mapper[LongWritable, Text, Text, NullW
   /** Best-effort source ID extraction from raw JSON for reject records. */
   private def extractSourceId(json: String): String =
     try
-      val obj = ujson.read(json).obj
-      obj.get("source_id").map(_.str).getOrElse("unknown")
+      CrossrefParser
+        .flatten(ujson.read(json).obj)
+        .get("source_id")
+        .collect { case ujson.Str(s) => s }
+        .getOrElse("unknown")
     catch case _: Exception => "unknown"
 
 class CrossrefNormalizationTool extends Configured with Tool:
@@ -136,10 +139,12 @@ class CrossrefNormalizationTool extends Configured with Tool:
       return 1
 
     val conf = getConf
-    val job  = Job.getInstance(conf, CrossrefNormalizationJob.JobName)
+    val pre  = InputLayout.preflight(conf, args(0), "Crossref")
+    if pre.isDefined then return pre.get
+    val job = Job.getInstance(conf, CrossrefNormalizationJob.JobName)
     job.setJarByClass(classOf[CrossrefNormalizationTool])
 
-    job.setInputFormatClass(classOf[JsonLineInputFormat])
+    InputLayout.configure(job)
     job.setMapperClass(classOf[CrossrefNormalizationMapper])
     job.setNumReduceTasks(0)
 

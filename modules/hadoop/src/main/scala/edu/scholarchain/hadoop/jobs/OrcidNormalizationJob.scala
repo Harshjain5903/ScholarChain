@@ -4,7 +4,7 @@ import edu.scholarchain.hadoop.provenance.HadoopLineage
 import edu.scholarchain.core.Provenance
 import edu.scholarchain.hadoop.config.JobConfig
 import edu.scholarchain.hadoop.counters.HadoopCounters
-import edu.scholarchain.hadoop.io.{JsonLineInputFormat, RejectWriter}
+import edu.scholarchain.hadoop.io.{InputLayout, RejectWriter}
 import edu.scholarchain.hadoop.parsers.OrcidParser
 import org.apache.hadoop.conf.{Configuration, Configured}
 import org.apache.hadoop.io.{LongWritable, NullWritable, Text}
@@ -125,8 +125,11 @@ class OrcidNormalizationMapper extends Mapper[LongWritable, Text, Text, NullWrit
   /** Best-effort source ID extraction from raw JSON for reject records. */
   private def extractSourceId(json: String): String =
     try
-      val obj = ujson.read(json).obj
-      obj.get("source_id").map(_.str).getOrElse("unknown")
+      OrcidParser
+        .flatten(ujson.read(json).obj)
+        .get("source_id")
+        .collect { case ujson.Str(s) => s }
+        .getOrElse("unknown")
     catch case _: Exception => "unknown"
 
 class OrcidNormalizationTool extends Configured with Tool:
@@ -139,10 +142,12 @@ class OrcidNormalizationTool extends Configured with Tool:
       return 1
 
     val conf = getConf
-    val job  = Job.getInstance(conf, OrcidNormalizationJob.JobName)
+    val pre  = InputLayout.preflight(conf, args(0), "ORCID")
+    if pre.isDefined then return pre.get
+    val job = Job.getInstance(conf, OrcidNormalizationJob.JobName)
     job.setJarByClass(classOf[OrcidNormalizationTool])
 
-    job.setInputFormatClass(classOf[JsonLineInputFormat])
+    InputLayout.configure(job)
     job.setMapperClass(classOf[OrcidNormalizationMapper])
     job.setNumReduceTasks(0)
 

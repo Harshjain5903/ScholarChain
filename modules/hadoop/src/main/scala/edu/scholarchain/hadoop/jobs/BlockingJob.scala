@@ -32,6 +32,12 @@ import upickle.default.*
 object BlockingJob:
   val JobName = "blocking"
 
+  /** Histogram counter name for a block of `size` members: `size_le_<smallest power of two>`. */
+  def sizeBucket(size: Long): String =
+    var bound = 1L
+    while bound < size do bound *= 2
+    f"size_le_$bound%07d"
+
   /** Generate blocking keys for a WorkRecord. */
   def generateBlockingKeys(work: WorkRecord): Vector[String] =
     val keys = Vector.newBuilder[String]
@@ -108,6 +114,9 @@ class BlockingMapper extends Mapper[LongWritable, Text, Text, Text]:
 
 class BlockingReducer extends Reducer[Text, Text, Text, Text]:
 
+  /** Size of the largest block this reducer task saw (before truncation). */
+  private var largestBlock = 0L
+
   override def reduce(
     key: Text,
     values: java.lang.Iterable[Text],
@@ -117,8 +126,13 @@ class BlockingReducer extends Reducer[Text, Text, Text, Text]:
       JobConfig.maxBlockSize(context.getConfiguration)
     val records = scala.collection.mutable.ArrayBuffer[String]()
     val iter    = values.iterator()
+    var total   = 0L
 
-    while iter.hasNext && records.size < maxBlockSize do records += iter.next().toString
+    // Count every member (the true block size) but keep only the first maxBlockSize.
+    while iter.hasNext do
+      val v = iter.next()
+      total += 1
+      if records.size < maxBlockSize then records += v.toString
 
     context
       .getCounter(HadoopCounters.BlockingGroup, HadoopCounters.TotalBlocks)
@@ -130,16 +144,29 @@ class BlockingReducer extends Reducer[Text, Text, Text, Text]:
       )
       .increment(records.size.toLong)
 
-    // Check if there were more records than the limit
-    if iter.hasNext then
+    if total > records.size then
       context
         .getCounter(
           HadoopCounters.BlockingGroup,
           HadoopCounters.OversizeBlocks
         )
         .increment(1)
+      context
+        .getCounter(HadoopCounters.BlockingGroup, HadoopCounters.DroppedRecords)
+        .increment(total - records.size)
+
+    context
+      .getCounter(HadoopCounters.BlockSizeGroup, BlockingJob.sizeBucket(total))
+      .increment(1)
+    if total > largestBlock then largestBlock = total
 
     if records.nonEmpty then context.write(key, new Text(records.mkString("\t")))
+
+  override def cleanup(context: Reducer[Text, Text, Text, Text]#Context): Unit =
+    // Exact for the default single reducer; with several reducers this is the sum of their maxima.
+    context
+      .getCounter(HadoopCounters.BlockingGroup, HadoopCounters.LargestBlockSize)
+      .increment(largestBlock)
 
 class BlockingTool extends Configured with Tool:
 
@@ -168,10 +195,8 @@ class BlockingTool extends Configured with Tool:
       "org.apache.hadoop.io.compress.GzipCodec"
     )
 
-    FileInputFormat.addInputPath(
-      job,
-      new org.apache.hadoop.fs.Path(args(0))
-    )
+    // A comma-separated list of input paths is accepted (several upstream stage outputs).
+    FileInputFormat.addInputPaths(job, args(0))
     FileOutputFormat.setOutputPath(
       job,
       new org.apache.hadoop.fs.Path(args(1))

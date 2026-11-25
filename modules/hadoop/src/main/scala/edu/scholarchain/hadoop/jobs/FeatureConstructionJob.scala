@@ -36,16 +36,19 @@ import upickle.default.*
 object FeatureConstructionJob:
   val JobName = "feature-construction"
 
-  /** `sourceDataset` used when a candidate pair spans records from different source datasets. */
-  val CrossSourceDataset = "scholarchain"
+  /** Separator joining the two input datasets of a cross-source candidate pair. */
+  val CrossSourceSeparator = "+"
 
   /**
    * Source dataset of a candidate pair: the shared input `sourceDataset` (for example `dblp`) when
-   * both records come from the same source, otherwise [[CrossSourceDataset]].
+   * both records come from the same source, otherwise both datasets sorted and joined as `<a>+<b>`
+   * (for example `dblp+openalex`), so the pair still traces to its true sources (review finding
+   * N56).
    */
   def pairSourceDataset(a: WorkRecord, b: WorkRecord): String =
-    if a.provenance.sourceDataset == b.provenance.sourceDataset then a.provenance.sourceDataset
-    else CrossSourceDataset
+    val (da, db) = (a.provenance.sourceDataset, b.provenance.sourceDataset)
+    if da == db then da
+    else Seq(da, db).sorted.mkString(CrossSourceSeparator)
 
   /** Jaccard similarity on two sets. */
   def jaccard(a: Set[String], b: Set[String]): Double =
@@ -254,10 +257,8 @@ class FeatureConstructionTool extends Configured with Tool:
       "org.apache.hadoop.io.compress.GzipCodec"
     )
 
-    FileInputFormat.addInputPath(
-      job,
-      new org.apache.hadoop.fs.Path(args(0))
-    )
+    // A comma-separated list of input paths is accepted (several upstream stage outputs).
+    FileInputFormat.addInputPaths(job, args(0))
     FileOutputFormat.setOutputPath(
       job,
       new org.apache.hadoop.fs.Path(args(1))

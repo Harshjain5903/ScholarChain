@@ -10,6 +10,59 @@ import edu.scholarchain.hadoop.util.NormalizationUtils
  */
 object OrcidParser:
 
+  private def nested(
+    m: collection.Map[String, ujson.Value],
+    path: String*
+  ): Option[collection.Map[String, ujson.Value]] =
+    path.foldLeft(Option(m))((acc, k) => acc.flatMap(RawJson.obj(_, k)))
+
+  private def value(m: Option[collection.Map[String, ujson.Value]], key: String): Option[String] =
+    m.flatMap(RawJson.obj(_, key)).flatMap(RawJson.str(_, "value")).filter(_.trim.nonEmpty)
+
+  /**
+   * The flat record shape this parser reads. A real ORCID public API record (`GET
+   * https://pub.orcid.org/v3.0/<orcid>/record`) is adapted to it: `orcid-identifier.path` becomes
+   * `orcid` and `source_id` (`orcid:<id>`), the name is `person.name.credit-name` or `given-names
+   * family-name`, `person.other-names.other-name[].content` the name variants, and the
+   * organizations of `activities-summary.employments` the affiliations. A record that already has
+   * `source_id` is returned unchanged. A record with no readable name (private) is rejected as
+   * MISSING_NAME by the caller.
+   */
+  def flatten(
+    root: collection.mutable.Map[String, ujson.Value]
+  ): collection.Map[String, ujson.Value] =
+    if root.contains("source_id") || !root.contains("orcid-identifier") then root
+    else
+      val out  = collection.mutable.LinkedHashMap.empty[String, ujson.Value]
+      val path = nested(root, "orcid-identifier").flatMap(RawJson.str(_, "path"))
+      path.foreach { p =>
+        out("source_id") = s"orcid:$p"
+        out("orcid") = p
+      }
+      val name   = nested(root, "person", "name")
+      val givenN = value(name, "given-names")
+      val famN   = value(name, "family-name")
+      givenN.foreach(g => out("given_name") = g)
+      famN.foreach(f => out("family_name") = f)
+      value(name, "credit-name")
+        .orElse(Option(Seq(givenN, famN).flatten.mkString(" ")).filter(_.nonEmpty))
+        .foreach(n => out("name") = n)
+      val variants = nested(root, "person", "other-names").toVector
+        .flatMap(o => RawJson.arr(o, "other-name"))
+        .collect { case x: ujson.Obj => RawJson.str(x.value, "content") }
+        .flatten
+      if variants.nonEmpty then out("name_variants") = ujson.Arr.from(variants.map(ujson.Str(_)))
+      val orgs = nested(root, "activities-summary", "employments").toVector
+        .flatMap(e => RawJson.arr(e, "affiliation-group"))
+        .collect { case g: ujson.Obj => RawJson.arr(g.value, "summaries") }
+        .flatten
+        .collect { case s: ujson.Obj => nested(s.value, "employment-summary", "organization") }
+        .flatten
+        .flatMap(RawJson.str(_, "name"))
+      if orgs.nonEmpty then
+        out("affiliations") = ujson.Arr.from(orgs.map(n => ujson.Obj("organization" -> n)))
+      out
+
   def parse(
     json: String,
     pipelineRunId: String,
@@ -20,7 +73,7 @@ object OrcidParser:
     (AuthorMention, CanonicalResearcher)
   ] =
     try
-      val obj      = ujson.read(json).obj
+      val obj      = flatten(ujson.read(json).obj)
       val sourceId = obj.get("source_id").map(_.str).getOrElse("")
       if sourceId.isEmpty then return Left(("MISSING_SOURCE_ID", "No source_id"))
 

@@ -34,11 +34,38 @@ object HadoopCounters:
   val Conflicts        = "conflicts"
   val MissingKeys      = "missing_keys"
 
+  /** Researcher lines of the ORCID normalizer output: carry no identifier pairs, skipped. */
+  val SkippedResearcherRecords = "skipped_researcher_records"
+
+  /**
+   * DBLP works (counted once each, a work has one DOI) whose normalized DOI is also carried by a
+   * Crossref / OpenAlex / both / either record.
+   */
+  val DblpWorksCrossrefDoiMatch  = "dblp_works_crossref_doi_match"
+  val DblpWorksOpenAlexDoiMatch  = "dblp_works_openalex_doi_match"
+  val DblpWorksBothDoiMatch      = "dblp_works_both_doi_match"
+  val DblpWorksAnyDoiMatch       = "dblp_works_any_doi_match"
+  val CrossrefOpenAlexDoiMatches = "doi_groups_crossref_openalex"
+
+  /**
+   * Per identifier type `t` (doi, arxiv, orcid, openalex): `t_keys`, `t_cross_source`,
+   * `t_same_source_duplicates`.
+   */
+
   // -- Blocking --
   val BlockingGroup   = "Blocking"
   val TotalBlocks     = "total_blocks"
   val OversizeBlocks  = "oversize_blocks"
   val RecordsInBlocks = "records_in_blocks"
+
+  /** Members cut from oversize blocks (true size minus the kept maximum). */
+  val DroppedRecords = "dropped_records"
+
+  /** Size of the largest block before truncation (sum of per-reducer maxima; exact with one). */
+  val LargestBlockSize = "largest_block_size"
+
+  /** Histogram of true block sizes; counter names come from `BlockingJob.sizeBucket`. */
+  val BlockSizeGroup = "BlockSizes"
 
   // -- Feature construction --
   val FeatureGroup          = "FeatureConstruction"

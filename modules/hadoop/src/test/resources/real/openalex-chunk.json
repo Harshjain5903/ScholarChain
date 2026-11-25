@@ -1,0 +1,428 @@
+{
+ "meta": {
+  "count": 2,
+  "page": 1,
+  "per_page": 50
+ },
+ "results": [
+  {
+   "id": "https://openalex.org/W3157926221",
+   "doi": "https://doi.org/10.1002/aisy.202000275",
+   "title": "Liquid Metal Enabled Biodevices",
+   "publication_year": 2021,
+   "ids": {
+    "openalex": "https://openalex.org/W3157926221",
+    "doi": "https://doi.org/10.1002/aisy.202000275",
+    "mag": "3157926221"
+   },
+   "authorships": [
+    {
+     "author_position": "first",
+     "author": {
+      "id": "https://openalex.org/A5019610247",
+      "display_name": "Tim Cole",
+      "orcid": "https://orcid.org/0000-0002-0221-1560",
+      "observed_orcids": [
+       "https://orcid.org/0000-0002-0221-1560"
+      ]
+     },
+     "institutions": [
+      {
+       "id": "https://openalex.org/I79619799",
+       "display_name": "University of Birmingham",
+       "ror": "https://ror.org/03angcq70",
+       "country_code": "GB",
+       "type": "education",
+       "lineage": [
+        "https://openalex.org/I79619799"
+       ]
+      }
+     ],
+     "countries": [
+      "GB"
+     ],
+     "is_corresponding": false,
+     "contributor_roles": [],
+     "raw_author_name": "Tim Cole",
+     "raw_affiliation_strings": [
+      "Department of Electronic, Electrical and Systems Engineering, University of Birmingham, Edgbaston, Birmingham, B15 2TT UK"
+     ],
+     "raw_orcid": null,
+     "affiliations": [
+      {
+       "raw_affiliation_string": "Department of Electronic, Electrical and Systems Engineering, University of Birmingham, Edgbaston, Birmingham, B15 2TT UK",
+       "institution_ids": [
+        "https://openalex.org/I79619799"
+       ]
+      }
+     ]
+    },
+    {
+     "author_position": "middle",
+     "author": {
+      "id": "https://openalex.org/A5030447242",
+      "display_name": "Khashayar Khoshmanesh",
+      "orcid": "https://orcid.org/0000-0001-6036-7371",
+      "observed_orcids": [
+       "https://orcid.org/0000-0001-6036-7371"
+      ]
+     },
+     "institutions": [
+      {
+       "id": "https://openalex.org/I82951845",
+       "display_name": "RMIT University",
+       "ror": "https://ror.org/04ttjf776",
+       "country_code": "AU",
+       "type": "education",
+       "lineage": [
+        "https://openalex.org/I82951845"
+       ]
+      }
+     ],
+     "countries": [
+      "AU"
+     ],
+     "is_corresponding": true,
+     "contributor_roles": [],
+     "raw_author_name": "Khashayar Khoshmanesh",
+     "raw_affiliation_strings": [
+      "School of Engineering, RMIT University, Melbourne, Victoria, 3000 Australia"
+     ],
+     "raw_orcid": "https://orcid.org/0000-0001-6036-7371",
+     "affiliations": [
+      {
+       "raw_affiliation_string": "School of Engineering, RMIT University, Melbourne, Victoria, 3000 Australia",
+       "institution_ids": [
+        "https://openalex.org/I82951845"
+       ]
+      }
+     ]
+    },
+    {
+     "author_position": "last",
+     "author": {
+      "id": "https://openalex.org/A5004070252",
+      "display_name": "Shi\u2010Yang Tang",
+      "orcid": "https://orcid.org/0000-0002-3079-8880",
+      "observed_orcids": [
+       "https://orcid.org/0000-0002-3079-8880"
+      ]
+     },
+     "institutions": [
+      {
+       "id": "https://openalex.org/I79619799",
+       "display_name": "University of Birmingham",
+       "ror": "https://ror.org/03angcq70",
+       "country_code": "GB",
+       "type": "education",
+       "lineage": [
+        "https://openalex.org/I79619799"
+       ]
+      }
+     ],
+     "countries": [
+      "GB"
+     ],
+     "is_corresponding": true,
+     "contributor_roles": [],
+     "raw_author_name": "Shi-Yang Tang",
+     "raw_affiliation_strings": [
+      "Department of Electronic, Electrical and Systems Engineering, University of Birmingham, Edgbaston, Birmingham, B15 2TT UK"
+     ],
+     "raw_orcid": null,
+     "affiliations": [
+      {
+       "raw_affiliation_string": "Department of Electronic, Electrical and Systems Engineering, University of Birmingham, Edgbaston, Birmingham, B15 2TT UK",
+       "institution_ids": [
+        "https://openalex.org/I79619799"
+       ]
+      }
+     ]
+    }
+   ],
+   "primary_location": {
+    "id": "doi:10.1002/aisy.202000275",
+    "doi": "https://doi.org/10.1002/aisy.202000275",
+    "is_oa": true,
+    "landing_page_url": "https://doi.org/10.1002/aisy.202000275",
+    "pdf_url": null,
+    "source": {
+     "id": "https://openalex.org/S4210212817",
+     "display_name": "Advanced Intelligent Systems",
+     "issn_l": "2640-4567",
+     "issn": [
+      "2640-4567"
+     ],
+     "is_oa": true,
+     "is_in_doaj": true,
+     "is_core": true,
+     "listed_in": [
+      "cwts-core",
+      "doaj",
+      "dongbi-b",
+      "jufo-1",
+      "norway-1",
+      "oarl",
+      "poland-20",
+      "russia-white-list-1"
+     ],
+     "host_organization": "https://openalex.org/P4310320595",
+     "host_organization_name": "Wiley",
+     "host_organization_lineage": [
+      "https://openalex.org/P4310320595"
+     ],
+     "host_organization_lineage_names": [
+      "Wiley"
+     ],
+     "type": "journal"
+    },
+    "license": "cc-by",
+    "license_id": "https://openalex.org/licenses/cc-by",
+    "version": "publishedVersion",
+    "is_accepted": true,
+    "is_published": true,
+    "raw_source_name": "Advanced Intelligent Systems",
+    "raw_type": "journal-article"
+   },
+   "topics": [
+    {
+     "id": "https://openalex.org/T11601",
+     "display_name": "Neuroscience and Neural Engineering",
+     "score": 0.17000000178813934,
+     "subfield": {
+      "id": "https://openalex.org/subfields/2804",
+      "display_name": "Cellular and Molecular Neuroscience"
+     },
+     "field": {
+      "id": "https://openalex.org/fields/28",
+      "display_name": "Neuroscience"
+     },
+     "domain": {
+      "id": "https://openalex.org/domains/1",
+      "display_name": "Life Sciences"
+     }
+    }
+   ],
+   "cited_by_count": 66
+  },
+  {
+   "id": "https://openalex.org/W4384928371",
+   "doi": "https://doi.org/10.1002/aisy.202300194",
+   "title": "Recent Progress in Mechanically Robust and Conductive\u2010Hydrogel\u2010Based Sensors",
+   "publication_year": 2023,
+   "ids": {
+    "openalex": "https://openalex.org/W4384928371",
+    "doi": "https://doi.org/10.1002/aisy.202300194"
+   },
+   "authorships": [
+    {
+     "author_position": "first",
+     "author": {
+      "id": "https://openalex.org/A5018789224",
+      "display_name": "Ziwen Fan",
+      "orcid": null,
+      "observed_orcids": []
+     },
+     "institutions": [
+      {
+       "id": "https://openalex.org/I848706",
+       "display_name": "Sungkyunkwan University",
+       "ror": "https://ror.org/04q78tk20",
+       "country_code": "KR",
+       "type": "education",
+       "lineage": [
+        "https://openalex.org/I848706"
+       ]
+      }
+     ],
+     "countries": [
+      "KR"
+     ],
+     "is_corresponding": false,
+     "contributor_roles": [],
+     "raw_author_name": "Ziwen Fan",
+     "raw_affiliation_strings": [
+      "School of Chemical Engineering, Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea"
+     ],
+     "raw_orcid": null,
+     "affiliations": [
+      {
+       "raw_affiliation_string": "School of Chemical Engineering, Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea",
+       "institution_ids": [
+        "https://openalex.org/I848706"
+       ]
+      }
+     ]
+    },
+    {
+     "author_position": "middle",
+     "author": {
+      "id": "https://openalex.org/A5079962371",
+      "display_name": "Donghwan Ji",
+      "orcid": "https://orcid.org/0000-0003-2266-1654",
+      "observed_orcids": [
+       "https://orcid.org/0000-0003-2266-1654"
+      ]
+     },
+     "institutions": [
+      {
+       "id": "https://openalex.org/I848706",
+       "display_name": "Sungkyunkwan University",
+       "ror": "https://ror.org/04q78tk20",
+       "country_code": "KR",
+       "type": "education",
+       "lineage": [
+        "https://openalex.org/I848706"
+       ]
+      }
+     ],
+     "countries": [
+      "KR"
+     ],
+     "is_corresponding": false,
+     "contributor_roles": [],
+     "raw_author_name": "Donghwan Ji",
+     "raw_affiliation_strings": [
+      "School of Chemical Engineering, Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea"
+     ],
+     "raw_orcid": null,
+     "affiliations": [
+      {
+       "raw_affiliation_string": "School of Chemical Engineering, Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea",
+       "institution_ids": [
+        "https://openalex.org/I848706"
+       ]
+      }
+     ]
+    },
+    {
+     "author_position": "last",
+     "author": {
+      "id": "https://openalex.org/A5088837397",
+      "display_name": "Jaeyun Kim",
+      "orcid": "https://orcid.org/0000-0002-4687-6732",
+      "observed_orcids": [
+       "https://orcid.org/0000-0002-4687-6732",
+       "https://orcid.org/0009-0006-8217-9172"
+      ]
+     },
+     "institutions": [
+      {
+       "id": "https://openalex.org/I848706",
+       "display_name": "Sungkyunkwan University",
+       "ror": "https://ror.org/04q78tk20",
+       "country_code": "KR",
+       "type": "education",
+       "lineage": [
+        "https://openalex.org/I848706"
+       ]
+      }
+     ],
+     "countries": [
+      "KR"
+     ],
+     "is_corresponding": true,
+     "contributor_roles": [],
+     "raw_author_name": "Jaeyun Kim",
+     "raw_affiliation_strings": [
+      "Biomedical Institute for Convergence at SKKU (BICS), Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea",
+      "Department of Health Sciences and Technology, Samsung Advanced Institute for Health Sciences & Technology (SAIHST), Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea",
+      "Institute of Quantum Biophysics (IQB), Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea",
+      "School of Chemical Engineering, Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea"
+     ],
+     "raw_orcid": "https://orcid.org/0000-0002-4687-6732",
+     "affiliations": [
+      {
+       "raw_affiliation_string": "Biomedical Institute for Convergence at SKKU (BICS), Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea",
+       "institution_ids": [
+        "https://openalex.org/I848706"
+       ]
+      },
+      {
+       "raw_affiliation_string": "Department of Health Sciences and Technology, Samsung Advanced Institute for Health Sciences & Technology (SAIHST), Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea",
+       "institution_ids": [
+        "https://openalex.org/I848706"
+       ]
+      },
+      {
+       "raw_affiliation_string": "Institute of Quantum Biophysics (IQB), Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea",
+       "institution_ids": [
+        "https://openalex.org/I848706"
+       ]
+      },
+      {
+       "raw_affiliation_string": "School of Chemical Engineering, Sungkyunkwan University (SKKU), Suwon, 16419 Republic of Korea",
+       "institution_ids": [
+        "https://openalex.org/I848706"
+       ]
+      }
+     ]
+    }
+   ],
+   "primary_location": {
+    "id": "doi:10.1002/aisy.202300194",
+    "doi": "https://doi.org/10.1002/aisy.202300194",
+    "is_oa": true,
+    "landing_page_url": "https://doi.org/10.1002/aisy.202300194",
+    "pdf_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/aisy.202300194",
+    "source": {
+     "id": "https://openalex.org/S4210212817",
+     "display_name": "Advanced Intelligent Systems",
+     "issn_l": "2640-4567",
+     "issn": [
+      "2640-4567"
+     ],
+     "is_oa": true,
+     "is_in_doaj": true,
+     "is_core": true,
+     "listed_in": [
+      "cwts-core",
+      "doaj",
+      "dongbi-b",
+      "jufo-1",
+      "norway-1",
+      "oarl",
+      "poland-20",
+      "russia-white-list-1"
+     ],
+     "host_organization": "https://openalex.org/P4310320595",
+     "host_organization_name": "Wiley",
+     "host_organization_lineage": [
+      "https://openalex.org/P4310320595"
+     ],
+     "host_organization_lineage_names": [
+      "Wiley"
+     ],
+     "type": "journal"
+    },
+    "license": "cc-by",
+    "license_id": "https://openalex.org/licenses/cc-by",
+    "version": "publishedVersion",
+    "is_accepted": true,
+    "is_published": true,
+    "raw_source_name": "Advanced Intelligent Systems",
+    "raw_type": "journal-article"
+   },
+   "topics": [
+    {
+     "id": "https://openalex.org/T10338",
+     "display_name": "Advanced Sensor and Energy Harvesting Materials",
+     "score": 0.9922000169754028,
+     "subfield": {
+      "id": "https://openalex.org/subfields/2204",
+      "display_name": "Biomedical Engineering"
+     },
+     "field": {
+      "id": "https://openalex.org/fields/22",
+      "display_name": "Engineering"
+     },
+     "domain": {
+      "id": "https://openalex.org/domains/3",
+      "display_name": "Physical Sciences"
+     }
+    }
+   ],
+   "cited_by_count": 42
+  }
+ ]
+}

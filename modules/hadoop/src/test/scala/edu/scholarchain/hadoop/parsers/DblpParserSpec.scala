@@ -28,6 +28,7 @@ class DblpParserSpec extends AnyFunSuite with Matchers:
     recordType shouldBe "article"
     work.source shouldBe SourceType.DBLP
     work.sourceRecordId shouldBe "dblp:journals/tse/ChenWilliams2023"
+    work.workId shouldBe "work:dblp:journals/tse/ChenWilliams2023"
     work.title shouldBe "Scalable Graph Partitioning"
     work.year shouldBe 2023
     work.doi shouldBe Some("10.1109/tse.2023.0001234")
@@ -227,7 +228,7 @@ class DblpParserSpec extends AnyFunSuite with Matchers:
       """<inproceedings key="conf/x/Orcid24">
         |<author orcid="0000-0002-8605-8240">With Orcid</author>
         |<author>No Orcid</author>
-        |<author orcid="https://orcid.org/0000-0003-3440-190X">Url Orcid</author>
+        |<author orcid="https://orcid.org/0000-0002-1694-233X">Url Orcid</author>
         |<author orcid="not-an-orcid">Bad Orcid</author>
         |<author orcid="">Blank Orcid</author>
         |<title>T</title>
@@ -237,7 +238,7 @@ class DblpParserSpec extends AnyFunSuite with Matchers:
     mentions.map(_.orcid) shouldBe Vector(
       Some("0000-0002-8605-8240"),
       None,
-      Some("0000-0003-3440-190X"),
+      Some("0000-0002-1694-233X"),
       None,
       None
     )
@@ -265,4 +266,36 @@ class DblpParserSpec extends AnyFunSuite with Matchers:
       p.transformationStep shouldBe Some("dblp-extraction")
       p.producer shouldBe Some("hadoop/J01-dblp-extraction")
     }
+  }
+
+  test("N50: work ID is work:dblp:<key> while provenance keeps dblp:<key>") {
+    val xml =
+      """<inproceedings key="conf/igarss/SobjaergS03a">
+        |<author>A B</author>
+        |<title>T</title>
+        |<year>2003</year>
+        |</inproceedings>""".stripMargin
+    val (work, mentions, _) = DblpParser.parse(xml, runId, schemaVer, ts).toOption.get
+    work.workId shouldBe "work:dblp:conf/igarss/SobjaergS03a"
+    work.workId should not startWith "work:dblp:dblp:"
+    WorkIds.hasDoubledSourceSegment(work.workId) shouldBe false
+    work.sourceRecordId shouldBe "dblp:conf/igarss/SobjaergS03a"
+    work.provenance.sourceRecordId shouldBe "dblp:conf/igarss/SobjaergS03a"
+    mentions.map(_.sourceRecordId).distinct shouldBe Vector("dblp:conf/igarss/SobjaergS03a")
+  }
+
+  test("N60: DBLP ORCIDs failing the MOD 11-2 checksum become None, not a reject") {
+    val xml =
+      """<article key="journals/x/Chk24">
+        |<author orcid="0000-0002-1825-0097">Valid Checksum</author>
+        |<author orcid="0000-0002-1825-0098">Bad Checksum</author>
+        |<author orcid="0000-0003-3440-190X">Bad X Checksum</author>
+        |<title>T</title>
+        |<year>2024</year>
+        |</article>""".stripMargin
+    val result = DblpParser.parse(xml, runId, schemaVer, ts)
+    result.isRight shouldBe true
+    val (work, mentions, _) = result.toOption.get
+    mentions.map(_.orcid) shouldBe Vector(Some("0000-0002-1825-0097"), None, None)
+    work.authors.size shouldBe 3
   }

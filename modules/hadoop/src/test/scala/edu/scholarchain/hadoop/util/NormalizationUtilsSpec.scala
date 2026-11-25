@@ -143,6 +143,24 @@ class NormalizationUtilsSpec extends AnyFunSuite with Matchers:
 
   // -- Surname and initial extraction --
 
+  test("N60: orcidChecksumValid implements ISO 7064 MOD 11-2") {
+    NormalizationUtils.orcidChecksumValid("0000-0002-1825-0097") shouldBe true
+    NormalizationUtils.orcidChecksumValid("0000-0001-5109-3700") shouldBe true
+    NormalizationUtils.orcidChecksumValid("0000-0002-1694-233X") shouldBe true
+    NormalizationUtils.orcidChecksumValid("0000-0002-1825-0098") shouldBe false
+    NormalizationUtils.orcidChecksumValid("0000-0002-1694-2339") shouldBe false
+    NormalizationUtils.orcidChecksumValid("0000-000X-1825-0097") shouldBe false
+    NormalizationUtils.orcidChecksumValid("1234") shouldBe false
+  }
+
+  test("N60: validateOrcidChecksummed returns None for bad format or bad checksum") {
+    NormalizationUtils.validateOrcidChecksummed(
+      "https://orcid.org/0000-0002-1825-0097"
+    ) shouldBe Some("0000-0002-1825-0097")
+    NormalizationUtils.validateOrcidChecksummed("0000-0002-1825-0098") shouldBe None
+    NormalizationUtils.validateOrcidChecksummed("not-an-orcid") shouldBe None
+  }
+
   test("extractSurnameAndInitial basic case") {
     NormalizationUtils.extractSurnameAndInitial(
       "Liang Chen"

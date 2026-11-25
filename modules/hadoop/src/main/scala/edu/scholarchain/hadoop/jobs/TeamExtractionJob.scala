@@ -188,10 +188,8 @@ class TeamExtractionTool extends Configured with Tool:
       "org.apache.hadoop.io.compress.GzipCodec"
     )
 
-    FileInputFormat.addInputPath(
-      job,
-      new org.apache.hadoop.fs.Path(args(0))
-    )
+    // A comma-separated list of input paths is accepted (several upstream stage outputs).
+    FileInputFormat.addInputPaths(job, args(0))
     FileOutputFormat.setOutputPath(
       job,
       new org.apache.hadoop.fs.Path(args(1))

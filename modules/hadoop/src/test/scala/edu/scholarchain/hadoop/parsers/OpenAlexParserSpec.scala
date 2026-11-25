@@ -47,6 +47,8 @@ class OpenAlexParserSpec extends AnyFunSuite with Matchers:
     val (work, mentions) = result.toOption.get
 
     work.source shouldBe SourceType.OpenAlex
+    work.workId shouldBe "work:openalex:W3194827561"
+    work.sourceRecordId shouldBe "openalex:W3194827561"
     work.title shouldBe "Scalable Graph Partitioning"
     work.year shouldBe 2023
     work.doi shouldBe Some("10.1109/tse.2023.0001234")
