@@ -6,6 +6,8 @@ import software.amazon.awssdk.services.dynamodb.{DynamoDbClient => AwsDynamoDbCl
 import software.amazon.awssdk.services.dynamodb.model.*
 import upickle.default.*
 
+import java.nio.charset.StandardCharsets
+import java.time.{Clock, Duration}
 import scala.jdk.CollectionConverters.*
 
 // ---------------------------------------------------------------------------
@@ -74,13 +76,108 @@ case class ArtifactRegistryEntry(
 // DynamoDB adapter
 // ---------------------------------------------------------------------------
 
-/** Adapter for Amazon DynamoDB using AWS SDK v2. */
+/** Result of an idempotent conditional put. */
+enum ConditionalPutOutcome:
+
+  /** The item did not exist and was written. */
+  case Written
+
+  /** An item with the same key already existed; it was left unchanged. */
+  case AlreadyExists
+
+/**
+ * Adapter for Amazon DynamoDB using AWS SDK v2.
+ *
+ * @param clock
+ *   source of "now" for query-result expiry; injectable for tests
+ */
 class DynamoDbStorageClient(
   client: AwsDynamoDbClient,
-  tablePrefix: String
+  tablePrefix: String,
+  clock: Clock = Clock.systemUTC()
 ):
 
   private def tableName(suffix: String): String = s"$tablePrefix-$suffix"
+
+  // ---- Query Result (durable /v1/query responses; Smoke Test 4) ----
+
+  /**
+   * Durably store the JSON result of a query, idempotently.
+   *
+   * Stored in the query-session table (`<prefix>-query-session`, partition key `queryId`) under the
+   * key `result#<queryId>` ([[DynamoDbStorageClient.queryResultKey]]), so it never collides with
+   * the session item that [[putQuerySession]] writes under the bare query ID. Attributes: `queryId`
+   * (the derived key), `resultQueryId`, `recordType = "query-result"`, `jsonData`, `createdAt`
+   * (ISO-8601) and `ttl` (expiry, Unix epoch SECONDS, Number).
+   *
+   * The put is conditional on `attribute_not_exists(queryId)`: a second put for the same query ID
+   * leaves the first result in place and returns [[ConditionalPutOutcome.AlreadyExists]]. Other
+   * DynamoDB errors propagate.
+   *
+   * @param json
+   *   the result document; must be valid JSON and at most
+   *   [[DynamoDbStorageClient.MaxQueryResultBytes]] UTF-8 bytes
+   * @param ttl
+   *   time to keep the result; must be positive
+   * @throws IllegalArgumentException
+   *   before any request for an empty query ID, invalid JSON, an oversized document or a
+   *   non-positive ttl
+   */
+  def putQueryResult(queryId: String, json: String, ttl: Duration): ConditionalPutOutcome =
+    require(queryId != null && queryId.nonEmpty, "queryId must be non-empty")
+    require(json != null, "query result json must not be null")
+    require(ttl != null && !ttl.isNegative && !ttl.isZero, "query result ttl must be positive")
+    val size = json.getBytes(StandardCharsets.UTF_8).length
+    require(
+      size <= DynamoDbStorageClient.MaxQueryResultBytes,
+      s"query result is $size bytes; the limit is ${DynamoDbStorageClient.MaxQueryResultBytes}"
+    )
+    require(scala.util.Try(ujson.read(json)).isSuccess, "query result must be valid JSON")
+    val now       = clock.instant()
+    val expiresAt = now.plus(ttl).getEpochSecond
+    val item = Map(
+      "queryId"       -> AttributeValue.fromS(DynamoDbStorageClient.queryResultKey(queryId)),
+      "resultQueryId" -> AttributeValue.fromS(queryId),
+      "recordType"    -> AttributeValue.fromS(DynamoDbStorageClient.QueryResultRecordType),
+      "jsonData"      -> AttributeValue.fromS(json),
+      "createdAt"     -> AttributeValue.fromS(now.toString),
+      "ttl"           -> AttributeValue.fromN(expiresAt.toString)
+    )
+    val request = PutItemRequest
+      .builder()
+      .tableName(tableName("query-session"))
+      .item(item.asJava)
+      .conditionExpression(DynamoDbStorageClient.conditionalPutExpression("queryId"))
+      .build()
+    try
+      client.putItem(request)
+      ConditionalPutOutcome.Written
+    catch case _: ConditionalCheckFailedException => ConditionalPutOutcome.AlreadyExists
+
+  /**
+   * Read a stored query result written by [[putQueryResult]], with a strongly consistent read.
+   * Returns None when there is no result, or when its `ttl` has passed (DynamoDB TTL deletion is
+   * best-effort and can lag expiry by days).
+   */
+  def getQueryResult(queryId: String): Option[String] =
+    require(queryId != null && queryId.nonEmpty, "queryId must be non-empty")
+    val key =
+      Map("queryId" -> AttributeValue.fromS(DynamoDbStorageClient.queryResultKey(queryId)))
+    val request = GetItemRequest
+      .builder()
+      .tableName(tableName("query-session"))
+      .key(key.asJava)
+      .consistentRead(true)
+      .build()
+    val response = client.getItem(request)
+    if !response.hasItem || !response.item().containsKey("jsonData") then None
+    else
+      val item = response.item()
+      val expired = Option(item.get("ttl"))
+        .flatMap(v => Option(v.n()))
+        .flatMap(_.toLongOption)
+        .exists(_ <= clock.instant().getEpochSecond)
+      if expired then None else Some(item.get("jsonData").s())
 
   // ---- Run Ledger ----
 
@@ -234,6 +331,21 @@ object DynamoDbStorageClient:
       .region(Region.of(config.region))
       .build()
     DynamoDbStorageClient(awsClient, config.tablePrefix)
+
+  /** `recordType` attribute value of a stored query result. */
+  val QueryResultRecordType: String = "query-result"
+
+  /** Prefix of the query-session partition key under which a query result is stored. */
+  val QueryResultKeyPrefix: String = "result#"
+
+  /**
+   * Largest accepted query-result document, in UTF-8 bytes. DynamoDB items are limited to 400 KB
+   * including attribute names and the other attributes; this leaves headroom for them.
+   */
+  val MaxQueryResultBytes: Int = 350 * 1024
+
+  /** Query-session partition key value of the stored result for `queryId`. */
+  def queryResultKey(queryId: String): String = QueryResultKeyPrefix + queryId
 
   /** Build a conditional put expression for idempotent writes. */
   def conditionalPutExpression(partitionKeyName: String): String =

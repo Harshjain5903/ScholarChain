@@ -87,17 +87,80 @@ object S3VectorsIndexes:
 // Metadata encoding (S3 Vectors metadata values: string, number, boolean, list)
 // ---------------------------------------------------------------------------
 
-/** Encodes [[VectorMetadata]] as a flat S3 Vectors metadata object; `None` fields are omitted. */
+/**
+ * S3 Vectors per-vector limits enforced before PutVectors. Values are from the AWS S3 Vectors
+ * documentation (filterable metadata 2 KB, total metadata 40 KB, key length 1..1024); the key-count
+ * cap of 10 is the conservative preview-era limit. None of these were verified against the live
+ * service. Sizes are measured as UTF-8 bytes of the compact JSON encoding, which is an
+ * approximation of the service's own accounting.
+ */
+object S3VectorsLimits:
+  val MaxKeyLength: Int               = 1024
+  val MaxFilterableMetadataBytes: Int = 2048
+  val MaxTotalMetadataBytes: Int      = 40 * 1024
+  val MaxMetadataKeys: Int            = 10
+
+  /** Keys Terraform declares non-filterable (`s3_vectors_non_filterable_metadata_keys` default). */
+  val DefaultNonFilterableKeys: Set[String] = Set("textS3Uri", "textHash")
+
+  private def bytes(v: ujson.Value): Int = ujson.write(v).getBytes("UTF-8").length
+
+  /** UTF-8 size of the whole metadata object. */
+  def totalBytes(meta: ujson.Obj): Int = bytes(meta)
+
+  /** UTF-8 size of the metadata object restricted to filterable keys. */
+  def filterableBytes(meta: ujson.Obj, nonFilterable: Set[String]): Int =
+    bytes(ujson.Obj.from(meta.value.filterNot((k, _) => nonFilterable.contains(k))))
+
+/** Stable vector keys: same document, entity and window always map to the same key. */
+object VectorKeys:
+
+  /**
+   * `<documentType>|<entityId>|<start>-<end>` (`all` for an open window bound). Text hash and model
+   * are deliberately excluded so a re-embedding overwrites the previous vector instead of leaving a
+   * stale one. Keys longer than [[S3VectorsLimits.MaxKeyLength]] are replaced by `sha256:<hex>` of
+   * the readable form, which is still deterministic.
+   */
+  def stable(
+    documentType: String,
+    entityId: String,
+    windowStartYear: Option[Int],
+    windowEndYear: Option[Int]
+  ): String =
+    require(documentType.trim.nonEmpty && entityId.trim.nonEmpty, "documentType/entityId required")
+    def y(o: Option[Int]) = o.fold("all")(_.toString)
+    val readable          = s"$documentType|$entityId|${y(windowStartYear)}-${y(windowEndYear)}"
+    if readable.length <= S3VectorsLimits.MaxKeyLength then readable
+    else s"sha256:${EmbeddingQueueManager.sha256(readable)}"
+
+  /** Stable key for the vector described by `m`. */
+  def forMetadata(m: VectorMetadata): String =
+    stable(m.documentType, m.entityId, m.windowStartYear, m.windowEndYear)
+
+/**
+ * Encodes [[VectorMetadata]] as a compact flat S3 Vectors metadata object; `None` fields are
+ * omitted. The entity identifier is written under a type-specific key: `researcherId` for
+ * `researcher-profile`, `communityId` for `collaboration-community`, `entityId` otherwise. Decoding
+ * accepts any of the three, so vectors written before this change still decode.
+ */
 object S3VectorsMetadataCodec:
+
+  /** Metadata key holding the entity identifier for `documentType`. */
+  def entityKey(documentType: String): String = documentType match
+    case "researcher-profile"      => "researcherId"
+    case "collaboration-community" => "communityId"
+    case _                         => "entityId"
+
+  private val EntityKeys = Seq("researcherId", "communityId", "entityId")
 
   def toJson(m: VectorMetadata): ujson.Obj =
     val obj = ujson.Obj(
-      "documentType"   -> m.documentType,
-      "entityId"       -> m.entityId,
-      "textS3Uri"      -> m.textS3Uri,
-      "textHash"       -> m.textHash,
-      "embeddingModel" -> m.embeddingModel,
-      "runId"          -> m.runId
+      "documentType"            -> m.documentType,
+      entityKey(m.documentType) -> m.entityId,
+      "textS3Uri"               -> m.textS3Uri,
+      "textHash"                -> m.textHash,
+      "embeddingModel"          -> m.embeddingModel,
+      "runId"                   -> m.runId
     )
     m.windowStartYear.foreach(y => obj("windowStartYear") = ujson.Num(y.toDouble))
     m.windowEndYear.foreach(y => obj("windowEndYear") = ujson.Num(y.toDouble))
@@ -118,9 +181,13 @@ object S3VectorsMetadataCodec:
         case ujson.Num(n)                            => n.toInt
         case ujson.Str(s) if s.toIntOption.isDefined => s.toInt
       }
+    val entityId = EntityKeys
+      .flatMap(optStr)
+      .headOption
+      .getOrElse(throw IllegalArgumentException("vector metadata missing 'entityId'"))
     VectorMetadata(
       documentType = req("documentType"),
-      entityId = req("entityId"),
+      entityId = entityId,
       windowStartYear = optInt("windowStartYear"),
       windowEndYear = optInt("windowEndYear"),
       topicId = optStr("topicId"),

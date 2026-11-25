@@ -63,7 +63,7 @@ class AdversarialStorageSpec extends AnyFlatSpec with Matchers:
       def receiveMessages(
         queueUrl: String,
         maxMessages: Int
-      ): scala.util.Try[List[(String, String)]] = scala.util.Success(Nil)
+      ): scala.util.Try[List[ReceivedMessage]] = scala.util.Success(Nil)
       def deleteMessage(queueUrl: String, receiptHandle: String): scala.util.Try[Unit] =
         scala.util.Success(())
 

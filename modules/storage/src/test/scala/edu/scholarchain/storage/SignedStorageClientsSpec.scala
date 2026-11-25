@@ -141,7 +141,9 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
       v0("key").str shouldBe "k1"
       v0("data").obj.keySet shouldBe Set("float32")
       v0("data")("float32").arr.map(_.num) shouldBe Seq.fill(4)(0.25)
-      v0("metadata")("entityId").str shouldBe "researcher:orcid:0000-0001"
+      // researcher-profile vectors carry the entity under the compact `researcherId` key
+      v0("metadata")("researcherId").str shouldBe "researcher:orcid:0000-0001"
+      v0("metadata").obj.contains("entityId") shouldBe false
       v0("metadata")("embeddingModel").str shouldBe "amazon.titan-embed-text-v2:0"
       v0("metadata")("windowStartYear").num shouldBe 2020
       // None-valued metadata is omitted (S3 Vectors metadata has no null type)
@@ -656,7 +658,7 @@ class SignedStorageClientsSpec extends AnyFlatSpec with Matchers:
     def sendMessage(queueUrl: String, body: String): Try[String] =
       sentTo += queueUrl; Success("m-1")
 
-    def receiveMessages(queueUrl: String, maxMessages: Int): Try[List[(String, String)]] =
+    def receiveMessages(queueUrl: String, maxMessages: Int): Try[List[ReceivedMessage]] =
       sentTo += queueUrl; Success(Nil)
     def deleteMessage(queueUrl: String, receiptHandle: String): Try[Unit] = Success(())
 

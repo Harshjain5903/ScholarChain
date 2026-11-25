@@ -598,7 +598,7 @@ class StorageSpec extends AnyFlatSpec with Matchers with OptionValues:
       def receiveMessages(
         queueUrl: String,
         maxMessages: Int
-      ): Try[List[(String, String)]] = Success(Nil)
+      ): Try[List[ReceivedMessage]] = Success(Nil)
       def deleteMessage(queueUrl: String, receiptHandle: String): Try[Unit] =
         Success(())
 

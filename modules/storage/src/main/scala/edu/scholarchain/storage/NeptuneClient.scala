@@ -167,6 +167,126 @@ class NeptuneStorageClient(
     )
     NeptuneResponseParser.parseStringList(result, NeptuneResponseParser.Column.ResearcherIds)
 
+  /**
+   * Spark-computed [[ResearcherMetrics]] stored on the `Researcher` vertex (STO-P13-02), via the
+   * parameterized [[NeptuneStorageClient.researcherMetricsQuery]].
+   *
+   * @return
+   *   `None` when no vertex has this ID or the vertex carries no metric properties
+   * @throws NeptuneResponseFormatException
+   *   when the metric properties are incomplete or malformed, when more than one vertex has this
+   *   ID, or when the returned vertex has a different `researcherId`
+   */
+  def getResearcherMetrics(researcherId: String): Option[ResearcherMetrics] =
+    val result = executeCypher(
+      NeptuneStorageClient.researcherMetricsQuery,
+      Map("rid" -> ujson.Str(researcherId))
+    )
+    val metrics = NeptuneResponseParser.parseOptionalResearcherMetrics(result)
+    metrics.foreach { m =>
+      if m.researcherId != researcherId then
+        throw NeptuneResponseFormatException(
+          "researcher metrics lookup returned a vertex for a different researcherId"
+        )
+    }
+    metrics
+
+  /**
+   * Metrics for up to [[NeptuneStorageClient.MaxMetricsBatchSize]] distinct researcher IDs in one
+   * parameterized query ([[NeptuneStorageClient.researcherMetricsBatchQuery]]). Duplicate IDs are
+   * collapsed before the cap is applied; an empty input sends no request.
+   *
+   * @return
+   *   metrics keyed by researcher ID; IDs with no vertex or no metric properties are absent
+   * @throws IllegalArgumentException
+   *   before any request when there are more than `MaxMetricsBatchSize` distinct IDs
+   * @throws NeptuneResponseFormatException
+   *   when any returned vertex has incomplete or malformed metrics, an ID was not requested, or one
+   *   ID matches more than one vertex
+   */
+  def getResearcherMetricsBatch(researcherIds: Seq[String]): Map[String, ResearcherMetrics] =
+    val ids = researcherIds.distinct.toVector
+    require(
+      ids.size <= NeptuneStorageClient.MaxMetricsBatchSize,
+      s"researcher metrics batch has ${ids.size} distinct IDs; at most " +
+        s"${NeptuneStorageClient.MaxMetricsBatchSize} are allowed"
+    )
+    if ids.isEmpty then Map.empty
+    else
+      val result = executeCypher(
+        NeptuneStorageClient.researcherMetricsBatchQuery,
+        Map(
+          "rids" -> ujson.Arr.from(ids.map(ujson.Str(_))),
+          // One spare row so a duplicate vertex is always visible instead of silently cut off.
+          "lim" -> ujson.Num((ids.size + 1).toDouble)
+        )
+      )
+      val rows      = NeptuneResponseParser.parseResearcherMetricsRows(result)
+      val requested = ids.toSet
+      rows.foreach { (id, _) =>
+        if !requested.contains(id) then
+          throw NeptuneResponseFormatException(
+            "researcher metrics batch returned a vertex whose researcherId was not requested"
+          )
+      }
+      if rows.map(_._1).distinct.size != rows.size then
+        throw NeptuneResponseFormatException(
+          "researcher metrics batch returned more than one vertex for one researcherId"
+        )
+      rows.collect { case (id, Some(m)) => id -> m }.toMap
+
+  /**
+   * Top researchers by an allowlisted metric for one metric window, highest first (ties by
+   * `researcherId` ascending), via [[NeptuneStorageClient.topResearchersQuery]].
+   *
+   * For [[RankableResearcherMetric.BridgeScore]], vertices whose `bridgeScoreMethod` is
+   * `not-computed` (a 0.0 placeholder, not a measured score) or absent are excluded in the query,
+   * and any such row is also dropped client-side.
+   *
+   * @throws IllegalArgumentException
+   *   before any request when `limit` is outside 1..[[NeptuneStorageClient.MaxRankingLimit]]
+   * @throws NeptuneResponseFormatException
+   *   when a returned vertex has missing, incomplete or malformed metrics
+   */
+  def topResearchersBy(
+    metric: RankableResearcherMetric,
+    window: MetricWindow,
+    limit: Int
+  ): Vector[ResearcherMetrics] =
+    require(
+      limit >= 1 && limit <= NeptuneStorageClient.MaxRankingLimit,
+      s"ranking limit must be between 1 and ${NeptuneStorageClient.MaxRankingLimit}, got $limit"
+    )
+    val (query, parameters) = NeptuneStorageClient.topResearchersQuery(metric, window, limit)
+    val rows = NeptuneResponseParser.parseResearcherMetricsRows(executeCypher(query, parameters))
+    val metrics = rows.map {
+      case (_, Some(m)) => m
+      case (_, None) =>
+        throw NeptuneResponseFormatException(
+          s"ranking by '${metric.wireName}' returned a ${GraphSchema.VertexLabel.Researcher} vertex without metrics"
+        )
+    }
+    if metric == RankableResearcherMetric.BridgeScore then
+      metrics.filterNot(_.bridgeScoreMethod == BridgeScoreMethod.NotComputed)
+    else metrics
+
+  /**
+   * [[topResearchersBy]] for a metric named by text. The name must exactly match one of
+   * [[RankableResearcherMetric.AllowedNames]]; it is only used to select the allowlisted case and
+   * never reaches the query text.
+   *
+   * @throws IllegalArgumentException
+   *   before any request when the name is not allowlisted or `limit` is out of range
+   */
+  def topResearchersBy(
+    metricName: String,
+    window: MetricWindow,
+    limit: Int
+  ): Vector[ResearcherMetrics] =
+    RankableResearcherMetric.fromName(metricName) match
+      case Right(metric) => topResearchersBy(metric, window, limit)
+      case Left(message) => throw IllegalArgumentException(message)
+
   /** Generate a Neptune bulk-load manifest. */
   def generateBulkLoadManifest(s3Prefix: String, format: String): ujson.Value =
     ujson.Obj(
@@ -277,6 +397,67 @@ object NeptuneStorageClient:
          |RETURN [n IN nodes(p) | n.${Key.ResearcherId}] AS ${Col.Path}""".stripMargin
     (query, Map("fromId" -> ujson.Str(fromId), "toId" -> ujson.Str(toId)))
 
+  /** Largest number of distinct IDs [[NeptuneStorageClient.getResearcherMetricsBatch]] accepts. */
+  val MaxMetricsBatchSize: Int = 100
+
+  /** Largest `limit` [[NeptuneStorageClient.topResearchersBy]] accepts. */
+  val MaxRankingLimit: Int = 100
+
+  /**
+   * openCypher text for [[NeptuneStorageClient.getResearcherMetrics]] (parameter `$rid`). Returns
+   * the whole vertex; `LIMIT 2` bounds the response while still exposing duplicate vertices.
+   */
+  val researcherMetricsQuery: String =
+    s"MATCH (${Col.Researcher}:${Label.Researcher} {${Key.ResearcherId}: $$rid}) RETURN ${Col.Researcher} LIMIT 2"
+
+  /** openCypher text for [[NeptuneStorageClient.getResearcherMetricsBatch]] (`$rids`, `$lim`). */
+  val researcherMetricsBatchQuery: String =
+    s"""MATCH (${Col.Researcher}:${Label.Researcher})
+       |WHERE ${Col.Researcher}.${Key.ResearcherId} IN $$rids
+       |RETURN ${Col.Researcher} LIMIT $$lim""".stripMargin
+
+  /**
+   * openCypher text and parameters for [[NeptuneStorageClient.topResearchersBy]]:
+   * {{{
+   * MATCH (r:Researcher)
+   * WHERE r.windowStartYear = $ws AND r.windowEndYear = $we AND r.<key> IS NOT NULL
+   * RETURN r ORDER BY r.<key> DESC, r.researcherId ASC LIMIT $lim
+   * }}}
+   * `<key>` is [[RankableResearcherMetric.propertyKey]], the only text spliced in; it is re-checked
+   * here to be a declared metric key and a plain identifier. For `bridgeScore` the `WHERE` clause
+   * also has `AND r.bridgeScoreMethod <> $excludedMethod` (`not-computed`), which also drops
+   * vertices without a method. The window and limit are parameters; the limit is clamped to
+   * 1..[[MaxRankingLimit]].
+   */
+  def topResearchersQuery(
+    metric: RankableResearcherMetric,
+    window: MetricWindow,
+    limit: Int
+  ): (String, Map[String, ujson.Value]) =
+    val prop = metric.propertyKey
+    require(
+      Key.ResearcherMetricKeys.contains(prop) && GraphSchema.isValidEdgeTypeIdentifier(prop),
+      s"ranking property for '${metric.wireName}' is not a declared metric key"
+    )
+    val r            = Col.Researcher
+    val boundedLimit = math.max(1, math.min(limit, MaxRankingLimit))
+    val isBridge     = metric == RankableResearcherMetric.BridgeScore
+    val bridgeFilter =
+      if isBridge then s" AND $r.${Key.BridgeScoreMethod} <> $$excludedMethod" else ""
+    val query =
+      s"""MATCH ($r:${Label.Researcher})
+         |WHERE $r.${Key.WindowStartYear} = $$ws AND $r.${Key.WindowEndYear} = $$we AND $r.$prop IS NOT NULL$bridgeFilter
+         |RETURN $r ORDER BY $r.$prop DESC, $r.${Key.ResearcherId} ASC LIMIT $$lim""".stripMargin
+    val base = Map[String, ujson.Value](
+      "ws"  -> ujson.Num(window.startYear.toDouble),
+      "we"  -> ujson.Num(window.endYear.toDouble),
+      "lim" -> ujson.Num(boundedLimit.toDouble)
+    )
+    val parameters =
+      if isBridge then base + ("excludedMethod" -> ujson.Str(BridgeScoreMethod.NotComputed))
+      else base
+    (query, parameters)
+
   /** Production client: SigV4 with the default credential chain unless a provider is injected. */
   def create(
     config: NeptuneStorageConfig,
@@ -290,70 +471,3 @@ object NeptuneStorageClient:
       transport = JavaHttpTransport.create(Duration.ofMillis(config.queryTimeoutMs)),
       credentialsProvider = credentialsProvider
     )
-
-/**
- * Parsing helpers for Neptune openCypher JSON responses.
- *
- * Result columns are the aliases bound by the [[NeptuneStorageClient]] queries ([[Column]]). Row
- * objects are decoded into core records whose field names are the [[GraphSchema.PropertyKey]] names
- * (pinned by the storage contract tests), so a property written under any other name fails to parse
- * rather than being silently dropped.
- */
-object NeptuneResponseParser:
-
-  /** Result-column aliases shared by the openCypher queries and this parser. */
-  object Column:
-    val Researcher: String    = "r"
-    val Work: String          = "w"
-    val Edge: String          = "e"
-    val Path: String          = "path"
-    val Neighbor: String      = "neighbor"
-    val ResearcherIds: String = "rid"
-
-    /** Every column alias, in declaration order. */
-    val All: Vector[String] = Vector(Researcher, Work, Edge, Path, Neighbor, ResearcherIds)
-
-  /** Extract results array from Neptune response. */
-  def extractResults(response: ujson.Value): ujson.Arr =
-    response.obj.get("results") match
-      case Some(arr: ujson.Arr) => arr
-      case _                    => ujson.Arr()
-
-  /** Parse an optional researcher from query results. */
-  def parseOptionalResearcher(response: ujson.Value): Option[CanonicalResearcher] =
-    val results = extractResults(response)
-    if results.arr.isEmpty then None
-    else
-      val r = results.arr.head.obj(Column.Researcher)
-      Some(upickle.default.read[CanonicalResearcher](r))
-
-  /** Parse an optional work from query results. */
-  def parseOptionalWork(response: ujson.Value): Option[WorkRecord] =
-    val results = extractResults(response)
-    if results.arr.isEmpty then None
-    else
-      val w = results.arr.head.obj(Column.Work)
-      Some(upickle.default.read[WorkRecord](w))
-
-  /** Parse coauthor edges from query results. */
-  def parseCoauthorEdges(response: ujson.Value): Vector[CoauthorEdge] =
-    val results = extractResults(response)
-    results.arr.map(row => upickle.default.read[CoauthorEdge](row.obj(Column.Edge))).toVector
-
-  /** Parse a path as a vector of node IDs. */
-  def parsePath(response: ujson.Value): Option[Vector[String]] =
-    val results = extractResults(response)
-    if results.arr.isEmpty then None
-    else
-      val path = results.arr.head.obj(Column.Path)
-      Some(path.arr.map(_.str).toVector)
-
-  /** Parse graph nodes from query results. */
-  def parseGraphNodes(response: ujson.Value): Vector[GraphNode] =
-    val results = extractResults(response)
-    results.arr.map(row => upickle.default.read[GraphNode](row.obj(Column.Neighbor))).toVector
-
-  /** Parse a list of string values from query results. */
-  def parseStringList(response: ujson.Value, key: String): Vector[String] =
-    val results = extractResults(response)
-    results.arr.map(row => row.obj(key).str).toVector

@@ -192,7 +192,7 @@ class EmbeddingWriteValidationSpec extends AnyFlatSpec with Matchers:
 
   private val stubQueue = new QueueClient:
     def sendMessage(queueUrl: String, body: String): Try[String] = Success("m")
-    def receiveMessages(queueUrl: String, maxMessages: Int): Try[List[(String, String)]] =
+    def receiveMessages(queueUrl: String, maxMessages: Int): Try[List[ReceivedMessage]] =
       Success(Nil)
     def deleteMessage(queueUrl: String, receiptHandle: String): Try[Unit] = Success(())
 

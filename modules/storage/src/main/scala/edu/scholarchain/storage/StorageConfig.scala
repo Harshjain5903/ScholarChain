@@ -45,7 +45,21 @@ case class StorageModuleConfig(
   neptune: NeptuneStorageConfig,
   dynamoDb: DynamoDbStorageConfig,
   s3Vectors: S3VectorsStorageConfig,
-  embeddingQueueUrl: Option[String] = None
+  embeddingQueueUrl: Option[String] = None,
+  embeddingQueue: EmbeddingQueueConfig = EmbeddingQueueConfig()
+)
+
+/**
+ * SQS settings for the embedding work queue (`scholarchain.storage.embedding-queue`).
+ *
+ * @param region
+ *   SQS region for [[SqsQueueClient.create]]
+ * @param settings
+ *   long-poll wait, optional visibility timeout, send attempt bound and backoff
+ */
+case class EmbeddingQueueConfig(
+  region: String = "us-east-2",
+  settings: SqsQueueSettings = SqsQueueSettings()
 )
 
 /** Loads storage configuration from HOCON with environment variable overrides. */
@@ -101,5 +115,29 @@ object StorageModuleConfig:
       embeddingQueueUrl =
         if sc.hasPath("embedding-queue-url") then
           Some(sc.getString("embedding-queue-url").trim).filter(_.nonEmpty)
-        else None
+        else None,
+      embeddingQueue =
+        if sc.hasPath("embedding-queue") then loadQueue(sc.getConfig("embedding-queue"))
+        else EmbeddingQueueConfig()
+    )
+
+  private def loadQueue(q: Config): EmbeddingQueueConfig =
+    val d = SqsQueueSettings()
+    EmbeddingQueueConfig(
+      region = if q.hasPath("region") then q.getString("region") else "us-east-2",
+      settings = SqsQueueSettings(
+        waitTimeSeconds =
+          if q.hasPath("wait-time-seconds") then q.getInt("wait-time-seconds")
+          else d.waitTimeSeconds,
+        visibilityTimeoutSeconds =
+          if q.hasPath("visibility-timeout-seconds") then
+            Some(q.getInt("visibility-timeout-seconds"))
+          else None,
+        maxSendAttempts =
+          if q.hasPath("max-send-attempts") then q.getInt("max-send-attempts")
+          else d.maxSendAttempts,
+        retryBaseDelayMs =
+          if q.hasPath("retry-base-delay-ms") then q.getLong("retry-base-delay-ms")
+          else d.retryBaseDelayMs
+      )
     )
