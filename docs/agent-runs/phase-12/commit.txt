@@ -1,0 +1,18 @@
+PENDING
+
+Phase 12 has not been accepted by the human architect, so no accepted commit hash is recorded
+here yet. See human-gate.md.
+
+Commits that carry Phase 12 work so far, on branch remediation-reviewed:
+
+32ea38e  repair: apply Scala formatting across affected modules
+ae1f4d7  repair-08 core + storage: align coauthorship schema and provenance
+7e66413  repair-08 hadoop-engineer: DBLP lineage, fixed run timestamp, ORCID passthrough, clean export root
+4175a0b  repair-08 spark-engineer: lineage, ER policy derivation, M_r work IDs, honest bridges, k-core cap, run manifest
+f9acc03  repair-08 service-engineer: single-flight idempotency store
+d2dc10b  repair-08 dataset-engineer: N45 request budget and redirect allowlist
+a1ee8b8  repair-08 domain-engineer: format LineageContractSpec
+77ffbd0  phase-12 evidence: repair-07/08 records, review passes 6-7, test rows
+
+The infrastructure and script changes reviewed in passes 8 and 9 were still uncommitted when
+this file was written.
