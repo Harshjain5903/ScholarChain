@@ -1,9 +1,9 @@
 ################################################################################
 # Remote state backend (partial configuration)
 #
-# Each environment has its own state object. The bucket, key, region and lock
-# table are NOT set here; they come from a per-environment backend config file
-# passed at init time:
+# Each environment has its own state object. The bucket, key, region and
+# use_lockfile (S3 native locking; no DynamoDB lock table) are NOT set here;
+# they come from a per-environment backend config file passed at init time:
 #
 #   terraform init -reconfigure -backend-config=environments/dev.backend.hcl
 #   terraform init -reconfigure -backend-config=environments/prod.backend.hcl
@@ -20,8 +20,8 @@
 # A bare `terraform init` with no -backend-config has no bucket or key, so it
 # cannot silently attach to another environment's state.
 #
-# The state bucket region (in the .backend.hcl files) is the region of the
-# pre-existing state bucket and is independent of var.aws_region.
+# The state bucket (created by a human from infra/bootstrap, us-east-2) is
+# named in the .backend.hcl files or via SCHOLARCHAIN_STATE_BUCKET (tf-env.sh).
 ################################################################################
 
 terraform {

@@ -13,6 +13,10 @@ locals {
     "verification-worker",
   ]
 
+  # Per-service minimum (= desired) task count: var.service_min_tasks entries
+  # override var.min_tasks. Dev parks every service except query-api at 0.
+  service_min_tasks = { for s in local.services : s => lookup(var.service_min_tasks, s, var.min_tasks) }
+
   # Path-based routing (documentation of the listener rules below).
   # N19: every route whose handler reads per-process state written by
   # POST /v1/query goes to query-api, the service that ran the query:
@@ -109,6 +113,8 @@ locals {
   ]
 
   embedding_worker = "embedding-worker"
+
+  embedding_worker_main_class = "edu.scholarchain.services.EmbeddingWorker"
 }
 
 ################################################################################
@@ -186,14 +192,26 @@ resource "aws_ecr_lifecycle_policy" "services" {
 resource "aws_ecs_cluster" "main" {
   name = "${local.prefix}-cluster"
 
+  # Container Insights bills custom metrics per task; var.container_insights
+  # = false (dev) turns it off. The basic AWS/ECS metrics used by the alarms
+  # and autoscaling are unaffected.
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = var.container_insights ? "enabled" : "disabled"
   }
 
   tags = {
     Name = "${local.prefix}-cluster"
   }
+}
+
+# FARGATE and FARGATE_SPOT are both associated so the batch pipeline
+# (modules/batch_fargate, aws ecs run-task --capacity-provider-strategy) can
+# prefer Spot and fall back to on-demand. No default strategy is set: the
+# services keep launch_type = "FARGATE" and are unaffected.
+resource "aws_ecs_cluster_capacity_providers" "main" {
+  cluster_name       = aws_ecs_cluster.main.name
+  capacity_providers = ["FARGATE", "FARGATE_SPOT"]
 }
 
 ################################################################################
@@ -503,7 +521,7 @@ resource "aws_ecs_service" "services" {
   name            = "${local.prefix}-${each.key}"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.services[each.key].arn
-  desired_count   = var.min_tasks
+  desired_count   = local.service_min_tasks[each.key]
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -544,8 +562,8 @@ resource "aws_ecs_service" "services" {
 
 resource "aws_appautoscaling_target" "services" {
   for_each           = toset(local.services)
-  max_capacity       = var.max_tasks
-  min_capacity       = var.min_tasks
+  max_capacity       = max(var.max_tasks, local.service_min_tasks[each.key])
+  min_capacity       = local.service_min_tasks[each.key]
   resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.services[each.key].name}"
   scalable_dimension = "ecs:service:DesiredCount"
   service_namespace  = "ecs"
@@ -631,6 +649,13 @@ resource "aws_ecs_task_definition" "embedding_worker" {
     name      = local.embedding_worker
     image     = "${aws_ecr_repository.embedding_worker.repository_url}:${var.image_tag}"
     essential = true
+
+    # N42: run the worker main class, not the HTTP service main. The image
+    # ENTRYPOINT must be a JVM launcher that takes the main class as its
+    # first argument (build-engineer packaging follow-up).
+    # N69: the services image's entrypoint wrapper accepts "-main <class>"
+    # (a bare class name is also mapped to it); the explicit form is used.
+    command = ["-main", local.embedding_worker_main_class]
 
     environment = concat(
       [{ name = "SERVICE_NAME", value = local.embedding_worker }],

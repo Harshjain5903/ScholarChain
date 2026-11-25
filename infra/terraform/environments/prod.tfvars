@@ -21,6 +21,13 @@ vpc_cidr           = "10.1.0.0/16"
 # metadata; deploy.sh applies exactly that plan.
 
 # EMR
+# Batch compute: prod may stay "emr" (human decision 2026-11-24); dev uses
+# "ecs" because the course organization SCP denies EMR (see dev.tfvars).
+batch_compute = "emr"
+
+# The monthly AWS Budget is account-wide and is created by dev only.
+create_budget = false
+
 emr_release_label      = "emr-7.0.0"
 emr_core_instance_type = "m5.xlarge"
 emr_core_min_nodes     = 2

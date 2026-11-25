@@ -39,11 +39,11 @@ output "data_security_group_id" {
 }
 
 output "emr_master_security_group_id" {
-  description = "EMR master security group ID"
-  value       = aws_security_group.emr_master.id
+  description = "EMR master security group ID (null when enable_emr = false)"
+  value       = one(aws_security_group.emr_master[*].id)
 }
 
 output "emr_core_security_group_id" {
-  description = "EMR core security group ID"
-  value       = aws_security_group.emr_core.id
+  description = "EMR core security group ID (null when enable_emr = false)"
+  value       = one(aws_security_group.emr_core[*].id)
 }

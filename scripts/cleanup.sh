@@ -83,6 +83,11 @@ set -euo pipefail
 #     final snapshot <prefix>-neptune-final-<UTC created>, N13; dev does
 #     not), IAM, network.
 #
+# NOTE (N84): dev creates the ONLY account-wide AWS Budget (create_budget is
+# true in dev, false in prod). Destroying dev removes that budget and its
+# cost notifications; re-create it (apply dev again, or set create_budget in
+# another environment) if the account should stay covered.
+#
 # RETAINED by design (left out of the destroy plan):
 #   - S3 bucket <prefix>-logs and its configuration (EMR and service logs);
 #     its current objects are also copied into the archive in phase 6.
@@ -90,7 +95,7 @@ set -euo pipefail
 #     lifecycle { prevent_destroy = true } (R19), so Terraform refuses to plan
 #     their destruction at all. Removing them is a separate, deliberate human
 #     procedure printed at the end of this script.
-#   - Terraform state bucket and lock table (not managed by this config).
+#   - Terraform state bucket (infra/bootstrap; S3 native locking, no lock table).
 #   - Local evidence under local-runs/evidence/<env>/ and docs/agent-runs/.
 ################################################################################
 
@@ -349,16 +354,40 @@ inventory() {
   echo "  --- SQS queues ---"
   aws sqs list-queues --queue-name-prefix "${PREFIX}" --output text || rc=1
   echo "  --- EMR clusters (not terminated) ---"
-  aws emr list-clusters --active \
-    --query "Clusters[?starts_with(Name,'${PREFIX}')].[Id,Name,Status.State]" --output text || rc=1
+  EMR_OUT=""
+  EMR_RC=0
+  EMR_OUT="$(aws emr list-clusters --active \
+    --query "Clusters[?starts_with(Name,'${PREFIX}')].[Id,Name,Status.State]" --output text 2>&1)" || EMR_RC=$?
+  if [[ ${EMR_RC} -eq 0 ]]; then
+    echo "${EMR_OUT}"
+  elif [[ "${EMR_OUT}" == *"AccessDenied"* && "${EMR_OUT}" == *"service control policy"* ]]; then
+    # Organization SCP denies elasticmapreduce:* (batch_compute = "ecs"); no
+    # EMR cluster can exist, so this is not a blocker.
+    echo "  (EMR API explicitly denied by an organization SCP: no EMR cluster can exist)"
+  else
+    echo "${EMR_OUT}" >&2
+    rc=1
+  fi
   echo "  --- Neptune clusters ---"
   aws neptune describe-db-clusters \
     --query "DBClusters[?DBClusterIdentifier=='${PREFIX}-neptune'].[DBClusterIdentifier,Status,DeletionProtection]" \
     --output text || rc=1
   echo "  --- S3 Vectors buckets and indexes ---"
   aws s3vectors list-vector-buckets --prefix "${PREFIX}" --output text || rc=1
-  aws s3vectors list-indexes --vector-bucket-name "${PREFIX}-vectors" --output text 2>/dev/null \
-    || echo "    (vector bucket ${PREFIX}-vectors not found)"
+  # N47: fail closed. Only an explicit NotFound from the service means "no such
+  # vector bucket"; any other error (access denied, throttling, network) marks
+  # the inventory as failed instead of being reported as absent.
+  local vec_err vec_rc=0
+  vec_err="$(aws s3vectors list-indexes --vector-bucket-name "${PREFIX}-vectors" --output text 2>&1)" || vec_rc=$?
+  if [[ ${vec_rc} -eq 0 ]]; then
+    [[ -n "${vec_err}" ]] && echo "${vec_err}"
+  elif printf '%s' "${vec_err}" | grep -q -E 'NotFoundException|ResourceNotFound'; then
+    echo "    (vector bucket ${PREFIX}-vectors not found)"
+  else
+    echo "ERROR: aws s3vectors list-indexes failed (exit ${vec_rc}); inventory is incomplete:" >&2
+    echo "${vec_err}" | sed 's/^/    /' >&2
+    rc=1
+  fi
   echo "  --- DynamoDB tables ---"
   aws dynamodb list-tables --query "TableNames[?starts_with(@,'${PREFIX}-')]" --output text || rc=1
   echo "  --- DynamoDB backups (incl. SYSTEM backups from PITR tables) ---"
@@ -456,7 +485,8 @@ DESTROY_PLAN="${PLAN_DIR}/${ENVIRONMENT}-destroy.tfplan"
 rm -f "${DESTROY_PLAN}" "${DESTROY_PLAN}.txt" "${DESTROY_PLAN}.sha256"
 # image_tag and alb_ingress_cidrs have no default. A destroy plan only
 # deletes (checked below: any non-delete action aborts), so their values are
-# never applied; any valid value satisfies the variables. 192.0.2.0/24 is
+# never applied; any valid value satisfies the variables (the budget email is a
+# reserved .invalid placeholder, never a real address). 192.0.2.0/24 is
 # RFC 5737 TEST-NET-1 (documentation only, never routable).
 IMAGE_TAG="${IMAGE_TAG:-$(git -C "${REPO_ROOT}" rev-parse HEAD)}"
 
@@ -464,6 +494,7 @@ if ! terraform plan -destroy -input=false \
   -var-file="$(tf_env_tfvars_file "${ENVIRONMENT}")" \
   -var="image_tag=${IMAGE_TAG}" \
   -var='alb_ingress_cidrs=["192.0.2.0/24"]' \
+  -var='budget_alert_email=destroy-plan@example.invalid' \
   "${TARGET_ARGS[@]}" \
   -out="${DESTROY_PLAN}"; then
   abort "destroy plan" "terraform plan -destroy failed"
@@ -518,7 +549,7 @@ COPY_BUCKETS="logs artifacts"
 # Destroyable buckets whose contents are deleted WITHOUT a copy (inventory
 # only). Must stay in sync with EMPTY_BUCKETS minus COPY_BUCKETS.
 UNCOPIED_BUCKETS="raw curated graph rag"
-ECR_SERVICES="query-api graph-retriever vector-retriever synthesis-worker verification-worker embedding-worker"
+ECR_SERVICES="query-api graph-retriever vector-retriever synthesis-worker verification-worker embedding-worker batch-runner"
 EMPTY_DIR="${ARCHIVE_DIR}/cleanup-empty-$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p "${EMPTY_DIR}/s3-inventory" "${EMPTY_DIR}/ecr-inventory" "${EMPTY_DIR}/s3-contents" \
   "${EMPTY_DIR}/delete-requests" "${EMPTY_DIR}/delete-responses"
@@ -896,7 +927,7 @@ cat <<EOF
     - DynamoDB SYSTEM backups that DynamoDB created for each deleted
       point-in-time-recovery table (retained by AWS for 35 days; listed above).
     - Neptune final snapshot ${NEPTUNE_FINAL_SNAPSHOT:-none (dev: skip_final_snapshot)}.
-    - Terraform state bucket/lock table; local evidence at ${ARCHIVE_DIR}
+    - Terraform state bucket (infra/bootstrap; no lock table); local evidence at ${ARCHIVE_DIR}
       (bucket/ECR inventories, logs+artifacts copies and delete records in
       ${EMPTY_DIR}).
 

@@ -64,3 +64,15 @@ variable "deploy_role_trusted_principal_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "enable_emr" {
+  description = "Create the EMR service role, EC2 role, instance profile and the deploy-role EMR statement (true only when batch_compute = \"emr\"; N77)."
+  type        = bool
+  default     = true
+}
+
+variable "enable_batch_ecs" {
+  description = "Add the batch Fargate pipeline statements (ecs:RunTask/StopTask/DescribeTasks, iam:PassRole, artifact and run-prefix reads) to the deploy role (true only when batch_compute = \"ecs\"; N67)."
+  type        = bool
+  default     = false
+}

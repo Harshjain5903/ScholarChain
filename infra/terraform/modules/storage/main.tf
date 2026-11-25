@@ -6,11 +6,13 @@ locals {
   prefix = "${var.project_name}-${var.environment}"
 
   bucket_configs = {
-    raw       = { versioning = true }
-    curated   = { versioning = false }
-    graph     = { versioning = true }
-    rag       = { versioning = true }
-    artifacts = { versioning = false }
+    raw     = { versioning = true }
+    curated = { versioning = false }
+    graph   = { versioning = true }
+    rag     = { versioning = true }
+    # N68: versioned so the pipeline can record and pin the S3 VersionId of
+    # every job jar it runs (noncurrent versions expire like the other buckets).
+    artifacts = { versioning = true }
     logs      = { versioning = false }
   }
 }
@@ -65,6 +67,62 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
 
     expiration {
       days = var.environment == "prod" ? 365 : 90
+    }
+  }
+}
+
+# N72: the curated run-*/ expiry (var.intermediate_expiration_days, default 60)
+# also covers the Hadoop/ER manifests and summaries kept under each run.
+# Cost guardrail: intermediate pipeline output and old object versions do not
+# accumulate forever. Curated holds only intermediate Hadoop/ER output under
+# run-<id>/ (final graph output goes to the graph bucket), so that prefix
+# expires; versioned buckets drop noncurrent versions; every bucket aborts
+# stale multipart uploads (failed s3a/Spark writes leave invisible parts that
+# are still billed).
+resource "aws_s3_bucket_lifecycle_configuration" "data" {
+  for_each = toset(["raw", "curated", "graph", "rag", "artifacts"])
+  bucket   = aws_s3_bucket.buckets[each.key].id
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+
+  dynamic "rule" {
+    for_each = local.bucket_configs[each.key].versioning ? [1] : []
+
+    content {
+      id     = "expire-noncurrent-versions"
+      status = "Enabled"
+
+      filter {}
+
+      noncurrent_version_expiration {
+        noncurrent_days = var.intermediate_expiration_days
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = each.key == "curated" ? [1] : []
+
+    content {
+      id     = "expire-intermediate-run-output"
+      status = "Enabled"
+
+      filter {
+        prefix = "run-"
+      }
+
+      expiration {
+        days = var.intermediate_expiration_days
+      }
     }
   }
 }

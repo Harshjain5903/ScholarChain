@@ -1,18 +1,21 @@
 # Backend config for the prod environment. Used only via
 #   terraform init -reconfigure -backend-config=environments/prod.backend.hcl
-# (scripts/tf-env.sh does this and verifies the key afterwards).
+# (scripts/tf-env.sh does this and verifies the result afterwards).
 #
-# bucket, region and dynamodb_table identify the pre-existing state bucket
-# and lock table (not managed by this configuration). region is the state
-# bucket's region, not the deployment region (var.aws_region).
+# The state bucket is created once by a human from infra/bootstrap (local
+# state, us-east-2; see infra/bootstrap/README.md) and is not managed by this
+# configuration. Organization SCP: only us-east-2 is usable, so the state lives
+# there too.
 #
-# Deliberately NOT changed by the 2026-11-23 us-east-2 decision: this value
-# must equal the region the existing state bucket actually lives in, and
-# editing it does not move the bucket. It stays us-east-1 until a human
-# confirms the bucket/lock table region (or creates them in us-east-2 and
-# updates both backend files together).
-bucket         = "scholarchain-terraform-state"
-key            = "scholarchain/prod/terraform.tfstate"
-region         = "us-east-1"
-dynamodb_table = "scholarchain-terraform-locks"
-encrypt        = true
+# bucket: replace REPLACE_WITH_BUCKET_SUFFIX with the suffix used for the
+# bootstrap bucket, OR leave the placeholder and export
+# SCHOLARCHAIN_STATE_BUCKET=scholarchain-tfstate-<suffix> (tf-env.sh passes it
+# as -backend-config=bucket=...). tf-env.sh refuses the placeholder.
+#
+# Locking: S3 native lockfile (use_lockfile, Terraform >= 1.10). There is no
+# DynamoDB lock table and dynamodb_table must not be set.
+bucket       = "scholarchain-tfstate-REPLACE_WITH_BUCKET_SUFFIX"
+key          = "scholarchain/prod/terraform.tfstate"
+region       = "us-east-2"
+use_lockfile = true
+encrypt      = true

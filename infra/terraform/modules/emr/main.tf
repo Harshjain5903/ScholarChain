@@ -139,16 +139,46 @@ resource "aws_emr_cluster" "main" {
 # EMR Step Definitions (templates for submission)
 ################################################################################
 
-# Step configs are submitted via scripts/run-bounded-pipeline.sh
-# These locals document the expected step shapes.
+# Step configs are submitted via scripts/run-bounded-pipeline.sh (N42).
+# These locals document the expected step shapes. The hadoop assembly has no
+# Main-Class, so every hadoop step names the driver class explicitly through
+# command-runner.jar. Per-job input/output and -D values are supplied at
+# submission time by the script.
 
 locals {
+  artifacts_jar_prefix = "s3://${var.project_name}-${var.environment}-artifacts/jars"
+
   hadoop_step_config = {
-    name              = "ScholarChain-Hadoop-Parse"
+    name              = "ScholarChain-Hadoop-<job>"
     action_on_failure = "CONTINUE"
     hadoop_jar_step = {
-      jar  = "s3://${var.project_name}-${var.environment}-artifacts/jars/scholarchain-hadoop.jar"
-      args = ["edu.scholarchain.hadoop.Main"]
+      jar = "command-runner.jar"
+      args = [
+        "hadoop", "jar", "${local.artifacts_jar_prefix}/scholarchain-hadoop.jar",
+        "edu.scholarchain.hadoop.driver.HadoopJobDriver",
+        "<job>",
+        "-Dscholarchain.pipeline.run-id=<base>-hadoop",
+        "-Dscholarchain.pipeline.schema-version=1.0.0",
+        "-Dscholarchain.run.timestamp=<ISO8601>",
+        "<input>", "<output>",
+      ]
+    }
+  }
+
+  # Needs an entity-resolution assembly (not built yet; build-engineer
+  # follow-up). The runner reads local paths only, so the script stages S3
+  # data to the master's disk with `bash -c`.
+  er_step_config = {
+    name              = "ScholarChain-EntityResolution"
+    action_on_failure = "CONTINUE"
+    hadoop_jar_step = {
+      jar = "command-runner.jar"
+      args = [
+        "java", "-cp", "${local.artifacts_jar_prefix}/scholarchain-entity-resolution.jar",
+        "edu.scholarchain.entityresolution.EntityResolutionRunner",
+        "--work-records", "<export>/work_records", "--output", "<dir>",
+        "--run-id", "<base>-er", "--input-run-id", "<base>-hadoop",
+      ]
     }
   }
 
@@ -159,9 +189,14 @@ locals {
       jar = "command-runner.jar"
       args = [
         "spark-submit",
-        "--class", "edu.scholarchain.spark.Main",
         "--deploy-mode", "cluster",
-        "s3://${var.project_name}-${var.environment}-artifacts/jars/scholarchain-spark.jar",
+        "--class", "edu.scholarchain.spark.ScholarChainPipeline",
+        "${local.artifacts_jar_prefix}/scholarchain-spark.jar",
+        "--hadoop-output", "<export>",
+        "--match-decisions", "<er-output>/match-decisions",
+        "--output", "<new s3 path>",
+        "--run-id", "<base>-spark",
+        # no --policy-version: derived from the ER decisions
       ]
     }
   }

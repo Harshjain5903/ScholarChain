@@ -1,7 +1,8 @@
 terraform {
-  # >= 1.9.0: root variable validations reference other variables
+  # >= 1.10.0: S3 native state locking (use_lockfile) in the backend config;
+  # root variable validations reference other variables (>= 1.9)
   # (availability_zones vs aws_region, titan grant region check).
-  required_version = ">= 1.9.0, < 2.0.0"
+  required_version = ">= 1.10.0, < 2.0.0"
 
   required_providers {
     aws = {

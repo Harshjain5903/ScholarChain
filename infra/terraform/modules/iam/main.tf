@@ -24,13 +24,139 @@ locals {
 
   ecs_task_arn_pattern    = "arn:aws:ecs:${local.region}:${local.account_id}:task/${var.ecs_cluster_name}/*"
   ecs_service_arn_pattern = "arn:aws:ecs:${local.region}:${local.account_id}:service/${var.ecs_cluster_name}/${local.prefix}-*"
+
+  # N12 / N77: EMR step permissions, only when an EMR cluster can exist.
+  deploy_emr_statements = [for st in [
+    {
+      # N12: scoped to THIS environment's EMR cluster by tag. The cluster ARN
+      # cannot be referenced directly (module.emr depends on this module's
+      # EMR roles, so emr cluster ARN -> iam would be a cycle). The provider
+      # default_tags put Project = "ScholarChain" and Environment =
+      # <env> on the cluster (providers.tf), and these five actions accept
+      # the elasticmapreduce:ResourceTag/<key> condition on the cluster
+      # resource, so a dev deploy role cannot add or read steps on prod's
+      # cluster (or any untagged cluster).
+      Sid    = "EMRSteps"
+      Effect = "Allow"
+      Action = [
+        "elasticmapreduce:AddJobFlowSteps",
+        "elasticmapreduce:CancelSteps",
+        "elasticmapreduce:DescribeStep",
+        "elasticmapreduce:ListSteps",
+        "elasticmapreduce:DescribeCluster",
+      ]
+      Resource = "arn:aws:elasticmapreduce:${local.region}:${local.account_id}:cluster/*"
+      Condition = {
+        StringEquals = {
+          "elasticmapreduce:ResourceTag/Environment" = var.environment
+          "elasticmapreduce:ResourceTag/Project"     = "ScholarChain"
+        }
+      }
+    },
+  ] : st if var.enable_emr]
+
+  # N67/N80: run-bounded-pipeline.sh is run by the HUMAN OPERATOR (an AWS CLI
+  # profile with the account's admin SSO role), NOT by the deploy role, so the
+  # script's own AWS calls (including reads of the Terraform state bucket)
+  # use the operator's permissions. The statements below are a deliberately
+  # scoped, minimal set that would let the deploy role run the same
+  # preflight/RunTask/StopTask flow if it were ever used for it: start, poll
+  # and stop the batch Fargate tasks and pass the batch task role and the
+  # shared execution role to them. Read access to the Terraform state bucket
+  # is INTENTIONALLY NOT granted to the deploy role here (the script's state
+  # verification would therefore still need the operator's credentials).
+  # Only when batch_compute = "ecs".
+  batch_task_definition_arn = "arn:aws:ecs:${local.region}:${local.account_id}:task-definition/${local.prefix}-batch-*"
+  batch_task_role_arn       = "arn:aws:iam::${local.account_id}:role/${local.prefix}-batch-task-role"
+  deploy_batch_statements = [for st in [
+    {
+      # RunTask authorizes on the task definition (family and revision) and
+      # on the cluster: only this environment's batch families, only in this
+      # environment's cluster.
+      Sid      = "BatchRunTask"
+      Effect   = "Allow"
+      Action   = ["ecs:RunTask"]
+      Resource = local.batch_task_definition_arn
+      Condition = {
+        ArnEquals = {
+          "ecs:cluster" = var.ecs_cluster_arn
+        }
+      }
+    },
+    {
+      # StopTask and DescribeTasks authorize on the task ARN, which carries no
+      # task-definition name; they are limited to this cluster's tasks by
+      # ARN and by the ecs:cluster condition.
+      Sid      = "BatchStopAndDescribeTasks"
+      Effect   = "Allow"
+      Action   = ["ecs:StopTask", "ecs:DescribeTasks"]
+      Resource = local.ecs_task_arn_pattern
+      Condition = {
+        ArnEquals = {
+          "ecs:cluster" = var.ecs_cluster_arn
+        }
+      }
+    },
+    {
+      Sid    = "BatchPassRole"
+      Effect = "Allow"
+      Action = "iam:PassRole"
+      Resource = [
+        local.batch_task_role_arn,
+        aws_iam_role.ecs_task_execution.arn,
+      ]
+      Condition = {
+        StringEquals = {
+          "iam:PassedToService" = "ecs-tasks.amazonaws.com"
+        }
+      }
+    },
+    {
+      # Preflight reads: the jars (by version), the raw input listing, the
+      # existence checks of the run output prefixes, and the runner image.
+      Sid      = "BatchReadJars"
+      Effect   = "Allow"
+      Action   = ["s3:GetObject", "s3:GetObjectVersion"]
+      Resource = "${var.s3_bucket_arns["artifacts"]}/jars/*"
+    },
+    {
+      # N80: the dataset snapshot (head-object/get of the DBLP input).
+      Sid      = "BatchReadRawDblp"
+      Effect   = "Allow"
+      Action   = ["s3:GetObject", "s3:GetObjectVersion"]
+      Resource = "${var.s3_bucket_arns["raw"]}/dblp/*"
+    },
+    {
+      Sid      = "BatchListInputsAndRunOutputs"
+      Effect   = "Allow"
+      Action   = ["s3:ListBucket"]
+      Resource = [var.s3_bucket_arns["raw"], var.s3_bucket_arns["curated"], var.s3_bucket_arns["graph"], var.s3_bucket_arns["artifacts"]]
+      Condition = {
+        StringLike = {
+          "s3:prefix" = ["dblp", "dblp/*", "jars", "jars/*", "run-*"]
+        }
+      }
+    },
+    {
+      Sid      = "BatchDescribeRunnerImage"
+      Effect   = "Allow"
+      Action   = ["ecr:DescribeImages"]
+      Resource = "arn:aws:ecr:${local.region}:${local.account_id}:repository/${local.prefix}-batch-runner"
+    },
+  ] : st if var.enable_batch_ecs]
 }
 
 ################################################################################
 # EMR Service Role
+#
+# N77: the EMR service role, EC2 role, instance profile and the deploy-role EMR
+# statement exist only when var.enable_emr (batch_compute = "emr"). With "ecs"
+# the organization SCP denies EMR and none of them is created.
 ################################################################################
 
 resource "aws_iam_role" "emr_service" {
+  count = var.enable_emr ? 1 : 0
+
   name = "${local.prefix}-emr-service-role"
 
   assume_role_policy = jsonencode({
@@ -48,8 +174,10 @@ resource "aws_iam_role" "emr_service" {
 }
 
 resource "aws_iam_role_policy" "emr_service" {
+  count = var.enable_emr ? 1 : 0
+
   name = "${local.prefix}-emr-service-policy"
-  role = aws_iam_role.emr_service.id
+  role = aws_iam_role.emr_service[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -104,7 +232,7 @@ resource "aws_iam_role_policy" "emr_service" {
         Effect = "Allow"
         Action = "iam:PassRole"
         Resource = [
-          aws_iam_role.emr_ec2.arn,
+          aws_iam_role.emr_ec2[0].arn,
         ]
       },
     ]
@@ -116,6 +244,8 @@ resource "aws_iam_role_policy" "emr_service" {
 ################################################################################
 
 resource "aws_iam_role" "emr_ec2" {
+  count = var.enable_emr ? 1 : 0
+
   name = "${local.prefix}-emr-ec2-role"
 
   assume_role_policy = jsonencode({
@@ -133,13 +263,17 @@ resource "aws_iam_role" "emr_ec2" {
 }
 
 resource "aws_iam_instance_profile" "emr_ec2" {
+  count = var.enable_emr ? 1 : 0
+
   name = "${local.prefix}-emr-ec2-profile"
-  role = aws_iam_role.emr_ec2.name
+  role = aws_iam_role.emr_ec2[0].name
 }
 
 resource "aws_iam_role_policy" "emr_ec2" {
+  count = var.enable_emr ? 1 : 0
+
   name = "${local.prefix}-emr-ec2-policy"
-  role = aws_iam_role.emr_ec2.id
+  role = aws_iam_role.emr_ec2[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -663,7 +797,7 @@ resource "aws_iam_role_policy" "deploy" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
+    Statement = concat([
       {
         # R17: service-level actions scoped to this environment's services.
         Sid      = "ECSServiceDeployment"
@@ -742,31 +876,35 @@ resource "aws_iam_role_policy" "deploy" {
           aws_iam_role.ecs_task_loader.arn,
         ]
       },
-      {
-        # N12: scoped to THIS environment's EMR cluster by tag. The cluster ARN
-        # cannot be referenced directly (module.emr depends on this module's
-        # EMR roles, so emr cluster ARN -> iam would be a cycle). The provider
-        # default_tags put Project = "ScholarChain" and Environment =
-        # <env> on the cluster (providers.tf), and these four actions accept
-        # the elasticmapreduce:ResourceTag/<key> condition on the cluster
-        # resource, so a dev deploy role cannot add or read steps on prod's
-        # cluster (or any untagged cluster).
-        Sid    = "EMRSteps"
-        Effect = "Allow"
-        Action = [
-          "elasticmapreduce:AddJobFlowSteps",
-          "elasticmapreduce:DescribeStep",
-          "elasticmapreduce:ListSteps",
-          "elasticmapreduce:DescribeCluster",
-        ]
-        Resource = "arn:aws:elasticmapreduce:${local.region}:${local.account_id}:cluster/*"
-        Condition = {
-          StringEquals = {
-            "elasticmapreduce:ResourceTag/Environment" = var.environment
-            "elasticmapreduce:ResourceTag/Project"     = "ScholarChain"
-          }
-        }
-      },
-    ]
+    ], local.deploy_emr_statements, local.deploy_batch_statements)
   })
+}
+
+################################################################################
+# State moves: EMR resources that gained a count (enable_emr, N77)
+################################################################################
+
+moved {
+  from = aws_iam_role.emr_service
+  to   = aws_iam_role.emr_service[0]
+}
+
+moved {
+  from = aws_iam_role_policy.emr_service
+  to   = aws_iam_role_policy.emr_service[0]
+}
+
+moved {
+  from = aws_iam_role.emr_ec2
+  to   = aws_iam_role.emr_ec2[0]
+}
+
+moved {
+  from = aws_iam_instance_profile.emr_ec2
+  to   = aws_iam_instance_profile.emr_ec2[0]
+}
+
+moved {
+  from = aws_iam_role_policy.emr_ec2
+  to   = aws_iam_role_policy.emr_ec2[0]
 }

@@ -19,8 +19,9 @@ variable "log_retention_days" {
 }
 
 variable "emr_cluster_id" {
-  description = "EMR cluster ID for dashboard metrics"
+  description = "EMR cluster ID for dashboard metrics; null (batch_compute = \"ecs\") omits the EMR widget"
   type        = string
+  default     = null
 }
 
 variable "ecs_cluster_name" {

@@ -35,6 +35,15 @@
 # ($HOME/.terraformrc) that mentions provider_installation or dev_overrides:
 # each can make Terraform run provider code other than the locked providers.
 #
+# Backend (us-east-2 state bucket, S3 native locking): the bucket is created
+# once by a human from infra/bootstrap. environments/<env>.backend.hcl names it
+# (placeholder REPLACE_WITH_BUCKET_SUFFIX) or the operator exports
+# SCHOLARCHAIN_STATE_BUCKET=scholarchain-tfstate-<suffix>, which is passed as
+# -backend-config=bucket=... . tf_env_init_backend refuses a placeholder or
+# malformed bucket, a region other than us-east-2, a missing use_lockfile=true
+# and any dynamodb_table; tf_env_verify_backend then refuses an initialised
+# backend whose bucket, key, region or locking differ.
+#
 # N32: `terraform init` runs with -lockfile=readonly, so init can never
 # rewrite the committed .terraform.lock.hcl (it fails instead if the lock
 # file does not satisfy the provider constraints).
@@ -60,6 +69,8 @@ fi
 
 TF_ENV_ALLOWED=(dev prod)
 TF_ENV_LEGACY_KEY="scholarchain/terraform.tfstate"
+# Organization SCP: only us-east-2 is usable for state (and everything else).
+TF_ENV_STATE_REGION_REQUIRED="us-east-2"
 
 TF_ENV_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TF_ENV_REPO_ROOT="$(cd "${TF_ENV_SCRIPT_DIR}/.." && pwd)"
@@ -68,6 +79,10 @@ TF_DIR="${TF_ENV_REPO_ROOT}/infra/terraform"
 # Set only by tf_env_verify_backend in this shell. Reset on every source so a
 # value inherited from the caller's environment can never satisfy the guard.
 TF_ENV_VERIFIED_ENV=""
+# Bucket tf_env_init_backend decided on (file value or SCHOLARCHAIN_STATE_BUCKET).
+# Reset on every source; tf_env_verify_backend compares the initialised
+# backend against it.
+TF_ENV_EXPECTED_BUCKET=""
 
 # N3: refuse Terraform environment overrides that bypass the backend/key
 # verification. Exits 3. Only exported variables reach terraform, so
@@ -108,8 +123,10 @@ tf_env_refuse_tf_overrides() {
 # ($HOME/.terraformrc on macOS/Linux) when TF_CLI_CONFIG_FILE is not set. A
 # provider_installation block (including dev_overrides) there can make init/
 # plan/apply use provider binaries other than the ones pinned and checksummed
-# in .terraform.lock.hcl. Refuse (exit 3) if that file mentions either
-# keyword. Only this one file is read, only by grep -q (its content, which
+# in .terraform.lock.hcl. Refuse (exit 3) if that file mentions any of
+# these keywords (N46: plus plugin_cache_dir and
+# plugin_cache_may_break_dependency_lock_file, which install providers from a
+# cache outside the lock file's checksums). Only this one file is read, only by grep -q (its content, which
 # may hold credentials, is never printed). Fail closed: an unset HOME or an
 # existing but unreadable file is refused too. Credential files under
 # $HOME/.terraform.d/ are deliberately NOT read.
@@ -129,12 +146,12 @@ tf_env_refuse_default_cli_config() {
     exit 3
   fi
   grep_rc=0
-  grep -E -q 'dev_overrides|provider_installation' "${rc_file}" >/dev/null 2>&1 || grep_rc=$?
+  grep -E -q 'dev_overrides|provider_installation|plugin_cache_dir|plugin_cache_may_break_dependency_lock_file' "${rc_file}" >/dev/null 2>&1 || grep_rc=$?
   if [[ ${grep_rc} -eq 1 ]]; then
     return 0
   fi
   if [[ ${grep_rc} -eq 0 ]]; then
-    echo "ERROR: ${rc_file} contains a provider_installation or dev_overrides block (content not shown)." >&2
+    echo "ERROR: ${rc_file} contains a provider_installation, dev_overrides or plugin_cache setting (content not shown)." >&2
     echo "  Terraform would install or override providers from it instead of the providers" >&2
     echo "  pinned in infra/terraform/.terraform.lock.hcl. Move that block (or the file) out" >&2
     echo "  of the way for ScholarChain runs and re-run." >&2
@@ -196,6 +213,35 @@ tf_env_hcl_attr() {
   sed -n -E "s/^[[:space:]]*${attr}[[:space:]]*=[[:space:]]*\"([^\"]*)\".*/\\1/p" "${file}" | head -n 1
 }
 
+# Decide and validate the state bucket for <env>: SCHOLARCHAIN_STATE_BUCKET if
+# exported, else the bucket in the backend file. Prints the bucket name. Exits 3
+# on a placeholder or malformed name, a region other than us-east-2, a missing
+# use_lockfile = true or any dynamodb_table (S3 native locking only).
+tf_env_resolve_state_bucket() {
+  local backend_file="$1" bucket region
+  bucket="${SCHOLARCHAIN_STATE_BUCKET:-$(tf_env_hcl_attr "${backend_file}" bucket)}"
+  if [[ ! "${bucket}" =~ ^scholarchain-tfstate-[a-z0-9]{8,24}$ ]]; then
+    echo "ERROR: state bucket '${bucket}' is not scholarchain-tfstate-<8-24 lowercase alphanumerics>." >&2
+    echo "  Create the bucket once from infra/bootstrap (see infra/bootstrap/README.md), then either" >&2
+    echo "  edit ${backend_file} or export SCHOLARCHAIN_STATE_BUCKET=<bucket>." >&2
+    exit 3
+  fi
+  region="$(tf_env_hcl_attr "${backend_file}" region)"
+  if [[ "${region}" != "${TF_ENV_STATE_REGION_REQUIRED}" ]]; then
+    echo "ERROR: ${backend_file} has region '${region}'; the state bucket must be in ${TF_ENV_STATE_REGION_REQUIRED} (organization SCP)." >&2
+    exit 3
+  fi
+  if ! grep -E -q '^[[:space:]]*use_lockfile[[:space:]]*=[[:space:]]*true([[:space:]]|#|$)' "${backend_file}"; then
+    echo "ERROR: ${backend_file} must set use_lockfile = true (S3 native locking)." >&2
+    exit 3
+  fi
+  if grep -E -q '^[[:space:]]*dynamodb_table[[:space:]]*=' "${backend_file}"; then
+    echo "ERROR: ${backend_file} sets dynamodb_table; the lock table is gone, use use_lockfile = true only." >&2
+    exit 3
+  fi
+  printf '%s\n' "${bucket}"
+}
+
 # Verify the currently initialised backend belongs to <env>. Exits on mismatch.
 tf_env_verify_backend() {
   local env="$1"
@@ -215,6 +261,24 @@ tf_env_verify_backend() {
     echo "  backend type: '${btype}' (expected 's3')" >&2
     echo "  state key:    '${actual}'" >&2
     echo "  expected key: '${expected}'" >&2
+    exit 3
+  fi
+  local got_bucket got_region got_lock got_ddb
+  got_bucket="$(tf_env_backend_attr bucket)"
+  got_region="$(tf_env_backend_attr region)"
+  got_lock="$(tf_env_backend_attr use_lockfile | tr '[:upper:]' '[:lower:]')"
+  got_ddb="$(tf_env_backend_attr dynamodb_table)"
+  if [[ -z "${TF_ENV_EXPECTED_BUCKET}" || "${got_bucket}" != "${TF_ENV_EXPECTED_BUCKET}" ]]; then
+    echo "ERROR: initialised backend bucket '${got_bucket}' does not match the expected bucket '${TF_ENV_EXPECTED_BUCKET}'." >&2
+    exit 3
+  fi
+  if [[ "${got_region}" != "${TF_ENV_STATE_REGION_REQUIRED}" ]]; then
+    echo "ERROR: initialised backend region '${got_region}' is not ${TF_ENV_STATE_REGION_REQUIRED}." >&2
+    exit 3
+  fi
+  if [[ "${got_lock}" != "true" || -n "${got_ddb}" ]]; then
+    echo "ERROR: initialised backend must use S3 native locking (use_lockfile=true, no dynamodb_table);" >&2
+    echo "  use_lockfile='${got_lock}' dynamodb_table='${got_ddb}'." >&2
     exit 3
   fi
   TF_ENV_STATE_BUCKET="$(tf_env_backend_attr bucket)"
@@ -354,11 +418,38 @@ tf_env_init_backend() {
     exit 3
   fi
 
-  tf_env_refuse_legacy_state "${backend_file}"
+  TF_ENV_EXPECTED_BUCKET="$(tf_env_resolve_state_bucket "${backend_file}")" || exit 3
+  tf_env_require_bucket_owner "${backend_file}" "${TF_ENV_EXPECTED_BUCKET}"
+  tf_env_refuse_legacy_state "${backend_file}" "${TF_ENV_EXPECTED_BUCKET}"
 
   echo "=== STEP: terraform init (backend ${expected}) ==="
-  (cd "${TF_DIR}" && terraform init -reconfigure -input=false -lockfile=readonly -backend-config="${backend_file}")
+  # The bucket override is passed last so it wins over the file's value; the
+  # resolved name was validated above and is re-verified after init.
+  (cd "${TF_DIR}" && terraform init -reconfigure -input=false -lockfile=readonly \
+    -backend-config="${backend_file}" -backend-config="bucket=${TF_ENV_EXPECTED_BUCKET}")
   tf_env_verify_backend "${env}"
+}
+
+# N76: the state bucket name comes from an environment variable or a committed
+# file, and bucket names are global. Require that the bucket exists AND is owned
+# by the account the CLI is authenticated to (head-bucket with
+# --expected-bucket-owner), so a squatted or mistyped bucket in another account
+# can never receive this environment's state. Read-only. Fails closed: callers
+# must run tf_env_require_aws_target first (TF_ENV_AWS_ACCOUNT).
+tf_env_require_bucket_owner() {
+  local backend_file="$1" bucket="$2" region err rc=0
+  if [[ ! "${TF_ENV_AWS_ACCOUNT:-}" =~ ^[0-9]{12}$ ]]; then
+    echo "ERROR: AWS account is not known; call tf_env_require_aws_target before tf_env_init_backend." >&2
+    exit 3
+  fi
+  region="$(tf_env_hcl_attr "${backend_file}" region)"
+  err="$(aws s3api head-bucket --bucket "${bucket}" --expected-bucket-owner "${TF_ENV_AWS_ACCOUNT}" --region "${region}" 2>&1 >/dev/null)" || rc=$?
+  if [[ ${rc} -ne 0 ]]; then
+    echo "ERROR: state bucket '${bucket}' is not reachable or is not owned by account ${TF_ENV_AWS_ACCOUNT}:" >&2
+    echo "  ${err}" >&2
+    exit 3
+  fi
+  echo "  State bucket ${bucket} is owned by account ${TF_ENV_AWS_ACCOUNT}."
 }
 
 # Before R1 both environments shared the key scholarchain/terraform.tfstate.
@@ -366,13 +457,12 @@ tf_env_init_backend() {
 # deployed first; a human must migrate it to the correct per-env key before
 # any script touches state. Read-only head-object.
 tf_env_refuse_legacy_state() {
-  local backend_file="$1"
-  local bucket region
+  local backend_file="$1" bucket="$2"
+  local region
   local err rc
-  bucket="$(tf_env_hcl_attr "${backend_file}" bucket)"
   region="$(tf_env_hcl_attr "${backend_file}" region)"
   rc=0
-  err="$(aws s3api head-object --bucket "${bucket}" --key "${TF_ENV_LEGACY_KEY}" --region "${region}" 2>&1 >/dev/null)" || rc=$?
+  err="$(aws s3api head-object --bucket "${bucket}" --key "${TF_ENV_LEGACY_KEY}" --region "${region}" --expected-bucket-owner "${TF_ENV_AWS_ACCOUNT}" 2>&1 >/dev/null)" || rc=$?
   if [[ ${rc} -eq 0 ]]; then
     echo "ERROR: legacy shared state object s3://${bucket}/${TF_ENV_LEGACY_KEY} exists." >&2
     echo "  It predates per-environment state (R1) and may hold dev or prod resources." >&2

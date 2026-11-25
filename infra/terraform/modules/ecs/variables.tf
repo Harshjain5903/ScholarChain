@@ -142,3 +142,20 @@ variable "embedding_queue_url" {
   description = "Embedding work queue URL (workflow module embedding_queue_url), exported ONLY to the embedding-worker as SCHOLARCHAIN_EMBEDDING_QUEUE_URL"
   type        = string
 }
+
+variable "container_insights" {
+  description = "Enable ECS Container Insights on the cluster (extra CloudWatch custom-metric cost). false in dev."
+  type        = bool
+  default     = true
+}
+
+variable "service_min_tasks" {
+  description = "Per-service override of min_tasks (= desired count and autoscaling minimum), keyed by service name (query-api, graph-retriever, vector-retriever, synthesis-worker, verification-worker). A service not listed uses min_tasks. 0 parks a service."
+  type        = map(number)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for k, v in var.service_min_tasks : contains(["query-api", "graph-retriever", "vector-retriever", "synthesis-worker", "verification-worker"], k) && v >= 0 && floor(v) == v])
+    error_message = "service_min_tasks keys must be query-api, graph-retriever, vector-retriever, synthesis-worker or verification-worker, with non-negative integer values."
+  }
+}

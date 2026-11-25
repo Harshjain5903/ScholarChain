@@ -31,6 +31,29 @@ resource "aws_cloudwatch_log_group" "neptune" {
   tags = { Name = "${local.prefix}-neptune-logs" }
 }
 
+locals {
+  # The EMR widget exists only when an EMR cluster does (batch_compute = "emr").
+  emr_widgets = var.emr_cluster_id == null ? [] : [
+    {
+      type   = "metric"
+      x      = 0
+      y      = 0
+      width  = 12
+      height = 6
+      properties = {
+        title  = "EMR Cluster - YARN Memory"
+        region = var.aws_region
+        metrics = [
+          ["AWS/ElasticMapReduce", "YARNMemoryAvailablePercentage", "JobFlowId", var.emr_cluster_id],
+          ["AWS/ElasticMapReduce", "ContainerAllocated", "JobFlowId", var.emr_cluster_id],
+        ]
+        period = 300
+        stat   = "Average"
+      }
+    }
+  ]
+}
+
 ################################################################################
 # CloudWatch Dashboard
 ################################################################################
@@ -39,24 +62,7 @@ resource "aws_cloudwatch_dashboard" "main" {
   dashboard_name = "${local.prefix}-dashboard"
 
   dashboard_body = jsonencode({
-    widgets = [
-      {
-        type   = "metric"
-        x      = 0
-        y      = 0
-        width  = 12
-        height = 6
-        properties = {
-          title  = "EMR Cluster - YARN Memory"
-          region = var.aws_region
-          metrics = [
-            ["AWS/ElasticMapReduce", "YARNMemoryAvailablePercentage", "JobFlowId", var.emr_cluster_id],
-            ["AWS/ElasticMapReduce", "ContainerAllocated", "JobFlowId", var.emr_cluster_id],
-          ]
-          period = 300
-          stat   = "Average"
-        }
-      },
+    widgets = concat(local.emr_widgets, [
       {
         type   = "metric"
         x      = 12
@@ -160,7 +166,7 @@ resource "aws_cloudwatch_dashboard" "main" {
           period = 60
         }
       },
-    ]
+    ])
   })
 }
 

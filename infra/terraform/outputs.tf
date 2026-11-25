@@ -56,13 +56,23 @@ output "s3_vectors_index_arns" {
 ################################################################################
 
 output "emr_cluster_id" {
-  description = "EMR cluster ID"
-  value       = module.emr.cluster_id
+  description = "EMR cluster ID (null when batch_compute = \"ecs\")"
+  value       = one(module.emr[*].cluster_id)
 }
 
 output "emr_master_dns" {
-  description = "EMR master public DNS"
-  value       = module.emr.master_public_dns
+  description = "EMR master public DNS (null when batch_compute = \"ecs\")"
+  value       = one(module.emr[*].master_public_dns)
+}
+
+output "batch_compute" {
+  description = "Where the pipeline runs: emr or ecs. scripts/run-bounded-pipeline.sh selects its path from this verified state output."
+  value       = var.batch_compute
+}
+
+output "batch_run_config" {
+  description = "ECS Fargate batch run configuration (null when batch_compute = \"emr\"); read by scripts/run-bounded-pipeline.sh."
+  value       = one(module.batch_fargate[*].run_config)
 }
 
 ################################################################################

@@ -1,0 +1,113 @@
+# Reviewed trivy misconfiguration ignores for infra/terraform (N78).
+#
+# Usage (from infra/terraform):
+#   trivy config --tf-vars environments/dev.tfvars --skip-dirs .terraform \
+#     --ignorefile .trivyignore.yaml .
+# Without --ignorefile trivy still reports everything; nothing here hides a
+# finding from a plain `trivy config` run.
+#
+# Every entry names ONE rule, the file it applies to, and why the finding is
+# accepted for the bounded dev environment. Source of the classification:
+# docs/agent-runs/phase-12/review-report.md Pass 3 section 4 (and the later
+# passes that kept it), plus the 2026-11-24 human decisions. Every entry
+# expires, so it is re-reviewed. A human must review this file; it was
+# authored by infra-engineer and has not been ratified.
+#
+# NOT ignored on purpose: nothing about IAM wildcards, public S3 access,
+# unencrypted storage or open ingress. The accepted classes are:
+#   - CMK-vs-AWS-managed key hygiene (AWS-0017, 0025, 0033, 0128, 0132),
+#   - the single account-wide design choices below (0053, 0054, 0089, 0090,
+#     0104, 0178, 0034).
+# prod must be scanned WITHOUT this file's CMK and flow-log entries before it
+# is deployed; they are accepted for dev only.
+misconfigurations:
+  - id: AWS-0017
+    paths: ["modules/*/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      Log groups use the default CloudWatch Logs encryption (AWS-owned key).
+      A customer-managed KMS key adds a key, a key policy and cost for logs
+      that hold no secrets (the application never logs secret values). Accepted
+      for dev; revisit for prod.
+  - id: AWS-0025
+    paths: ["modules/storage/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      DynamoDB tables use the AWS-owned encryption key. The tables hold run
+      ledgers, caches and evidence-bundle JSON, not credentials. A CMK is a
+      cost and operational burden for the bounded dev environment.
+  - id: AWS-0033
+    paths: ["modules/ecs/main.tf", "modules/batch_fargate/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      ECR repositories use AES256 (service-managed). Images are built from this
+      repository's source and contain no secrets; a CMK adds nothing for dev.
+  - id: AWS-0034
+    paths: ["modules/ecs/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      Container Insights is disabled in dev by human decision (2026-11-24, cost
+      posture "reductions plus a demo window"). The cluster setting is a
+      variable (ecs_container_insights) and stays enabled by default for prod.
+  - id: AWS-0053
+    paths: ["modules/ecs/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      The ALB is internet-facing but its security group admits HTTP/80 only from
+      operator-supplied CIDRs (N16/N28: required, never /0, at least /16), so it
+      is reachable only from the operator's own networks. A private ALB would
+      need a VPN or bastion the course account does not have.
+  - id: AWS-0054
+    paths: ["modules/ecs/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      HTTP listener on port 80: no ACM certificate or domain exists (N16 is
+      open for a human decision). Exposure is limited to the operator CIDRs
+      above and the API carries no secrets. Add an HTTPS listener and a
+      certificate together before any non-demo use; required for prod.
+  - id: AWS-0089
+    paths: ["modules/storage/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      S3 server access logging is not enabled. Object-level activity is
+      available through CloudTrail where the account has it, and the bucket
+      holds public bibliographic data plus derived graph output.
+  - id: AWS-0090
+    paths: ["modules/storage/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      The curated bucket (intermediate run-*/ output, expires after
+      intermediate_expiration_days) and the logs bucket are deliberately
+      unversioned: both are regenerable or disposable, and versioning would
+      only keep noncurrent copies the lifecycle then has to expire. raw, graph,
+      rag and artifacts are versioned.
+  - id: AWS-0104
+    paths: ["modules/network/main.tf", "modules/batch_fargate/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      The application tier and the batch tasks have egress on tcp/443 only to
+      0.0.0.0/0. Every call they make is to an AWS API (S3 and DynamoDB gateway
+      endpoints; ECR, CloudWatch Logs, STS, Bedrock, S3 Vectors, Secrets Manager
+      and SQS through the NAT gateway, since the interface endpoints are off in
+      dev). AWS publishes no stable prefix list for those services. No other
+      port is open; the batch group has no ingress at all.
+  - id: AWS-0128
+    paths: ["modules/neptune/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      Neptune storage uses the default AWS-managed key (aws/rds). Customer-managed
+      keys are a security-sensitive change that needs separate human approval and
+      a key policy; not required for bounded dev.
+  - id: AWS-0132
+    paths: ["modules/storage/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      S3 buckets use SSE-KMS with the AWS-managed aws/s3 key and bucket keys
+      enabled. A customer-managed key is a security-sensitive change that needs
+      human approval; not required for bounded dev.
+  - id: AWS-0178
+    paths: ["modules/network/main.tf"]
+    expired_at: 2027-03-31
+    statement: >-
+      VPC flow logs are not enabled: they bill per GB ingested and the dev VPC
+      carries a bounded workload. Revisit before prod.

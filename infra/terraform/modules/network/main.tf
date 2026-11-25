@@ -175,7 +175,11 @@ resource "aws_vpc_endpoint" "dynamodb" {
   }
 }
 
+# var.enable_interface_endpoints = false (dev): the NAT gateway already carries
+# ECR, CloudWatch Logs and every other API, so the three interface endpoints
+# (about USD 0.01/h per AZ each) and their security group are not created.
 resource "aws_security_group" "vpc_endpoints" {
+  count       = var.enable_interface_endpoints ? 1 : 0
   name_prefix = "${var.project_name}-${var.environment}-vpce-"
   vpc_id      = aws_vpc.main.id
 
@@ -196,12 +200,13 @@ resource "aws_security_group" "vpc_endpoints" {
 }
 
 resource "aws_vpc_endpoint" "ecr_api" {
+  count               = var.enable_interface_endpoints ? 1 : 0
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.ecr.api"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = aws_subnet.private_app[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  security_group_ids  = [aws_security_group.vpc_endpoints[0].id]
 
   tags = {
     Name = "${var.project_name}-${var.environment}-ecr-api-endpoint"
@@ -209,12 +214,13 @@ resource "aws_vpc_endpoint" "ecr_api" {
 }
 
 resource "aws_vpc_endpoint" "ecr_dkr" {
+  count               = var.enable_interface_endpoints ? 1 : 0
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.ecr.dkr"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = aws_subnet.private_app[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  security_group_ids  = [aws_security_group.vpc_endpoints[0].id]
 
   tags = {
     Name = "${var.project_name}-${var.environment}-ecr-dkr-endpoint"
@@ -222,12 +228,13 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
 }
 
 resource "aws_vpc_endpoint" "cloudwatch_logs" {
+  count               = var.enable_interface_endpoints ? 1 : 0
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${var.aws_region}.logs"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = aws_subnet.private_app[*].id
-  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  security_group_ids  = [aws_security_group.vpc_endpoints[0].id]
 
   tags = {
     Name = "${var.project_name}-${var.environment}-logs-endpoint"
@@ -405,11 +412,14 @@ resource "aws_vpc_security_group_ingress_rule" "data_from_app" {
   }
 }
 
-# EMR security groups: full egress is kept ON PURPOSE. Phase 12 review Pass 3
+# EMR security groups (N77: created only when var.enable_emr, i.e.
+# batch_compute = "emr"; with "ecs" no EMR group, rule or reference exists).
+# Full egress is kept ON PURPOSE. Phase 12 review Pass 3
 # (Trivy triage, AWS-0104 rows for emr_master/emr_core) classified it as
 # acceptable by design: EMR nodes need S3, the EMR control plane and package
 # repositories, and AWS documents full egress for EMR managed security groups.
 resource "aws_security_group" "emr_master" {
+  count       = var.enable_emr ? 1 : 0
   name_prefix = "${var.project_name}-${var.environment}-emr-master-"
   vpc_id      = aws_vpc.main.id
 
@@ -430,6 +440,7 @@ resource "aws_security_group" "emr_master" {
 }
 
 resource "aws_security_group" "emr_core" {
+  count       = var.enable_emr ? 1 : 0
   name_prefix = "${var.project_name}-${var.environment}-emr-core-"
   vpc_id      = aws_vpc.main.id
 
@@ -451,34 +462,86 @@ resource "aws_security_group" "emr_core" {
 
 # Allow EMR master <-> core communication
 resource "aws_security_group_rule" "emr_master_from_core" {
+  count                    = var.enable_emr ? 1 : 0
   type                     = "ingress"
   from_port                = 0
   to_port                  = 65535
   protocol                 = "tcp"
-  security_group_id        = aws_security_group.emr_master.id
-  source_security_group_id = aws_security_group.emr_core.id
+  security_group_id        = aws_security_group.emr_master[0].id
+  source_security_group_id = aws_security_group.emr_core[0].id
 }
 
 resource "aws_security_group_rule" "emr_core_from_master" {
+  count                    = var.enable_emr ? 1 : 0
   type                     = "ingress"
   from_port                = 0
   to_port                  = 65535
   protocol                 = "tcp"
-  security_group_id        = aws_security_group.emr_core.id
-  source_security_group_id = aws_security_group.emr_master.id
+  security_group_id        = aws_security_group.emr_core[0].id
+  source_security_group_id = aws_security_group.emr_master[0].id
 }
 
 # Allow EMR to access Neptune (standalone rule type matches the data group's
 # other rules; the data group has no inline rules).
 resource "aws_vpc_security_group_ingress_rule" "data_from_emr" {
+  count                        = var.enable_emr ? 1 : 0
   security_group_id            = aws_security_group.data.id
   description                  = "Neptune from EMR master"
   ip_protocol                  = "tcp"
   from_port                    = 8182
   to_port                      = 8182
-  referenced_security_group_id = aws_security_group.emr_master.id
+  referenced_security_group_id = aws_security_group.emr_master[0].id
 
   tags = {
     Name = "${var.project_name}-${var.environment}-data-in-emr"
   }
+}
+
+################################################################################
+# State moves: resources that gained a count (enable_emr, enable_interface_endpoints)
+################################################################################
+
+moved {
+  from = aws_security_group.vpc_endpoints
+  to   = aws_security_group.vpc_endpoints[0]
+}
+
+moved {
+  from = aws_vpc_endpoint.ecr_api
+  to   = aws_vpc_endpoint.ecr_api[0]
+}
+
+moved {
+  from = aws_vpc_endpoint.ecr_dkr
+  to   = aws_vpc_endpoint.ecr_dkr[0]
+}
+
+moved {
+  from = aws_vpc_endpoint.cloudwatch_logs
+  to   = aws_vpc_endpoint.cloudwatch_logs[0]
+}
+
+moved {
+  from = aws_security_group.emr_master
+  to   = aws_security_group.emr_master[0]
+}
+
+moved {
+  from = aws_security_group.emr_core
+  to   = aws_security_group.emr_core[0]
+}
+
+moved {
+  from = aws_security_group_rule.emr_master_from_core
+  to   = aws_security_group_rule.emr_master_from_core[0]
+}
+
+moved {
+  from = aws_security_group_rule.emr_core_from_master
+  to   = aws_security_group_rule.emr_core_from_master[0]
+}
+
+moved {
+  from = aws_vpc_security_group_ingress_rule.data_from_emr
+  to   = aws_vpc_security_group_ingress_rule.data_from_emr[0]
 }

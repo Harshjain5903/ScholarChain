@@ -81,3 +81,9 @@ variable "vector_non_filterable_metadata_keys" {
     error_message = "S3 Vectors allows at most 10 non-filterable metadata keys per index."
   }
 }
+
+variable "intermediate_expiration_days" {
+  description = "Days after which intermediate pipeline output (curated bucket, keys under run-*/) and noncurrent object versions (versioned buckets) expire."
+  type        = number
+  default     = 60
+}

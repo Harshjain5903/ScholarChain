@@ -1,11 +1,11 @@
 output "emr_service_role_arn" {
   description = "EMR service role ARN"
-  value       = aws_iam_role.emr_service.arn
+  value       = one(aws_iam_role.emr_service[*].arn)
 }
 
 output "emr_ec2_instance_profile_arn" {
   description = "EMR EC2 instance profile ARN"
-  value       = aws_iam_instance_profile.emr_ec2.arn
+  value       = one(aws_iam_instance_profile.emr_ec2[*].arn)
 }
 
 output "ecs_task_execution_role_arn" {

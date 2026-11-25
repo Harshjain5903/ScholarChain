@@ -32,6 +32,13 @@ set -euo pipefail
 # - N32: `terraform init` runs with -lockfile=readonly (tf-env.sh), and the
 #   clean-tree check (N6) is repeated after init and again after plan; if the
 #   tree changed, the plan file is deleted and no metadata is written.
+# - BUDGET_ALERT_EMAIL (required) = address for the AWS Budgets 50/80/100%
+#   notifications (USD 25/month). No default and never committed: it is passed
+#   in a mode-600 mktemp var-file removed on exit (N75; never as -var on the
+#   command line; sensitive in Terraform) and ONLY a short
+#   sha256 fingerprint is printed or written to the plan metadata. Note the
+#   saved plan file itself contains the value; it is gitignored (*.tfplan).
+#     BUDGET_ALERT_EMAIL="you@example.com" ALB_INGRESS_CIDRS=... ./scripts/plan.sh dev
 # - N7: PLAN_SCOPE=ecr-bootstrap plans ONLY the six ECR repositories and their
 #   lifecycle policies (-target). Use it for the first deployment of an
 #   environment: apply it, push images tagged <HEAD sha>, then run a full
@@ -55,6 +62,13 @@ fi
 ENVIRONMENT="$1"
 tf_env_validate_name "${ENVIRONMENT}"
 
+BUDGET_VAR_DIR=""
+tf_env_script_cleanup() {
+  if [[ -n "${BUDGET_VAR_DIR}" && -d "${BUDGET_VAR_DIR}" ]]; then
+    rm -rf "${BUDGET_VAR_DIR}"
+  fi
+}
+
 TFVARS_FILE="$(tf_env_tfvars_file "${ENVIRONMENT}")"
 PLAN_DIR="${REPO_ROOT}/local-runs/plans/${ENVIRONMENT}"
 
@@ -72,6 +86,13 @@ case "${PLAN_SCOPE}" in
       "-target=module.ecs.aws_ecr_lifecycle_policy.services"
       "-target=module.ecs.aws_ecr_lifecycle_policy.embedding_worker"
     )
+    # batch_compute = "ecs" also has a batch runner image repository.
+    if [[ "$(tf_env_hcl_attr "${TFVARS_FILE}" batch_compute)" == "ecs" ]]; then
+      SCOPE_ARGS+=(
+        "-target=module.batch_fargate[0].aws_ecr_repository.runner"
+        "-target=module.batch_fargate[0].aws_ecr_lifecycle_policy.runner"
+      )
+    fi
     ;;
   *)
     echo "ERROR: PLAN_SCOPE must be 'full' or 'ecr-bootstrap', got '${PLAN_SCOPE}'." >&2
@@ -94,7 +115,7 @@ require_clean_tree() {
   # Only exported variables reach git; compgen -e is bash 3.2-safe.
   for name in $(compgen -e); do
     case "${name}" in
-      GIT_DIR | GIT_WORK_TREE | GIT_INDEX_FILE | GIT_COMMON_DIR | GIT_OBJECT_DIRECTORY | GIT_ALTERNATE_OBJECT_DIRECTORIES)
+      GIT_DIR | GIT_WORK_TREE | GIT_INDEX_FILE | GIT_COMMON_DIR | GIT_OBJECT_DIRECTORY | GIT_ALTERNATE_OBJECT_DIRECTORIES | GIT_CONFIG_*)
         bad="${bad} ${name}"
         ;;
     esac
@@ -225,6 +246,31 @@ done
 CIDR_HCL="[${CIDR_HCL}]"
 echo "  alb_ingress_cidrs = ${CIDR_HCL}"
 
+# create_budget (tfvars): true in dev, false in prod (an account-wide budget
+# must exist once, not once per environment). The email is only needed, and
+# only passed to Terraform, when this environment creates the budget.
+CREATE_BUDGET=false
+if grep -E -q '^[[:space:]]*create_budget[[:space:]]*=[[:space:]]*true([[:space:]]|#|$)' "${TFVARS_FILE}"; then
+  CREATE_BUDGET=true
+fi
+BUDGET_EMAIL_FPR="not-used"
+if [[ "${CREATE_BUDGET}" == "true" ]]; then
+  if [[ -z "${BUDGET_ALERT_EMAIL:-}" ]]; then
+    echo "ERROR: BUDGET_ALERT_EMAIL is not set." >&2
+    echo "  AWS Budgets (USD 25/month, 50/80/100% actual + 100% forecast) needs an address; none is committed to Git." >&2
+    echo "  Example: BUDGET_ALERT_EMAIL=\"you@example.com\" ALB_INGRESS_CIDRS=... ./scripts/plan.sh ${ENVIRONMENT}" >&2
+    exit 2
+  fi
+  if [[ ! "${BUDGET_ALERT_EMAIL}" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+    echo "ERROR: BUDGET_ALERT_EMAIL is not a valid email address (value not shown)." >&2
+    exit 2
+  fi
+  BUDGET_EMAIL_FPR="$(printf '%s' "${BUDGET_ALERT_EMAIL}" | shasum -a 256 | cut -c1-12)"
+  echo "  budget_alert_email = (set, sha256:${BUDGET_EMAIL_FPR})"
+else
+  echo "  create_budget = false: no budget in this environment; BUDGET_ALERT_EMAIL is not used."
+fi
+
 echo "=== STEP: Record context ==="
 IMAGE_TAG="${IMAGE_TAG:-${COMMIT_SHA}}"
 if [[ ! "${IMAGE_TAG}" =~ ^[0-9a-f]{40}$ ]]; then
@@ -252,12 +298,25 @@ terraform validate
 echo "  Validation passed."
 
 echo "=== STEP: terraform plan ==="
+# N75: the address goes to Terraform through a mode-600 var-file in a private
+# mktemp directory, never as -var on the command line (visible in ps and in
+# shell history of wrapper tooling). tf_env_script_cleanup removes it on every
+# exit path (EXIT, INT and TERM all reach it through tf-env.sh's traps).
+declare -a BUDGET_ARGS=()
+if [[ "${CREATE_BUDGET}" == "true" ]]; then
+  BUDGET_VAR_DIR="$(umask 077 && mktemp -d "${TMPDIR:-/tmp}/scholarchain-plan.XXXXXX")"
+  BUDGET_VAR_FILE="${BUDGET_VAR_DIR}/budget.tfvars"
+  (umask 077 && printf 'budget_alert_email = "%s"\n' "${BUDGET_ALERT_EMAIL}" >"${BUDGET_VAR_FILE}")
+  chmod 600 "${BUDGET_VAR_FILE}"
+  BUDGET_ARGS=("-var-file=${BUDGET_VAR_FILE}")
+fi
 mkdir -p "${PLAN_DIR}"
 rm -f "${PLAN_FILE}" "${META_FILE}"
 terraform plan \
   -var-file="${TFVARS_FILE}" \
   -var="image_tag=${IMAGE_TAG}" \
   -var="alb_ingress_cidrs=${CIDR_HCL}" \
+  ${BUDGET_ARGS[@]+"${BUDGET_ARGS[@]}"} \
   ${SCOPE_ARGS[@]+"${SCOPE_ARGS[@]}"} \
   -out="${PLAN_FILE}" \
   -input=false
@@ -282,6 +341,7 @@ commit=${COMMIT_SHA}
 tree_clean=yes
 plan_scope=${PLAN_SCOPE}
 alb_ingress_cidrs=${CIDR_HCL}
+budget_alert_email_sha256_prefix=${BUDGET_EMAIL_FPR}
 image_tag=${IMAGE_TAG}
 plan_sha256=${PLAN_CHECKSUM}
 created_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)

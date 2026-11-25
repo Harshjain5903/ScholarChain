@@ -56,13 +56,26 @@ echo "=== STEP: Verify clean git tree ==="
 GIT_BAD=""
 for GIT_VAR in $(compgen -e); do
   case "${GIT_VAR}" in
-    GIT_DIR | GIT_WORK_TREE | GIT_INDEX_FILE | GIT_COMMON_DIR | GIT_OBJECT_DIRECTORY | GIT_ALTERNATE_OBJECT_DIRECTORIES)
+    GIT_DIR | GIT_WORK_TREE | GIT_INDEX_FILE | GIT_COMMON_DIR | GIT_OBJECT_DIRECTORY | GIT_ALTERNATE_OBJECT_DIRECTORIES | GIT_CONFIG_*)
       GIT_BAD="${GIT_BAD} ${GIT_VAR}"
       ;;
   esac
 done
 if [[ -n "${GIT_BAD}" ]]; then
   echo "ERROR: refusing the clean-tree check with Git override variable(s) set:${GIT_BAD}" >&2
+  exit 1
+fi
+# N48: the git work tree must be exactly this repository's toplevel.
+if ! REPO_PHYS="$(cd "${REPO_ROOT}" && pwd -P)" || [[ -z "${REPO_PHYS}" ]]; then
+  echo "ERROR: cannot resolve ${REPO_ROOT}; treating the tree as NOT clean. Nothing was applied." >&2
+  exit 1
+fi
+if ! GIT_TOP="$(git -C "${REPO_ROOT}" rev-parse --show-toplevel)" || [[ -z "${GIT_TOP}" ]]; then
+  echo "ERROR: 'git rev-parse --show-toplevel' failed; treating the tree as NOT clean. Nothing was applied." >&2
+  exit 1
+fi
+if [[ "${GIT_TOP}" != "${REPO_PHYS}" ]]; then
+  echo "ERROR: Git work tree is '${GIT_TOP}', expected '${REPO_PHYS}'. Nothing was applied." >&2
   exit 1
 fi
 if ! GIT_DIRTY="$(git -C "${REPO_ROOT}" status --porcelain --untracked-files=all)"; then
@@ -137,7 +150,7 @@ PLAN_JSON="$(cd "${TF_DIR}" && terraform show -json "${PLAN_FILE}")"
 NON_ECR_CHANGES="$(printf '%s' "${PLAN_JSON}" | jq -r '
   .resource_changes[]?
   | select((.change.actions != ["no-op"]) and (.change.actions != ["read"]))
-  | select(.address | test("^module\\.ecs\\.aws_ecr_(repository|lifecycle_policy)\\.") | not)
+  | select(.address | test("^module\\.(ecs\\.|batch_fargate\\[0\\]\\.)aws_ecr_(repository|lifecycle_policy)\\.") | not)
   | .address')"
 if [[ -z "${NON_ECR_CHANGES}" ]]; then
   echo "  Plan changes only ECR repositories/lifecycle policies (ECR bootstrap);"

@@ -19,6 +19,11 @@ module "network" {
 
   # N16: ALB ingress allowlist (HTTP/80 only).
   alb_ingress_cidrs = var.alb_ingress_cidrs
+
+  # N77: EMR security groups only when EMR is the batch compute.
+  enable_emr = var.batch_compute == "emr"
+
+  enable_interface_endpoints = var.enable_interface_endpoints
 }
 
 ################################################################################
@@ -53,6 +58,10 @@ module "iam" {
   query_task_definition_families = values(module.ecs.query_task_definition_families)
 
   deploy_role_trusted_principal_arns = var.deploy_role_trusted_principal_arns
+
+  # N77 / N67: EMR roles only for "emr"; batch Fargate permissions only for "ecs".
+  enable_emr       = var.batch_compute == "emr"
+  enable_batch_ecs = var.batch_compute == "ecs"
 }
 
 ################################################################################
@@ -89,6 +98,8 @@ module "storage" {
   vector_dimension                    = var.s3_vectors_dimension
   vector_distance_metric              = var.s3_vectors_distance_metric
   vector_non_filterable_metadata_keys = var.s3_vectors_non_filterable_metadata_keys
+
+  intermediate_expiration_days = var.intermediate_expiration_days
 }
 
 ################################################################################
@@ -103,11 +114,16 @@ module "observability" {
 
   log_retention_days = var.log_retention_days
 
-  emr_cluster_id                = module.emr.cluster_id
-  ecs_cluster_name              = module.ecs.cluster_name
-  ecs_service_names             = values(module.ecs.service_names)
-  ecs_target_group_arn_suffixes = module.ecs.target_group_arn_suffixes
-  neptune_cluster_id            = module.neptune.cluster_id
+  emr_cluster_id    = one(module.emr[*].cluster_id)
+  ecs_cluster_name  = module.ecs.cluster_name
+  ecs_service_names = values(module.ecs.service_names)
+  # N82: no HealthyHostCount alarm for services parked at min 0 (dev); with no
+  # tasks the metric is absent and the alarm would sit in ALARM permanently.
+  ecs_target_group_arn_suffixes = {
+    for k, v in module.ecs.target_group_arn_suffixes : k => v
+    if lookup(var.ecs_service_min_tasks, k, var.ecs_min_tasks) > 0
+  }
+  neptune_cluster_id = module.neptune.cluster_id
 
   dynamodb_table_names = values(module.storage.dynamodb_table_names)
 
@@ -124,7 +140,11 @@ module "observability" {
 ################################################################################
 
 module "emr" {
-  source       = "./modules/emr"
+  source = "./modules/emr"
+  # batch_compute = "ecs": no EMR cluster at all (the organization SCP denies
+  # elasticmapreduce:*); module.batch_fargate runs the pipeline instead.
+  count = var.batch_compute == "emr" ? 1 : 0
+
   project_name = var.project_name
   environment  = var.environment
 
@@ -141,6 +161,32 @@ module "emr" {
   master_security_group_id = module.network.emr_master_security_group_id
   core_security_group_id   = module.network.emr_core_security_group_id
   logs_bucket              = module.storage.logs_bucket_name
+}
+
+################################################################################
+# Batch compute on ECS Fargate (only when batch_compute = "ecs")
+################################################################################
+
+module "batch_fargate" {
+  source = "./modules/batch_fargate"
+  count  = var.batch_compute == "ecs" ? 1 : 0
+
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+
+  cluster_arn        = module.ecs.cluster_id
+  subnet_ids         = module.network.private_app_subnet_ids
+  vpc_id             = module.network.vpc_id
+  execution_role_arn = module.iam.ecs_task_execution_role_arn
+  bucket_arns        = module.storage.bucket_arns
+  use_spot           = var.batch_use_spot
+
+  image_tag             = var.image_tag
+  log_retention_days    = var.log_retention_days
+  stage_sizes           = var.batch_stage_sizes
+  ephemeral_storage_gib = var.batch_ephemeral_storage_gib
+  cpu_architecture      = var.batch_cpu_architecture
 }
 
 ################################################################################
@@ -186,11 +232,14 @@ module "ecs" {
   ecs_task_runtime_role_arn   = module.iam.ecs_task_runtime_role_arn
   ecs_task_loader_role_arn    = module.iam.ecs_task_loader_role_arn
 
-  cpu        = var.ecs_cpu
-  memory     = var.ecs_memory
-  min_tasks  = var.ecs_min_tasks
-  max_tasks  = var.ecs_max_tasks
-  cpu_target = var.ecs_cpu_target
+  cpu       = var.ecs_cpu
+  memory    = var.ecs_memory
+  min_tasks = var.ecs_min_tasks
+
+  service_min_tasks  = var.ecs_service_min_tasks
+  container_insights = var.ecs_container_insights
+  max_tasks          = var.ecs_max_tasks
+  cpu_target         = var.ecs_cpu_target
 
   log_retention_days = var.log_retention_days
 
@@ -228,4 +277,61 @@ module "workflow" {
   # R23: no dedicated audit queue exists. null turns the Audit states into
   # Pass states; the embedding work queue is never used for audit messages.
   audit_queue_url = null
+}
+
+################################################################################
+# Cost guardrail: monthly budget with 50/80/100% actual and 100% forecast
+# email notifications
+#
+# The email comes from var.budget_alert_email (no default, sensitive, supplied
+# at plan time by the human through a temporary var-file; never in the
+# repository). The budget is a tripwire, not a limit: AWS Budgets does not stop
+# resources. var.create_budget is true in dev and false in prod because the
+# budget covers the whole account. See docs for the dev cost estimate.
+################################################################################
+
+resource "aws_budgets_budget" "monthly" {
+  count = var.create_budget ? 1 : 0
+
+  name         = "${var.project_name}-${var.environment}-monthly"
+  budget_type  = "COST"
+  limit_amount = tostring(var.budget_limit_usd)
+  limit_unit   = "USD"
+  time_unit    = "MONTHLY"
+
+  dynamic "notification" {
+    for_each = [50, 80, 100]
+
+    content {
+      comparison_operator        = "GREATER_THAN"
+      threshold                  = notification.value
+      threshold_type             = "PERCENTAGE"
+      notification_type          = "ACTUAL"
+      subscriber_email_addresses = [var.budget_alert_email]
+    }
+  }
+
+  # Early warning: AWS projects month-end spend and mails when the forecast
+  # reaches the limit.
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    notification_type          = "FORECASTED"
+    subscriber_email_addresses = [var.budget_alert_email]
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.budget_alert_email != null
+      error_message = "budget_alert_email is required when create_budget is true (scripts/plan.sh supplies it from BUDGET_ALERT_EMAIL)."
+    }
+  }
+}
+
+# N81: module.emr gained a count (batch_compute); keep an already-applied
+# cluster at index 0.
+moved {
+  from = module.emr
+  to   = module.emr[0]
 }

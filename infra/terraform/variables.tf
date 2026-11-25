@@ -169,6 +169,24 @@ variable "ecs_min_tasks" {
   default     = 1
 }
 
+variable "ecs_service_min_tasks" {
+  description = "Per-service override of ecs_min_tasks (desired count and autoscaling minimum), keyed by service name. Dev: every service except query-api is parked at 0."
+  type        = map(number)
+  default     = {}
+}
+
+variable "ecs_container_insights" {
+  description = "Enable ECS Container Insights (extra CloudWatch custom-metric cost). Disabled in dev."
+  type        = bool
+  default     = true
+}
+
+variable "enable_interface_endpoints" {
+  description = "Create the ecr.api, ecr.dkr and logs interface VPC endpoints. Dev sets false and relies on the NAT gateway (cost); the S3 and DynamoDB gateway endpoints always exist."
+  type        = bool
+  default     = true
+}
+
 variable "ecs_max_tasks" {
   description = "Maximum number of ECS tasks per service"
   type        = number
@@ -337,5 +355,105 @@ variable "tag_expiration_date" {
   validation {
     condition     = var.tag_expiration_date == null || can(regex("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", var.tag_expiration_date))
     error_message = "tag_expiration_date must be null or a YYYY-MM-DD date."
+  }
+}
+
+################################################################################
+# Batch compute (Hadoop + ER + Spark pipeline)
+################################################################################
+
+# Dev runs "ecs" (human decision 2026-11-24): the course AWS organization SCP
+# explicitly denies elasticmapreduce:* and emr-serverless:*, so an EMR cluster
+# cannot be created there, and no instructor approval is needed for the
+# alternative. "ecs" runs the SAME assembly jars on ECS Fargate (Hadoop
+# MapReduce local runner and Spark local[*], module.emr count 0). EMR stays
+# configurable for an account without the SCP. Prod may stay "emr".
+variable "batch_compute" {
+  description = "Where the Hadoop/ER/Spark pipeline runs: \"emr\" (EMR cluster; module.emr count 1) or \"ecs\" (ECS Fargate tasks running the same assembly jars with the MapReduce local runner and Spark local[*]; module.emr count 0). Dev uses \"ecs\" because the course AWS organization SCP denies EMR (human decision 2026-11-24, no instructor approval required). EMR stays configurable; prod may stay \"emr\". The default is \"emr\"; each tfvars sets its own value."
+  type        = string
+  default     = "emr"
+
+  validation {
+    condition     = contains(["emr", "ecs"], var.batch_compute)
+    error_message = "batch_compute must be \"emr\" or \"ecs\"."
+  }
+}
+
+variable "batch_use_spot" {
+  description = "Run the batch Fargate tasks on FARGATE_SPOT with an automatic FARGATE fallback when Spot capacity is unavailable at launch (batch_compute = \"ecs\" only). A Spot interruption after launch fails the stage loudly (it is never silently retried: stage outputs are not idempotent)."
+  type        = bool
+  default     = true
+}
+
+variable "batch_stage_sizes" {
+  description = "Fargate CPU units and memory (MiB) per pipeline stage when batch_compute = \"ecs\". Defaults size a 50K-works run: Spark 4 vCPU / 16 GB. CPU is capped at 8 vCPU and memory at 60 GiB (validated in the module) to bound cost."
+  type = map(object({
+    cpu       = number
+    memory_mb = number
+  }))
+  default = {
+    hadoop = { cpu = 2048, memory_mb = 8192 }
+    er     = { cpu = 2048, memory_mb = 8192 }
+    spark  = { cpu = 4096, memory_mb = 16384 }
+  }
+}
+
+variable "batch_ephemeral_storage_gib" {
+  description = "Fargate ephemeral storage per batch task in GiB (21-200) for staged jars, ER data and local Spark shuffle/checkpoints."
+  type        = number
+  default     = 100
+}
+
+variable "batch_cpu_architecture" {
+  description = "CPU architecture of the batch runner image (X86_64 or ARM64)."
+  type        = string
+  default     = "X86_64"
+}
+
+################################################################################
+# Storage lifecycle
+################################################################################
+
+variable "intermediate_expiration_days" {
+  description = "Days after which intermediate pipeline output in the curated bucket (keys under run-*/) is expired, plus noncurrent versions in versioned buckets. N72: default 60, so Hadoop/ER run manifests and summaries (kept under run-*/ in curated) outlive the typical review and evidence window; the pipeline does not copy them elsewhere before expiry."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.intermediate_expiration_days >= 7
+    error_message = "intermediate_expiration_days must be at least 7."
+  }
+}
+
+################################################################################
+# Cost guardrails
+################################################################################
+
+variable "create_budget" {
+  description = "Create the account-wide monthly AWS Budget in this environment. true in dev (set explicitly in dev.tfvars), false in prod: the budget covers the whole account, so a second one would only duplicate notifications. Defaults to false, consistent with scripts/plan.sh. Destroying dev removes the only account-wide budget."
+  type        = bool
+  default     = false
+}
+
+variable "budget_alert_email" {
+  description = "Email address that receives the AWS Budgets notifications (ACTUAL 50%, 80%, 100% and FORECASTED 100% of the monthly limit). Required when create_budget is true. Deliberately NO default and never committed: scripts/plan.sh reads it from the BUDGET_ALERT_EMAIL environment variable and passes it through a mode-600 temporary var-file (N75). Sensitive."
+  type        = string
+  default     = null
+  sensitive   = true
+
+  validation {
+    condition     = var.budget_alert_email == null || can(regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", var.budget_alert_email))
+    error_message = "budget_alert_email must be a valid email address."
+  }
+}
+
+variable "budget_limit_usd" {
+  description = "Monthly AWS Budgets limit in USD. The budget covers the whole account's unblended cost (no tag filter: cost-allocation tags would have to be activated first, and an unactivated filter silently matches nothing)."
+  type        = number
+  default     = 25
+
+  validation {
+    condition     = var.budget_limit_usd > 0
+    error_message = "budget_limit_usd must be positive."
   }
 }
