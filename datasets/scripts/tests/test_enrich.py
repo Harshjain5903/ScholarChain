@@ -28,7 +28,9 @@ if SCRIPTS not in sys.path:
 
 import dblp_select as ds  # noqa: E402
 import enrich_common as ec  # noqa: E402
+import enrich_extract as ex  # noqa: E402
 import enrich_fetch as ef  # noqa: E402
+import orcid_select as osel  # noqa: E402
 import enrich_reconcile as er  # noqa: E402
 import enrich_sample as es  # noqa: E402
 import validate_manifest as vm  # noqa: E402
@@ -63,6 +65,11 @@ def write(path, data):
         os.makedirs(d)
     with open(path, "wb") as f:
         f.write(data.encode("utf-8") if isinstance(data, str) else data)
+
+
+def read_bytes(path):
+    with open(path, "rb") as f:
+        return f.read()
 
 
 def side(path):
@@ -603,7 +610,48 @@ class FetchTest(FetchCase):
         self.assertEqual(code, 0, err)
         self.assertEqual(len(g.calls), 1)
         self.assertTrue(g.calls[0][0].endswith("/v3.0/%s/record" % VALID_ORCID))
-        self.assertTrue(os.path.isfile(os.path.join(self.tmp, "raw/orcid/retrieved=%s/%s.json" % (SYN_DATE, VALID_ORCID))))
+        stem = ec.orcid_file_stem(VALID_ORCID)
+        self.assertEqual(len(stem), 64)
+        self.assertTrue(os.path.isfile(os.path.join(self.tmp, "raw/orcid/retrieved=%s/%s.json" % (SYN_DATE, stem))))
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "raw/orcid/retrieved=%s/%s.json" % (SYN_DATE, VALID_ORCID))))
+        hdrs = g.calls[0][1]
+        self.assertEqual(hdrs["Accept"], "application/json")
+        self.assertIn("mailto:" + SYN_CONTACT, hdrs["User-Agent"])
+        with open(os.path.join(self.tmp, "logs/orcid-%s.tsv" % SYN_DATE), encoding="utf-8") as f:
+            row = f.read().rstrip("\n").split("\t")
+        self.assertEqual((row[0], row[1], row[3], row[4]), (VALID_ORCID, "200", stem, "1"))
+        self.assertNotIn(SYN_CONTACT, "\t".join(row))
+        # resume: the saved record is skipped, only the second iD is requested
+        g2 = FakeGetter({VALID_ORCID_X: [(200, json.dumps({"orcid-identifier": {"path": VALID_ORCID_X}}), None, None)]})
+        code, out2, err = self.run_fetch(self.common("orcid") + ["--confirm-network"], g2)
+        self.assertEqual(code, 0, err)
+        self.assertIn("already_saved=1", out2)
+        self.assertEqual(len(g2.calls), 1)
+
+    def test_orcid_budget_and_redirect_allowlist(self):
+        write(self.inp, VALID_ORCID + "\n" + VALID_ORCID_X + "\n")
+        # budget: 1 request only; the 2nd record is not requested and the stop is logged
+        g = FakeGetter({VALID_ORCID: [(200, json.dumps({"orcid-identifier": {"path": VALID_ORCID}}), None, None)]})
+        code, out, err = self.run_fetch(self.common("orcid") + ["--confirm-network", "--max-requests", "1"], g)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g.calls), 1)
+        self.assertIn("budget exhausted", out)
+        with open(os.path.join(self.tmp, "logs", ef.RUN_LOG % SYN_DATE), encoding="utf-8") as f:
+            self.assertIn("budget-exhausted", f.read())
+        # a redirect to a foreign host is refused without a second request
+        write(self.inp, VALID_ORCID_X + "\n")
+        g = FakeGetter({VALID_ORCID_X: [(302, b"", "https://evil.example.invalid/x", None)]})
+        code, _, err = self.run_fetch(self.common("orcid") + ["--confirm-network"], g)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g.calls), 1)
+        # 404 is final (one request) and saves nothing
+        write(self.inp, VALID_ORCID + "\n")
+        shutil.rmtree(os.path.join(self.tmp, "raw/orcid"))
+        g = FakeGetter({VALID_ORCID: [(404, b"{}", None, None)]})
+        code, _, err = self.run_fetch(self.common("orcid") + ["--confirm-network"], g)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(len(g.calls), 1)
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "raw/orcid/retrieved=%s" % SYN_DATE)))
 
 
 class FetchSafetyTest(FetchCase):
@@ -923,9 +971,170 @@ class ManifestTest(TempDirCase):
         code, out, _ = quiet(vm.main, ["--manifest", self.man, "--root", self.tmp])
         self.assertIn("committed (tracked) file is missing", out)
 
+    def test_spec_check_flags_missing_fields(self):
+        complete = {"name": "x", "purpose": "p", "documentation_url": "u", "license": "l", "retrieval_date": "d",
+                    "retrieval_command": "c", "format": "f", "expected_size": "e", "observed_size": "o",
+                    "s3_raw_prefix": "s3://b/x/", "s3_upload_status": "NOT YET UPLOADED",
+                    "files": [{"path": "a", "sha256": "ab"}], "schema_version": "1", "selected_subset_rule": "r",
+                    "incremental_update_strategy": "i", "linkage_fields": ["doi"], "personal_data_notes": "n",
+                    "privacy_notes": "n", "known_limitations": ["k"], "validation_commands": ["v"],
+                    "owning_agent": "dataset-engineer"}
+        self.assertEqual(vm.spec_missing(complete), [])
+        bad = dict(complete)
+        del bad["s3_upload_status"]
+        bad["files"] = [{"path": "a"}]  # no checksum anywhere
+        bad["privacy_notes"] = ""
+        self.assertEqual(vm.spec_missing(bad), ["S3 raw prefix and upload status", "integrity record (sha256)",
+                                                "personal-data and privacy notes"])
+        write(self.man, "datasets:\n  - name: s\n    status: x\n    license: l\n    owning_agent: o\n"
+                        "    documentation_url: u\n    spec_check: true\n")
+        code, out, _ = quiet(vm.main, ["--manifest", self.man, "--root", self.tmp])
+        self.assertEqual(code, 4)
+        self.assertIn("missing specification fields", out)
+
+    def test_real_manifest_meets_spec(self):
+        path = os.path.join(SCRIPTS, os.pardir, "dataset-manifest.yaml")
+        with open(path, encoding="utf-8") as f:
+            d = vm.load_yaml_subset(f.read())
+        for x in d["datasets"]:
+            self.assertIs(x.get("spec_check"), True, x["name"])
+            self.assertEqual(vm.spec_missing(x), [], x["name"])
+            self.assertIn("NOT YET UPLOADED", x["s3_upload_status"], x["name"])
+
     def test_bad_manifest_exit_2(self):
         write(self.man, "datasets: 5\n")
         self.assertEqual(quiet(vm.main, ["--manifest", self.man, "--root", self.tmp])[0], 2)
+
+
+
+# ---------------------------------------------------------------------------
+# orcid_select and enrich_extract (DS-P03-02)
+# ---------------------------------------------------------------------------
+
+
+class OrcidSelectTest(TempDirCase):
+    def setUp(self):
+        super(OrcidSelectTest, self).setUp()
+        self.cand = os.path.join(self.tmp, "orcid-candidates.tsv")
+        ids = []
+        for i in range(60):  # synthetic valid iDs: 0000-0000-0000-00<ii><check>
+            base = "0000000000000%03d" % i
+            ids.append("0000-0000-0000-%03d%s" % (i, ec.orcid_check_digit(base)))
+        rows = ["orcid\tchecksum_valid\tn_dblp_works"]
+        for i, o in enumerate(ids):
+            rows.append("%s\ttrue\t%d" % (o, 3 if i % 2 == 0 else 1))  # 30 multi-work, 30 single-work
+        rows.append("0000-0000-0000-0000\tfalse\t9")  # invalid checksum is never selected
+        write(self.cand, "\n".join(rows) + "\n")
+        self.ids = ids
+        self.out = os.path.join(self.tmp, "sel.txt")
+
+    def go(self, *extra):
+        return quiet(osel.main, ["--candidates", self.cand, "--out", self.out, "--root", self.tmp] + list(extra))
+
+    def test_prefers_multi_work_ids_and_is_deterministic(self):
+        code, _, err = self.go("--n", "10")
+        self.assertEqual(code, 0, err)
+        chosen = ec.read_lines(self.out)
+        multi = set(o for i, o in enumerate(self.ids) if i % 2 == 0)
+        self.assertEqual(len(chosen), 10)
+        self.assertTrue(set(chosen) <= multi)
+        first = read_bytes(self.out)
+        self.go("--n", "10")
+        self.assertEqual(read_bytes(self.out), first)
+        self.go("--n", "10", "--seed", "another-seed")
+        self.assertNotEqual(read_bytes(self.out), first)
+        with open(self.out + ".provenance.json", encoding="utf-8") as f:
+            meta = json.load(f)
+        self.assertEqual(meta["output"]["sha256"], ec.sha256_file(self.out))
+        self.assertEqual(meta["counts"]["eligible_pool"], 30)
+        self.assertEqual(meta["seed"], "another-seed")
+        self.assertEqual(meta["inputs"][0]["sha256"], ec.sha256_file(self.cand))
+
+    def test_fills_from_single_work_ids_only_when_pool_too_small(self):
+        code, _, err = self.go("--n", "40")
+        self.assertEqual(code, 0, err)
+        with open(self.out + ".provenance.json", encoding="utf-8") as f:
+            c = json.load(f)["counts"]
+        self.assertEqual((c["selected"], c["selected_from_eligible"], c["filled_from_single_work_ids"]), (40, 30, 10))
+        chosen = ec.read_lines(self.out)
+        self.assertEqual(len(set(chosen)), 40)
+        self.assertNotIn("0000-0000-0000-0000", chosen)
+        for o in chosen:
+            self.assertTrue(ec.normalize_orcid(o)[1])
+
+    def test_missing_input_exit_3(self):
+        os.remove(self.cand)
+        self.assertEqual(self.go()[0], 3)
+
+
+class ExtractTest(TempDirCase):
+    def setUp(self):
+        super(ExtractTest, self).setUp()
+        make_world(self.tmp)
+        code, _, err = quiet(er.main, reconcile_args(self.tmp))
+        self.assertEqual(code, 0, err)
+        self.enr = os.path.join(self.tmp, "datasets/derived/enrichment")
+        self.args = ["--crossref-status", os.path.join(self.enr, "crossref-doi-status.tsv"),
+                     "--openalex-status", os.path.join(self.enr, "openalex-doi-status.tsv"),
+                     "--out-dir", self.enr, "--repo-root", self.tmp]
+
+    def lines(self, name):
+        with open(os.path.join(self.enr, name), encoding="utf-8") as f:
+            return [json.loads(l) for l in f]
+
+    def test_extract_shapes_counts_and_provenance(self):
+        code, out, err = quiet(ex.main, self.args)
+        self.assertEqual(code, 0, err)
+        cr = self.lines("crossref-works.jsonl")
+        self.assertEqual([r["doi"] for r in cr], ["10.9999/synthetic.1"])  # only the verified record
+        r = cr[0]
+        self.assertEqual(r["source"], "crossref")
+        self.assertEqual(r["source_record_id"], "crossref:10.9999/synthetic.1")
+        self.assertEqual((r["title"], r["year"], r["venue"]), ("SYNTHETIC", None, None))
+        self.assertEqual(r["authors"][0]["orcid"], VALID_ORCID)
+        self.assertEqual(r["authors"][0]["orcid_raw"], "http://orcid.org/" + VALID_ORCID)
+        self.assertIs(r["authors"][0]["orcid_authenticated"], False)
+        self.assertIsNone(r["authors"][1]["orcid"])
+        self.assertEqual([a["position"] for a in r["authors"]], [1, 2])
+        self.assertTrue(r["raw_file"].startswith("datasets/raw/crossref/retrieved=2030-01-01/"))
+        self.assertEqual(r["raw_sha256"], ec.sha256_file(os.path.join(self.tmp, r["raw_file"])))
+        self.assertNotIn("abstract", r)
+        oa = self.lines("openalex-works.jsonl")
+        self.assertEqual([x["source_record_id"] for x in oa],
+                         ["openalex:W1", "openalex:W2a", "openalex:W2b", "openalex:W4"])
+        w1 = oa[0]
+        self.assertEqual(w1["openalex_id"], "https://openalex.org/W1")
+        self.assertEqual(w1["authors"][0]["orcid"], VALID_ORCID)
+        self.assertIsNone(w1["authors"][1]["orcid"])  # checksum-invalid iD is not normalised ...
+        self.assertEqual(w1["authors"][1]["orcid_raw"], "https://orcid.org/" + BAD_ORCID)  # ... but kept raw
+        self.assertEqual(w1["authors"][0]["author_id"], "https://openalex.org/AW1")
+        for key in ("topics", "institutions"):
+            self.assertIn(key, w1 if key == "topics" else w1["authors"][0])
+        self.assertTrue(all("abstract_inverted_index" not in x for x in oa))
+        for name, n in (("crossref-works.jsonl", 1), ("openalex-works.jsonl", 4)):
+            p = os.path.join(self.enr, name)
+            with open(p + ".provenance.json", encoding="utf-8") as f:
+                meta = json.load(f)
+            self.assertEqual(meta["output"]["sha256"], ec.sha256_file(p))
+            self.assertEqual(meta["counts"]["lines"], n)
+            self.assertEqual(meta["inputs"][0]["sha256"],
+                             ec.sha256_file(os.path.join(self.tmp, meta["inputs"][0]["path"])))
+            ds.check_sidecar(p)
+
+    def test_deterministic_and_fails_on_tampered_raw(self):
+        quiet(ex.main, self.args)
+        a = read_bytes(os.path.join(self.enr, "openalex-works.jsonl"))
+        quiet(ex.main, self.args)
+        self.assertEqual(read_bytes(os.path.join(self.enr, "openalex-works.jsonl")), a)
+        cr_raw = os.path.join(self.tmp, self.lines("crossref-works.jsonl")[0]["raw_file"])
+        write(cr_raw, cr_body("10.9999/synthetic.other"))
+        code, _, err = quiet(ex.main, self.args)
+        self.assertEqual(code, 4)
+        self.assertIn("different DOI", err)
+
+    def test_missing_status_exit_3(self):
+        os.remove(os.path.join(self.enr, "crossref-doi-status.tsv"))
+        self.assertEqual(quiet(ex.main, self.args)[0], 3)
 
 
 if __name__ == "__main__":

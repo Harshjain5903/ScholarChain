@@ -77,6 +77,11 @@ def doi_file_stem(doi):
     return sha256_text(doi)
 
 
+def orcid_file_stem(orcid):
+    """File stem used for per-iD ORCID responses: sha256 of the normalised iD (dddd-dddd-dddd-dddX)."""
+    return sha256_text(orcid)
+
+
 def canonical_response_doi(value):
     """Canonical DOI from a provider field (URL form or bare form); None if unusable."""
     if value is None:

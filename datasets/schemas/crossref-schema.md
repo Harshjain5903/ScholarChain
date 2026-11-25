@@ -100,3 +100,28 @@ Crossref Work.reference[] -> Citation {
 - `message.reference[]` is present in 38,718 records (1,168,771 entries).
 - Requests for alias DOIs answer HTTP 301 to the primary DOI; follow redirects and expect `message.DOI` to differ from the request.
 - Counts, rejects and coverage: `datasets/dataset-manifest.yaml` (crossref) and `datasets/derived/enrichment/reconcile-summary.json`.
+
+## Enrichment extract `crossref-works.jsonl` (derived 2026-11-24, shape version 1.0.0)
+
+Written by `datasets/scripts/enrich_extract.py` to `datasets/derived/enrichment/crossref-works.jsonl` (gitignored; sidecar `.provenance.json` with counts and sha256). One UTF-8 JSON object per line, one line per DOI-verified Crossref record (42,910 lines, sorted by `dblp_key`). Read it with a JSON parser per line; keys are sorted, no key is ever omitted (absent values are `null`).
+
+| Key | Type | Meaning |
+|---|---|---|
+| `schema_version` | string | Extract shape version, `"1.0.0"` |
+| `source` | string | Always `"crossref"` |
+| `source_record_id` | string | `"crossref:" + doi` (Crossref's own record key is the DOI) |
+| `doi` | string | Canonical DOI (lowercase); the join key to DBLP (`selection-50k.tsv`) |
+| `dblp_key` | string | DBLP key of the selected work, e.g. `journals/access/CriolloCUGYSRL24` |
+| `title` | string or null | First element of `message.title` |
+| `year` | int or null | First usable year of `issued`, `published`, `published-print`, `published-online`; null for 1,648 records (e.g. `issued.date-parts` is `[[null]]`); `created` is NOT used |
+| `venue` | string or null | First `container-title`, else first `short-container-title` |
+| `type` | string or null | Crossref work type |
+| `publisher` | string or null | Publisher name |
+| `authors` | array | In Crossref order; objects below |
+| `retrieved` | string | Retrieval date `YYYY-MM-DD` |
+| `raw_file` | string | Repo-relative path of the raw response |
+| `raw_sha256` | string | sha256 of that raw file |
+
+Author object: `position` (1-based int), `given`, `family`, `name` (organisational authors; else null), `sequence` (`first`/`additional`), `orcid` (normalised `dddd-dddd-dddd-dddX`, ISO 7064 checked, else null), `orcid_raw` (as published, URL form, else null), `orcid_authenticated` (bool from `authenticated-orcid`, null when no ORCID).
+
+Dropped: abstract, `reference`, licence, link, relation, assertion. 28,223 author mentions carry an ORCID (26,636 distinct).

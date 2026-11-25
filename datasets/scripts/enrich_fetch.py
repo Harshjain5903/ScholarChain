@@ -66,11 +66,16 @@ Subcommands:
             skipping batches whose saved response is complete.
             Log: <logs-dir>/openalex-<date>.tsv rows: name, http_status, utc, n_dois, pages, note
 
-  orcid     GET https://pub.orcid.org/v3.0/<orcid>/record (public API, JSON) for
-            iDs from orcid-candidates.txt in file order (fetch priority written
-            by enrich_reconcile.py). Saves <out-root>/retrieved=<date>/<orcid>.json.
-            Skips iDs with an existing parseable record in any retrieved=*/.
-            Log: <logs-dir>/orcid-<date>.tsv rows: orcid, http_status, utc, orcid, attempts, note
+  orcid     GET https://pub.orcid.org/v3.0/<orcid>/record (public API, Accept:
+            application/json, no API key) for iDs from --input in file order (default
+            orcid-candidates.txt, fetch priority written by enrich_reconcile.py; the
+            bounded 2,000 subset is orcid-fetch-2000.txt from orcid_select.py).
+            Saves <out-root>/retrieved=<date>/<sha256(orcid)>.json verbatim (same
+            naming as crossref). Redirects, request budget, retries and contact
+            handling are identical to crossref. 404 and 409 (locked/deprecated)
+            and 410 are final. Skips iDs with an existing parseable record in any
+            retrieved=*/ directory (resume / skip-existing).
+            Log: <logs-dir>/orcid-<date>.tsv rows: orcid, http_status, utc, sha256(orcid), attempts, note
 
 Exit codes: 0 ok (or dry run, or request budget exhausted); 2 usage error / missing contact env var;
 3 missing input; 75 quota or rate limit reached (resume later); 1 other error.
@@ -93,7 +98,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import enrich_common as ec  # noqa: E402
 
 SCRIPT_NAME = "enrich_fetch.py"
-SCRIPT_VERSION = "1.0.0"
+SCRIPT_VERSION = "1.1.0"
 CONTACT_ENV = "SCHOLARCHAIN_CONTACT_EMAIL"
 CROSSREF_BASE = "https://api.crossref.org/works/"
 OPENALEX_BASE = "https://api.openalex.org/works"
@@ -557,7 +562,7 @@ def cmd_orcid(args, client):
         ids.append(norm)
     out_dir = os.path.join(args.out_root, "retrieved=%s" % args.date)
     log_path = os.path.join(args.logs_dir, "orcid-%s.tsv" % args.date)
-    todo = [i for i in ids if not existing_any(args.out_root, i + ".json", orcid_ok)]
+    todo = [i for i in ids if not existing_any(args.out_root, ec.orcid_file_stem(i) + ".json", orcid_ok)]
     plan = todo[:args.max_records]
     print("orcid: input=%d already_saved=%d to_fetch_this_run=%d (bound --max-records=%d --max-requests=%d) out=%s"
           % (len(ids), len(ids) - len(todo), len(plan), args.max_records, args.max_requests, ec.display_path(out_dir)))
@@ -572,7 +577,7 @@ def cmd_orcid(args, client):
         except BudgetExhausted as e:
             return budget_stop(args, "orcid", client, "next=%s" % oid, e)
         if is_quota(status, body):
-            append_log(log_path, [oid, status, ec.utc_now(), oid, attempts, "rate-limited; stopped"])
+            append_log(log_path, [oid, status, ec.utc_now(), ec.orcid_file_stem(oid), attempts, "rate-limited; stopped"])
             run_event(args, "orcid", "quota-stop", client, "http %s" % status)
             raise QuotaStop("ORCID rate limit after %d requests; re-run later to resume" % client.requests)
         note_refusal(args, "orcid", client, oid)
@@ -580,9 +585,9 @@ def cmd_orcid(args, client):
         if status == 200:
             body, red = client.redact(body)
             note = "contact-redacted" if red else ""
-            save_bytes(os.path.join(out_dir, oid + ".json"), body)
+            save_bytes(os.path.join(out_dir, ec.orcid_file_stem(oid) + ".json"), body)
             saved += 1
-        append_log(log_path, [oid, status, ec.utc_now(), oid, attempts, note])
+        append_log(log_path, [oid, status, ec.utc_now(), ec.orcid_file_stem(oid), attempts, note])
     run_event(args, "orcid", "run-complete", client, "saved=%d" % saved)
     print("orcid: requests=%d saved=%d log=%s" % (client.requests, saved, ec.display_path(log_path)))
     return 0

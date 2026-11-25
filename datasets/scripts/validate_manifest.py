@@ -20,6 +20,14 @@ For every entry in `datasets:` it checks
     Absent items marked `tracked: false` (gitignored raw/derived data) are
     reported as SKIP, so a clean clone passes with a clear status; absent
     `tracked: true` items (committed files) FAIL.
+  * for entries with `spec_check: true`: the course-specification fields
+    (see SPEC_FIELDS: name+purpose, source+docs, licence/reuse, snapshot or
+    retrieval date, retrieval command, format, expected AND observed size, S3
+    raw prefix + upload status, integrity record, schema version, subset rule,
+    incremental update strategy, linkage fields, personal-data AND privacy
+    notes, known limitations, validation commands, owning agent) are present
+    and non-empty. Presence only: values that need a human web check are
+    flagged in the entry (human_confirmation_required), not judged here.
 
 Output: one line per check (PASS | FAIL | SKIP), then a summary line.
 Exit codes: 0 no FAIL (SKIPs allowed); 4 at least one FAIL; 2 manifest
@@ -40,6 +48,39 @@ import enrich_common as ec  # noqa: E402
 SCRIPT_NAME = "validate_manifest.py"
 SCRIPT_VERSION = "1.0.0"
 REQUIRED_KEYS = ("name", "status", "license", "owning_agent")
+# (label, keys, mode): mode "all" = every key non-empty, "any" = at least one non-empty
+SPEC_FIELDS = (
+    ("name and purpose", ("name", "purpose"), "all"),
+    ("official source and documentation links", ("source_urls", "documentation_url"), "any"),
+    ("license or reuse terms", ("license", "reuse_terms", "license_evidence"), "any"),
+    ("snapshot or retrieval date", ("snapshot_date", "retrieval_date", "planned_retrieval_date"), "any"),
+    ("retrieval command or script", ("retrieval_command",), "all"),
+    ("file format and compression", ("format", "compression"), "any"),
+    ("expected AND observed size", ("expected_size", "observed_size"), "all"),
+    ("S3 raw prefix and upload status", ("s3_raw_prefix", "s3_upload_status"), "all"),
+    ("integrity record (sha256)", ("files",), "all"),
+    ("schema version", ("schema_version",), "all"),
+    ("selected subset rule", ("selected_subset_rule",), "all"),
+    ("incremental update strategy", ("incremental_update_strategy",), "all"),
+    ("linkage fields", ("linkage_fields",), "all"),
+    ("personal-data and privacy notes", ("personal_data_notes", "privacy_notes"), "all"),
+    ("known omissions or quality limitations", ("known_limitations",), "all"),
+    ("validation commands", ("validation_commands",), "all"),
+    ("owning agent", ("owning_agent",), "all"),
+)
+
+
+def spec_missing(entry):
+    """Names of the specification fields that are absent or empty in a manifest entry."""
+    missing = []
+    for label, keys, mode in SPEC_FIELDS:
+        have = [bool(entry.get(k)) for k in keys]
+        ok = all(have) if mode == "all" else any(have)
+        if ok and label.startswith("integrity"):
+            ok = any(isinstance(i, dict) and (i.get("sha256") or i.get("tree_sha256")) for i in entry["files"])
+        if not ok:
+            missing.append(label)
+    return missing
 
 
 class ManifestError(Exception):
@@ -403,6 +444,11 @@ def validate(manifest_path, root):
             missing.append("source_urls|documentation_url")
         results.append(("FAIL" if missing else "PASS", name, "-",
                         ("missing required keys: %s" % ", ".join(missing)) if missing else "required provenance/licence keys present"))
+        if ds_entry.get("spec_check") is True:
+            sm = spec_missing(ds_entry)
+            results.append(("FAIL" if sm else "PASS", name, "-",
+                            ("missing specification fields: %s" % "; ".join(sm)) if sm
+                            else "all %d course-specification fields present" % len(SPEC_FIELDS)))
         for item in ds_entry.get("files") or []:
             for st, rel, detail in check_item(root, item, cache):
                 results.append((st, name, rel, detail))

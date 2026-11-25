@@ -97,4 +97,14 @@ ORCID Work -> (cross-reference to Publication) {
 
 - Source: `datasets/derived/enrichment/orcid-candidates.{tsv,txt}` and `orcid-candidate-links.tsv`, written by `datasets/scripts/enrich_reconcile.py` from DOI-verified Crossref (`author[].ORCID`) and OpenAlex (`authorships[].author.orcid`) records of the DBLP 50K selection.
 - Normal form `dddd-dddd-dddd-dddX`, validated with ISO 7064 MOD 11-2; 107,438 distinct valid iDs and 0 invalid.
-- Planned raw layout: `datasets/raw/orcid/retrieved=<date>/<orcid>.json` from `https://pub.orcid.org/v3.0/<orcid>/record`, fetched by `datasets/scripts/enrich_fetch.py orcid` (bounded, resumable).
+- Planned raw layout (corrected 2026-11-24): `datasets/raw/orcid/retrieved=<date>/<sha256(orcid)>.json` from `https://pub.orcid.org/v3.0/<orcid>/record` (`Accept: application/json`), fetched by `datasets/scripts/enrich_fetch.py orcid` (bounded, resumable, same naming as Crossref).
+
+## Bounded fetch list (selected 2026-11-24; still no ORCID record retrieved)
+
+- Human decision 2026-11-24: fetch 2,000 records from the free public API, no key.
+- `datasets/derived/enrichment/orcid-fetch-2000.txt` (+ `.provenance.json`) is written by `datasets/scripts/orcid_select.py`: checksum-valid candidates with `n_dblp_works >= 2` (15,473 qualify), ranked by ascending `sha256("scholarchain-orcid-2026-11-24|" + iD)`, first 2,000 in rank order.
+- Response envelope for `GET /v3.0/<iD>/record` is expected to hold `orcid-identifier`, `person`, `activities-summary` (works, employments, educations, fundings); a record is accepted when it parses and has `orcid-identifier` or `person`. This is from documentation and is verified only after the human fetch.
+- HTTP 404 (no such iD), 409 (locked or deprecated record) and 410 are final: logged, nothing saved.
+- A record can be nearly empty when the researcher published nothing publicly; no private or limited-visibility items are returned by the public API.
+- Personal data: public emails, URLs and biographies may appear in raw records; they are gitignored and must not be committed.
+

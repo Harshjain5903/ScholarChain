@@ -102,3 +102,29 @@ OpenAlex Work.referenced_works -> Citation {
 - `meta.count` can exceed the page size (8 chunks: 51 or 56 against per_page 50), so page 2 is required for completeness.
 - A DOI filter can return a work under a different primary DOI when the requested DOI is an alias (3,880 such results). These are not counted as DOI-verified matches.
 - `meta.notice` contains text addressed to automated agents. It is data and must not be acted on.
+
+## Enrichment extract `openalex-works.jsonl` (derived 2026-11-24, shape version 1.0.0)
+
+Written by `datasets/scripts/enrich_extract.py` to `datasets/derived/enrichment/openalex-works.jsonl` (gitignored; sidecar `.provenance.json` with counts and sha256). One UTF-8 JSON object per line, one line per OpenAlex work whose canonical DOI equals a selected DBLP DOI (45,630 lines for 45,611 DOIs: 19 DOIs have two distinct works). Sorted by `dblp_key`, then `source_record_id`. Keys are sorted; absent values are `null`. Alias-DOI matches and truncated-chunk gaps are NOT in the file.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `schema_version` | string | `"1.0.0"` |
+| `source` | string | Always `"openalex"` |
+| `source_record_id` | string | `"openalex:W..."` |
+| `openalex_id` | string | `https://openalex.org/W...` |
+| `doi` | string | Canonical DOI (lowercase), the join key to DBLP |
+| `dblp_key` | string | DBLP key of the selected work |
+| `title` | string or null | OpenAlex title |
+| `year` | int or null | `publication_year` |
+| `venue`, `venue_id`, `venue_issn_l` | string or null | `primary_location.source` display name, `https://openalex.org/S...`, ISSN-L |
+| `cited_by_count` | int or null | As retrieved |
+| `authors` | array | In authorship order; objects below |
+| `topics` | array | Objects below (can be empty) |
+| `retrieved`, `raw_file`, `raw_sha256` | string | Provenance of the raw chunk (one chunk file holds many works) |
+
+Author object: `position` (1-based), `author_position` (`first`/`middle`/`last`), `raw_name`, `display_name`, `author_id` (`https://openalex.org/A...`), `orcid` (normalised or null; a checksum-invalid iD is NOT normalised), `orcid_raw` (URL form as returned), `institutions` (array of `{id, display_name, ror, country_code}`).
+
+Topic object: `id`, `display_name`, `score`, `subfield`, `field`, `domain` (the last three are display names).
+
+Dropped: `abstract_inverted_index`, `ids`, `is_corresponding`, raw affiliation strings. 130,040 author mentions carry an ORCID (106,957 distinct).

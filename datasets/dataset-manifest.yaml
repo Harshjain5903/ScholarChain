@@ -1,7 +1,7 @@
 # ScholarChain Dataset Manifest
 # Owner: dataset-engineer
-# Schema version: 1.2.0
-# Last updated: 2026-11-23 (Phase 13 dataset completion, step 1)
+# Schema version: 1.3.0
+# Last updated: 2026-11-24 (DS-P03-02: README spec audit, ORCID fetch readiness, enrichment extracts)
 #
 # Authoritative registry of datasets used by ScholarChain. Every dataset needs
 # a complete entry with provenance and licence before any pipeline uses it.
@@ -20,7 +20,16 @@
 # Scale: the 10K and 50K selections are DEVELOPMENT runs. No reduced-final-scale
 # approval exists; provider fallbacks require the human's instructor approval.
 
-schema_version: "1.2.0"
+# Course-specification fields: every entry marked spec_check: true is checked by
+# validate_manifest.py for the 17 required fields (name+purpose, source+docs,
+# license/reuse, snapshot or retrieval date, retrieval command, format, expected
+# AND observed size, S3 raw prefix + upload status, integrity record, schema
+# version, subset rule, incremental update strategy, linkage fields,
+# personal-data AND privacy notes, known limitations, validation commands,
+# owning agent). Items that only a human can settle are listed under
+# human_confirmation_required in each entry.
+
+schema_version: "1.3.0"
 
 datasets:
 
@@ -110,6 +119,19 @@ datasets:
         tie_rule: "keep the record with the smallest rank sha256(seed|key)"
       pool_after_doi_dedup: 6874562
       pool_years: "1938-2027 (86 distinct years)"
+    spec_check: true
+    compression: "gzip for dblp.xml.gz (decompressed 5,408,968,366 bytes); dblp.dtd is plain text"
+    expected_size: >-
+      dblp.org publishes no size or checksum with the dump (not re-verified
+      online). The integrity reference is SHA256SUMS written by
+      download-dblp.sh at download time: dblp.xml.gz 1,120,703,993 bytes,
+      sha256 082538149e72...; a provider Content-Length check is a human web
+      action.
+    observed_size: "dblp.xml.gz 1,120,703,993 bytes (equals SHA256SUMS record and sha256 verified by validate_manifest.py); dblp.dtd 13,134 bytes"
+    s3_upload_status: "NOT YET UPLOADED -- buckets are not deployed; the prefix above is the intended key layout"
+    schema_version: "dblp.dtd dated 2023-05-10 (65 general entities); ScholarChain selection TSV columns per dblp_select.py v1.0.0"
+    human_confirmation_required:
+      - "None blocking. Optional: confirm the CC0 statement still appears on https://dblp.org/faq/ before redistribution."
     selected_subset_rule: >-
       Eligible = article or inproceedings; key present and unique in the dump;
       non-empty title; numeric year; >= 2 authors; >= 1 <ee> that is an
@@ -239,6 +261,46 @@ datasets:
       blocks. The human must re-confirm the current Crossref metadata terms
       and REST API etiquette (polite pool via a contact address in the
       User-Agent) before redistribution beyond course use.
+    spec_check: true
+    license_status: "NEEDS-HUMAN-CONFIRMATION (web check of current Crossref metadata terms; not done offline)"
+    human_confirmation_required:
+      - "Confirm current Crossref metadata reuse terms and REST API etiquette at https://www.crossref.org/documentation/retrieve-metadata/rest-api/ before any redistribution beyond course use."
+    format: "JSON, one verbatim API response envelope {status, message-type, message-version, message} per file (UTF-8, uncompressed), named <sha256(requested DOI)>.json"
+    compression: "none (files stored uncompressed; S3 upload may add Content-Encoding gzip later)"
+    schema_version: "Crossref REST API works message-version 1.0.0 (observed in every response envelope header)"
+    expected_size: "43,363 requested DOIs (crossref-dois.txt) -> up to 43,363 files; expected bytes unknown before the crawl"
+    observed_size: "42,910 files, 389,295,932 bytes (directory digest in files:); 453 requested DOIs have no file (43 HTTP 301, 410 HTTP 404)"
+    s3_raw_prefix: "s3://${RAW_BUCKET}/crossref/retrieved=2026-11-22/"
+    s3_upload_status: "NOT YET UPLOADED -- buckets are not deployed; intended prefix recorded"
+    selected_subset_rule: >-
+      The non-arXiv DOIs (prefix not 10.48550/) of the DBLP 50K development
+      selection, in selection order (request_list below). Records are then
+      classed per DOI by enrich_reconcile.py; only category "verified"
+      (response DOI equals requested DOI) feeds the enrichment extract.
+    incremental_update_strategy: >-
+      Append-only dated directories: re-fetch gaps (retry list) with
+      enrich_fetch.py crossref into retrieved=<date>/; files already parseable
+      with status ok in any dated directory are skipped; nothing is overwritten
+      in place; enrich_reconcile.py then takes the best state per DOI and
+      enrich_extract.py regenerates the extract. No Crossref delta/index-date
+      feed is used.
+    linkage_fields:
+      - "DOI (message.DOI, canonical lowercase) -> DBLP DOI / dblp_key"
+      - "author[].ORCID (URL form) -> ORCID iD"
+      - "author[].given + family + sequence -> DBLP author names (position)"
+      - "container-title, ISSN -> DBLP venue"
+      - "reference[].DOI -> citation edges to other works"
+    personal_data_notes: >-
+      Author given and family names and public ORCID iDs (28,223 author
+      mentions carry one; 722 flagged authenticated-orcid). No emails or
+      contact data in the retained fields.
+    privacy_notes: >-
+      Public bibliographic metadata as deposited by publishers. Raw responses
+      (gitignored) keep everything Crossref returned, including reference lists
+      and abstracts where deposited; the committed sample and the derived extract
+      drop abstracts, references, licence and link blocks. Contact address is
+      only used in the User-Agent and is never stored. HUMAN review needed if
+      the data is ever published beyond course use.
     retrieval_date: "2026-11-22"
     retrieval_window_utc: "2026-11-22T20:25:18Z .. 2026-11-22T23:56:09Z (fetch log timestamps)"
     retrieved_by: "human architect, with a script outside the repository (curl without -L)"
@@ -288,6 +350,17 @@ datasets:
       - "arXiv DOIs (10.48550, 6,637 of 50K) were deliberately not requested because they are DataCite DOIs."
       - "Alias DOIs return the primary DOI's record; strict DOI equality treats them as unverified."
       - "Snapshot is a 3.5-hour API crawl, not a dated Crossref public data file; records can change between requests."
+    recount_2026_11_24: >-
+      Re-counted from disk (not from this text): log rows 43,363, distinct DOIs
+      43,363 and equal to crossref-dois.txt; statuses 200=42,910, 301=43,
+      404=410; response files 42,910; every HTTP 200 row has a file whose name
+      is sha256(DOI), parses with status ok and has message.DOI equal to the
+      requested DOI (0 mismatches); no non-200 row has a file; 0 orphan files.
+    enrichment_extract:
+      path: "datasets/derived/enrichment/crossref-works.jsonl"
+      shape: "datasets/schemas/crossref-schema.md section Enrichment extract"
+      lines: 42910
+      command: "/usr/bin/python3 -I -B datasets/scripts/enrich_extract.py"
     sample:
       path: "datasets/samples/enrichment/crossref-sample.jsonl"
       rule: "for each of the 50 DBLP sample works (datasets/samples/dblp/dblp-sample-50.xml), its DOI-verified Crossref record, trimmed; 41 of 50 have one"
@@ -299,6 +372,8 @@ datasets:
       - {path: "datasets/derived/enrichment/crossref-doi-status.tsv", kind: file, tracked: false, size_bytes: 10022427, sha256: "de77f7c1946645116f61af361592ed43ae3c18fc1ad12d5eebd3ca7e07bf2f36", lines: 50001}
       - {path: "datasets/derived/enrichment/crossref-retry-dois.txt", kind: file, tracked: false, size_bytes: 1149, sha256: "472bcf8574d8354633196872533b0dfffdff629c40127fd61018c4f9806c56d5", lines: 43}
       - {path: "datasets/derived/enrichment/crossref-404-dois.txt", kind: file, tracked: false, size_bytes: 11030, sha256: "2d008502b123e6583377f0ea08a2026907f23b3c5bc2f1400b9dc2e5b4698859", lines: 410}
+      - {path: "datasets/derived/enrichment/crossref-works.jsonl", kind: file, tracked: false, size_bytes: 52573402, sha256: "e27bda4d22675ef9e06df7b135b1b6240313c64a45efa5a94591b2c392b60f7e", lines: 42910}
+      - {path: "datasets/derived/enrichment/crossref-works.jsonl.provenance.json", kind: file, tracked: false}
       - {path: "datasets/samples/enrichment/crossref-sample.jsonl", kind: file, tracked: true, size_bytes: 47031, sha256: "5309d593de83cdbc23bdbaa2b7ac7cd516ee0b7a01cbd5a7ef3451cfa4c72d4a", lines: 41}
       - {path: "datasets/samples/enrichment/crossref-sample.jsonl.provenance.json", kind: file, tracked: true}
       - path: "datasets/derived/enrichment/reconcile-summary.json"
@@ -325,6 +400,48 @@ datasets:
       api: "https://api.openalex.org/works?filter=doi:<url1>|<url2>|...&per_page=50"
     documentation_url: "https://docs.openalex.org/"
     license: "CC0 1.0 (OpenAlex data, https://openalex.org/about; not re-verified online in this offline work order)"
+    spec_check: true
+    license_status: "NEEDS-HUMAN-CONFIRMATION (web check that OpenAlex data is still CC0 1.0 and of the current API usage terms; not done offline)"
+    human_confirmation_required:
+      - "Confirm CC0 1.0 status at https://openalex.org/about and current API limits/terms at https://docs.openalex.org/ before redistribution."
+    format: "JSON, one verbatim API response per file ({meta, results[], group_by}; UTF-8, uncompressed), named oa-chunk-<4 letters>.json (chunk order = selection-50k.dois.txt order, 50 DOIs each)"
+    compression: "none (files stored uncompressed)"
+    schema_version: "OpenAlex Works entity as returned by api.openalex.org on 2026-11-22; the API carries no schema version string (none observed in responses)"
+    expected_size: "1,000 chunks x 50 DOIs = 50,000 requested DOIs; up to 50,000 works; expected bytes unknown before the crawl"
+    observed_size: "1,000 files, 412,677,459 bytes; 49,510 work records (8 chunks returned 50 of 51 or 56 matches)"
+    s3_raw_prefix: "s3://${RAW_BUCKET}/openalex/retrieved=2026-11-22/"
+    s3_upload_status: "NOT YET UPLOADED -- buckets are not deployed; intended prefix recorded"
+    selected_subset_rule: >-
+      All 50,000 DOIs of the DBLP 50K development selection (arXiv included),
+      split in order into 50-DOI filter requests. A DOI counts as verified
+      only when a returned work's canonical DOI equals the selected DOI;
+      alias-DOI matches are reported separately and never counted.
+    incremental_update_strategy: >-
+      Append-only dated directories: unresolved DOIs (retry list) are re-fetched
+      by enrich_fetch.py openalex (50-DOI batches, extra pages saved as
+      <batch>.page-<n>.json, exit 75 on quota, complete batches skipped) into
+      retrieved=<date>/; enrich_reconcile.py recomputes per-DOI states and
+      enrich_extract.py regenerates the extract. Nothing is overwritten.
+    linkage_fields:
+      - "doi (https://doi.org/ form, canonicalised) -> DBLP DOI / dblp_key"
+      - "id (https://openalex.org/W...) -> OpenAlex work ID"
+      - "authorships[].author.id (A...) -> OpenAlex author ID"
+      - "authorships[].author.orcid -> ORCID iD"
+      - "authorships[].institutions[].id / ror -> institution"
+      - "primary_location.source.id / issn_l -> venue"
+      - "topics[].id -> topic / field / domain"
+    personal_data_notes: >-
+      Author display names, raw author-name strings, OpenAlex author IDs, public
+      ORCID iDs (130,040 author mentions carry one) and institutions. Raw files
+      also hold raw_affiliation_strings. No emails.
+    privacy_notes: >-
+      Public scholarly metadata (CC0 per OpenAlex, to be re-confirmed). OpenAlex
+      author clusters are algorithmic and can merge or split real people; ORCID
+      assignments on a work come from OpenAlex's own matching. Raw files are
+      gitignored; only trimmed 45-line sample is committed. Contact address is
+      only used in the User-Agent and is never stored. Responses carry a
+      meta.notice addressed to automated agents (suggests creating an API key);
+      it is data, not an instruction, and was not acted on.
     retrieval_date: "2026-11-22"
     retrieval_window_utc: "2026-11-22T20:27:27Z .. 2026-11-23T00:46:15Z (fetch log timestamps)"
     retrieved_by: "human architect, with a script outside the repository; no API key (shared free daily budget)"
@@ -367,6 +484,22 @@ datasets:
       - "referenced_works was not in the select list, so OpenAlex citation edges are not available from this retrieval; Crossref reference lists are (38,718 records)."
       - "Responses carry an OpenAlex meta.notice addressed to automated agents suggesting API-key creation; it was treated as data and not acted on."
       - "abstract_inverted_index is present in raw files but excluded from committed extracts."
+    recount_2026_11_24: >-
+      Re-counted from disk (not from this text): 1,000 chunk files, all
+      parseable, 49,510 work records; 45,611 of the 50,000 selected DOIs have a
+      work whose canonical DOI equals the DOI (matches verified_match; 45,630
+      work lines because 19 DOIs have two distinct works); 3,880 results carry
+      a DOI that is not in their own chunk request; exactly 8 chunks have
+      meta.count above results (aaek, aaes, aanx, aayl, abdg, abdv, abeo = 51;
+      abdw = 56, each with 50 results); exactly 11 selected DOIs are absent
+      from those 8 chunks and they equal openalex-retry-dois.txt and the
+      unknown_truncated rows of openalex-doi-status.tsv. The manifest text is
+      accurate.
+    enrichment_extract:
+      path: "datasets/derived/enrichment/openalex-works.jsonl"
+      shape: "datasets/schemas/openalex-schema.md section Enrichment extract"
+      lines: 45630
+      command: "/usr/bin/python3 -I -B datasets/scripts/enrich_extract.py"
     sample:
       path: "datasets/samples/enrichment/openalex-sample.jsonl"
       rule: "for each of the 50 DBLP sample works, its DOI-verified OpenAlex work(s), trimmed; 45 of 50 have one"
@@ -377,6 +510,8 @@ datasets:
       - {path: "datasets/derived/enrichment", kind: dir, tracked: false, prefix: "oa-chunk-", file_count: 1000, total_bytes: 1312398, tree_sha256: "1e3e20d97153110a36a468f3d19ec2f5181423d1e29b1af9da18ca4cb99d1b75"}
       - {path: "datasets/derived/enrichment/openalex-doi-status.tsv", kind: file, tracked: false, size_bytes: 8496366, sha256: "c659575914115a9efa07f7bbfa03787030dd08f910a5e841ad213dc85ad496c6", lines: 50001}
       - {path: "datasets/derived/enrichment/openalex-retry-dois.txt", kind: file, tracked: false, size_bytes: 298, sha256: "868844d8db8dd76027e1af3084aa7281edb06c5b8d29490a46233c63d0d5a336", lines: 11}
+      - {path: "datasets/derived/enrichment/openalex-works.jsonl", kind: file, tracked: false, size_bytes: 128289189, sha256: "c9bb807367151f71a7b89be1c17b12f7dab9c9b1b844b2bf7d1c0fc9d4090acd", lines: 45630}
+      - {path: "datasets/derived/enrichment/openalex-works.jsonl.provenance.json", kind: file, tracked: false}
       - {path: "datasets/samples/enrichment/openalex-sample.jsonl", kind: file, tracked: true, size_bytes: 106149, sha256: "007ab6a3e7f2a19ec58ea1f3aa6a3035a670541c06c074cdc63ea99bf3c3abf9", lines: 45}
       - {path: "datasets/samples/enrichment/openalex-sample.jsonl.provenance.json", kind: file, tracked: true}
       - path: "datasets/derived/enrichment/reconcile-summary.json"
@@ -397,7 +532,7 @@ datasets:
     owning_agent: "dataset-engineer"
 
   - name: orcid
-    status: "PENDING human fetch -- candidate list derived offline 2026-11-23; no ORCID record retrieved yet (datasets/raw/orcid/retrieved=2026-11-22/ is empty)"
+    status: "READY FOR HUMAN FETCH -- 2,000-iD bounded list selected 2026-11-24 (human decision); no ORCID record retrieved yet (datasets/raw/orcid/retrieved=2026-11-22/ is empty, verified)"
     purpose: >-
       Public ORCID records for iDs found in DOI-verified Crossref and OpenAlex
       records of the DBLP 50K development selection, linked back to the
@@ -406,6 +541,67 @@ datasets:
       api: "https://pub.orcid.org/v3.0/{orcid}/record"
     documentation_url: "https://info.orcid.org/documentation/"
     license: "PENDING confirmation -- ORCID public data; ORCID releases its annual Public Data File under CC0, and Public API use is subject to ORCID terms of use (NOT re-verified online in this offline work order)"
+    spec_check: true
+    license_status: "NEEDS-HUMAN-CONFIRMATION (web check of ORCID Public API terms of use and the CC0 statement for public record data)"
+    human_confirmation_required:
+      - "Confirm ORCID Public API terms of use and the data licence at https://info.orcid.org/documentation/ before fetching."
+      - "Run the single-record test command (see api_access_note) before the 2,000-record run; the anonymous-read behaviour was not verified by this agent."
+    api_access_note: >-
+      The work order states no API key is needed. ORCID documents a
+      token-based flow for the Public API; anonymous GET of
+      /v3.0/<iD>/record with Accept: application/json is widely reported to
+      work for public records, but this agent could not verify it (no network
+      by instruction), so it is NOT certain. If the test returns HTTP 401 or
+      403, stop: a free public-API client credential and token would be
+      needed, which is a human action. Rate limits were not verified; the
+      script paces at 10 requests per second at most and stops on HTTP 429
+      (exit 75).
+    format: "JSON, one verbatim ORCID record per file (UTF-8, uncompressed), named <sha256(orcid iD)>.json under retrieved=<date>/"
+    compression: "none"
+    schema_version: "ORCID Public API v3.0 (version in the request URL); record shape in datasets/schemas/orcid-schema.md"
+    expected_size: "2,000 records (orcid-fetch-2000.txt); expected bytes unknown before the fetch (to be recorded after the run)"
+    observed_size: "0 records, 0 bytes so far (raw directory empty)"
+    s3_raw_prefix: "s3://${RAW_BUCKET}/orcid/retrieved=<date>/"
+    s3_upload_status: "NOT YET UPLOADED -- nothing fetched and buckets are not deployed; intended prefix recorded"
+    planned_retrieval_date: "2026-11-24 (human fetch; --date 2026-11-24 pins the directory name)"
+    selected_subset_rule: >-
+      Checksum-valid candidates attached to MORE THAN ONE DBLP work of the 50K
+      selection (n_dblp_works >= 2; 15,473 of 107,438 qualify), ranked by
+      ascending sha256("scholarchain-orcid-2026-11-24|" + iD); the first 2,000
+      are taken (orcid_select.py; deterministic, not first-N of the candidate
+      file). Iterating on repeated mentions gives entity resolution identity
+      evidence it can actually use.
+    incremental_update_strategy: >-
+      Append-only dated directories. Re-running enrich_fetch.py orcid skips every
+      iD that already has a parseable record in any retrieved=*/ directory, so
+      a larger list or a second run only fetches the difference; records are
+      never overwritten. To extend, re-run orcid_select.py with a larger --n
+      (the same seed keeps the first 2,000 identical).
+    linkage_fields:
+      - "orcid-identifier.path -> ORCID iD (join key to DBLP author@orcid, Crossref author[].ORCID, OpenAlex author.orcid)"
+      - "person.name (given-names, family-name, credit-name), other-names -> author name variants"
+      - "activities-summary.works.group[].work-summary[].external-ids (type doi) -> DBLP DOI"
+      - "activities-summary.employments -> affiliations (organization name, ROR/GRID where present)"
+    personal_data_notes: >-
+      Personal data the researchers chose to make public: names, name variants,
+      biography, keywords, researcher URLs, external identifiers, employment
+      and education history, and public email addresses where a researcher
+      published one. Only the public API is used, so limited or private items
+      are not returned.
+    privacy_notes: >-
+      Raw records are gitignored and must not be committed. Nothing beyond the
+      iD and name already present in Crossref/OpenAlex may be committed (sample
+      TSV only). Downstream extracts should drop emails and free-text biography
+      unless needed. HUMAN review needed on ORCID terms of use and any personal-
+      data retention rule before the data leaves the local machine or is uploaded.
+    retrieval_date_status: "PENDING -- set after the human fetch"
+    fetch_list:
+      path: "datasets/derived/enrichment/orcid-fetch-2000.txt"
+      seed: "scholarchain-orcid-2026-11-24"
+      script: "datasets/scripts/orcid_select.py"
+      command: "/usr/bin/python3 -I -B datasets/scripts/orcid_select.py"
+      lines: 2000
+      eligible_pool: 15473
     reuse_terms: >-
       The human must confirm ORCID Public API terms before fetching. Records
       contain personal data that researchers chose to make public; only iDs
@@ -436,17 +632,26 @@ datasets:
       dblp_works_50k_with_candidate: 43027
       dblp_works_10k_with_candidate: 8626
     retrieval_command: >-
-      Bounded (default 5,000 per run, priority order), resumable:
+      Human runs (bounded, resumable, hard request budget counting every
+      attempt, https allowlist incl. pub.orcid.org, manual redirects, run log
+      datasets/raw/logs/fetch-runs-<date>.tsv, contact only from
+      SCHOLARCHAIN_CONTACT_EMAIL; dry run without --confirm-network):
       /usr/bin/python3 -I -B datasets/scripts/enrich_fetch.py orcid
-      --max-records 5000 --confirm-network   (dry run without --confirm-network)
+      --input datasets/derived/enrichment/orcid-fetch-2000.txt
+      --date 2026-11-24 --max-records 2000 --max-requests 2500
+      --confirm-network
     retrieval_date: null
     known_limitations:
-      - "107,438 candidates exceed the earlier 5,000 design cap; covering all needs about 22 bounded runs or a human decision on scope."
+      - "Only 2,000 of 107,438 candidates (1.9 percent) are fetched by decision of 2026-11-24; the subset is biased to iDs on more than one DBLP work, i.e. more prolific authors."
+      - "Self-reported, uneven completeness; many records are sparse (see schema note). Computer-science coverage is uneven."
+      - "Anonymous API access, rate limits and terms are unverified (see api_access_note)."
       - "Surname heuristic misses transliterations (e.g. Koenig vs König) and is QA only."
     sample:
       path: "datasets/samples/enrichment/orcid-candidate-links-sample.tsv"
       rule: "orcid-candidate-links.tsv rows whose DOI belongs to the 50 DBLP sample works (137 links, 114 distinct iDs)"
     files:
+      - {path: "datasets/derived/enrichment/orcid-fetch-2000.txt", kind: file, tracked: false, size_bytes: 40000, sha256: "843fb8e43d8e8736f4a35ba4c8cd08e7f4b6de3ef49ef80e7d79cb5d3226adb0", lines: 2000}
+      - {path: "datasets/derived/enrichment/orcid-fetch-2000.txt.provenance.json", kind: file, tracked: false}
       - {path: "datasets/derived/enrichment/orcid-candidate-links.tsv", kind: file, tracked: false, size_bytes: 40817814, sha256: "db26cfe3fdf79ba95f2ef412227cf8b2e9f902972e0c5c198de0e840aa7d5ca5", lines: 158264}
       - {path: "datasets/derived/enrichment/orcid-candidates.tsv", kind: file, tracked: false, size_bytes: 11012084, sha256: "13f2dffaaa140fa87416f5cf04c8c4bc80440222e914f0df9d58ce7377831057", lines: 107439}
       - {path: "datasets/derived/enrichment/orcid-candidates.txt", kind: file, tracked: false, size_bytes: 2148760, sha256: "49dbbc01abe1773f78de3bbce3bc9161d16fb689824879a99d7ee38de30f4b83", lines: 107438}
@@ -459,6 +664,6 @@ datasets:
           - {json_pointer: "/orcid_candidates/distinct_orcids_checksum_valid", expected: 107438}
           - {json_pointer: "/orcid_candidates/links_total", expected: 158263}
     validation_commands:
-      - "/usr/bin/python3 -I -B datasets/scripts/enrich_fetch.py orcid   # dry run, no network"
+      - "/usr/bin/python3 -I -B datasets/scripts/enrich_fetch.py orcid --input datasets/derived/enrichment/orcid-fetch-2000.txt --date 2026-11-24 --max-records 2000 --max-requests 2500   # dry run, no network"
       - "/usr/bin/python3 -I -B datasets/scripts/validate_manifest.py"
     owning_agent: "dataset-engineer"
