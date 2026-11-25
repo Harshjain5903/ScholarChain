@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ScholarChain gold-set labeler</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1b1f24;--card:#fff;--bd:#cfd5dc;--mut:#5b6670;--acc:#1f5fbf;--hi:#fff2a8;--ok:#176b32;--bad:#a4262c;--uns:#8a5a00;--warn:#fff4ce;--warnbd:#c9a100}
+@media (prefers-color-scheme:dark){:root{--bg:#14171b;--fg:#e6e9ec;--card:#1e2328;--bd:#3a424a;--mut:#9aa6b1;--acc:#7db1ff;--hi:#5c4d00;--ok:#6fd48a;--bad:#ff8c92;--uns:#f0b84d;--warn:#3a3000;--warnbd:#8a7300}}
+*{box-sizing:border-box}
+html,body{margin:0;overflow-x:hidden}
+body{background:var(--bg);color:var(--fg);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;padding:12px;max-width:1200px;margin:0 auto}
+h1{font-size:1.2rem;margin:0 0 8px}
+.warn{background:var(--warn);border:1px solid var(--warnbd);padding:8px 12px;border-radius:6px;margin-bottom:10px}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.78rem;overflow-wrap:anywhere;color:var(--mut)}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+button,select,input,textarea{font:inherit;color:inherit}
+button{background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:6px 12px;cursor:pointer}
+button:focus-visible,a:focus-visible,textarea:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+a{color:var(--acc)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px;margin-bottom:10px}
+.sides{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.side{min-width:0}
+.name{font-size:1.5rem;font-weight:700;overflow-wrap:anywhere}
+.lbl{color:var(--mut);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;margin-top:8px}
+.val{overflow-wrap:anywhere}
+ul.co{margin:2px 0 0;padding-left:18px}
+mark{background:var(--hi);color:inherit;padding:0 2px;border-radius:3px}
+.flag{display:inline-block;padding:2px 8px;border-radius:4px;border:1px solid var(--bd);font-weight:600}
+.guess{border:2px dashed var(--warnbd)}
+.big{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:10px 0}
+.big button{font-size:1.4rem;font-weight:700;padding:16px 8px;border-width:3px}
+.big button[aria-pressed=true]{background:var(--acc);color:#fff;border-color:var(--acc)}
+#bMATCH{border-color:var(--ok)}#bNON_MATCH{border-color:var(--bad)}#bUNSURE{border-color:var(--uns)}
+textarea{width:100%;min-height:70px;background:var(--bg);border:1px solid var(--bd);border-radius:6px;padding:6px}
+#grid{display:flex;flex-wrap:wrap;gap:4px}
+#grid button{min-width:42px;padding:3px 6px;font-size:.85rem}
+#grid button.MATCH{border-color:var(--ok);color:var(--ok)}
+#grid button.NON_MATCH{border-color:var(--bad);color:var(--bad)}
+#grid button.UNSURE{border-color:var(--uns);color:var(--uns)}
+#grid button.todo{border-style:dashed}
+#grid button.cur{outline:3px solid var(--acc)}
+.hidden{display:none}
+@media (max-width:760px){.sides{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<h1>ScholarChain gold-set labeler</h1>
+<div class="warn" role="note"><strong>Do not label from the DBLP numeric suffix (e.g. "0004") or from ORCID equality alone.</strong>
+Those are the matcher's own signals, so labeling from them leaks the matcher into the ground truth. Check the papers, profiles and affiliations; use UNSURE when only those signals remain. See <code>modules/entity-resolution/GOLD-SET-LABELING.md</code>. This page makes no network requests; links open in a new tab only when you click them.</div>
+
+<div class="bar card" id="loadbar">
+  <label>CSV file: <input type="file" id="file" accept=".csv,text/csv"></label>
+  <span id="loadmsg" role="status"></span>
+  <button id="restore" class="hidden">Restore unsaved work</button>
+  <button id="clear">Clear saved progress</button>
+</div>
+
+<div id="app" class="hidden">
+  <div class="card" id="progress" aria-live="polite"></div>
+  <div class="bar">
+    <button id="prev">&larr; Previous</button>
+    <button id="next">Next &rarr;</button>
+    <span id="pos"></span>
+    <button id="nextTodo">Next unlabeled</button>
+    <button id="dl"><strong>Download labeled CSV</strong></button>
+  </div>
+  <div class="card" id="meta"></div>
+  <div class="sides" id="sides"></div>
+  <div class="card guess" id="guess"></div>
+  <div class="big" role="group" aria-label="Label">
+    <button id="bMATCH" data-l="MATCH">1 MATCH</button>
+    <button id="bNON_MATCH" data-l="NON_MATCH">2 NON_MATCH</button>
+    <button id="bUNSURE" data-l="UNSURE">3 UNSURE</button>
+  </div>
+  <div class="mono">Keys: 1 = MATCH, 2 = NON_MATCH, 3 = UNSURE, &larr; previous, &rarr; next (shortcuts are off while typing in notes). Clicking the active label again clears it.</div>
+  <div class="card"><label for="notes"><strong>Notes</strong> (decisive evidence)</label><textarea id="notes"></textarea></div>
+  <div class="card"><strong>Jump to row</strong> (dashed = unlabeled)<div id="grid"></div></div>
+</div>
+
+<div id="selftest" class="card hidden"></div>
+
+<script>
+"use strict";
+var LABELS=["MATCH","NON_MATCH","UNSURE"];
+
+/* RFC 4180 parser. Each field keeps its raw source text so unchanged fields re-emit byte-for-byte. */
+function parseCsv(text){
+  var rows=[],row=[],i=0,n=text.length,eol="\n",eolSet=false;
+  function push(v,raw){row.push({v:v,raw:raw});}
+  var endsNl=false;
+  while(i<n){
+    var c=text[i],start=i,v="";
+    if(c==='"'){
+      i++;
+      for(;;){
+        if(i>=n)throw new Error("Unterminated quoted field");
+        if(text[i]==='"'){ if(text[i+1]==='"'){v+='"';i+=2;} else {i++;break;} }
+        else v+=text[i++];
+      }
+    } else {
+      while(i<n&&text[i]!==","&&text[i]!=="\n"&&text[i]!=="\r")v+=text[i++];
+    }
+    push(v,text.slice(start,i));
+    if(i>=n){endsNl=false;rows.push(row);row=[];break;}
+    if(text[i]===","){i++; if(i>=n){push("","");rows.push(row);row=[];endsNl=false;break;} continue;}
+    var le=text[i]==="\r"&&text[i+1]==="\n"?"\r\n":text[i];
+    if(le==="\r"&&text[i+1]!=="\n"){}
+    if(!eolSet){eol=le;eolSet=true;}
+    i+=le.length;
+    rows.push(row);row=[];
+    endsNl=(i>=n);
+  }
+  return {rows:rows,eol:eol,endsNl:endsNl};
+}
+function needsQuote(s){return /[",\r\n]/.test(s);}
+function quoteField(s){return needsQuote(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function serialize(parsed){
+  var out=parsed.rows.map(function(r){return r.map(function(f){return f.raw;}).join(",");}).join(parsed.eol);
+  return out+(parsed.endsNl?parsed.eol:"");
+}
+
+var S={parsed:null,hdr:[],ix:{},data:[],cur:0,fname:"",storeKey:null};
+
+function stripExt(n){return n.replace(/\.labeled(?=\.csv$)/i,"");}
+function store(){try{return window.localStorage;}catch(e){return null;}}
+function save(){
+  try{var s=store();if(!s||!S.storeKey)return;
+    var m={};S.data.forEach(function(r){var l=r.f.human_label.v,nt=r.f.notes.v;if(l||nt)m[r.f.pair_id.v]={l:l,n:nt};});
+    s.setItem(S.storeKey,JSON.stringify({cur:S.cur,m:m}));}catch(e){}
+}
+function readSaved(){try{var s=store();if(!s)return null;var j=s.getItem(S.storeKey);return j?JSON.parse(j):null;}catch(e){return null;}}
+
+function setField(row,name,val){
+  var f=row.f[name];
+  if(f.v===val)return;
+  f.v=val;f.raw=quoteField(val);
+  row.cells[S.ix[name]]=f;
+}
+
+function load(text,fname){
+  var p=parseCsv(text);
+  if(!p.rows.length)throw new Error("Empty file");
+  var hdr=p.rows[0].map(function(f){return f.v;});
+  var ix={};hdr.forEach(function(h,i){ix[h]=i;});
+  ["pair_id","split","human_label","notes","raw_name_a","raw_name_b"].forEach(function(k){if(!(k in ix))throw new Error("Missing column: "+k);});
+  var data=[];
+  for(var r=1;r<p.rows.length;r++){
+    var cells=p.rows[r];
+    if(cells.length===1&&cells[0].v==="")continue;
+    if(cells.length!==hdr.length)throw new Error("Row "+(r+1)+" has "+cells.length+" fields, expected "+hdr.length);
+    var f={};hdr.forEach(function(h,i){f[h]=cells[i];});
+    data.push({cells:cells,f:f});
+  }
+  S.parsed=p;S.hdr=hdr;S.ix=ix;S.data=data;S.cur=0;S.fname=fname;
+  S.storeKey="scholarchain-gold-label:"+stripExt(fname)+":"+data.length;
+  p.rows=[p.rows[0]].concat(data.map(function(d){return d.cells;}));
+}
+
+function applySaved(sv){
+  var byId={};S.data.forEach(function(r){byId[r.f.pair_id.v]=r;});
+  Object.keys(sv.m||{}).forEach(function(id){var r=byId[id];if(!r)return;
+    setField(r,"human_label",sv.m[id].l||"");setField(r,"notes",sv.m[id].n||"");});
+  if(typeof sv.cur==="number"&&sv.cur>=0&&sv.cur<S.data.length)S.cur=sv.cur;
+}
+
+function $(id){return document.getElementById(id);}
+function el(tag,cls,txt){var e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+function add(p,label,val,mono){
+  p.appendChild(el("div","lbl",label));
+  p.appendChild(el("div","val"+(mono?" mono":""),val||"(empty)"));
+}
+function normName(s){return s.toLowerCase().replace(/\s+\d{4}$/,"").replace(/\s+/g," ").trim();}
+function coList(s){return s?s.split(";").map(function(x){return x.trim();}).filter(Boolean):[];}
+function link(href,txt){var a=el("a",null,txt);a.href=href;a.target="_blank";a.rel="noopener noreferrer";return a;}
+function dblpRec(src){var m=/^dblp:(.+)$/.exec(src||"");return m?"https://dblp.org/rec/"+m[1].split("/").map(encodeURIComponent).join("/")+".html":null;}
+
+function render(){
+  var r=S.data[S.cur],f=r.f;
+  function g(k){return k in f?f[k].v:"";}
+  $("pos").textContent="Row "+(S.cur+1)+" of "+S.data.length+"  ("+g("pair_id")+")";
+  var meta=$("meta");meta.textContent="";
+  meta.appendChild(el("div",null,"split: "+g("split")+"   |   score band: "+g("score_band")+"   |   hard-negative stratum: "+g("hard_negative_stratum")));
+  meta.appendChild(el("div","mono","stratum: "+g("stratum")));
+  var sides=$("sides");sides.textContent="";
+  var ca=coList(g("coauthors_a")),cb=coList(g("coauthors_b"));
+  var na={},nb={};ca.forEach(function(x){na[normName(x)]=1;});cb.forEach(function(x){nb[normName(x)]=1;});
+  var oa=g("orcid_a"),ob=g("orcid_b");
+  ["a","b"].forEach(function(s){
+    var d=el("div","card side");
+    d.appendChild(el("div","lbl","Record "+s.toUpperCase()));
+    d.appendChild(el("div","name",g("raw_name_"+s)||"(empty)"));
+    add(d,"Title",g("title_"+s));add(d,"Year",g("year_"+s));add(d,"Venue",g("venue_"+s));
+    var list=s==="a"?ca:cb,other=s==="a"?nb:na;
+    d.appendChild(el("div","lbl","Coauthors ("+list.length+")"));
+    var ul=el("ul","co");
+    if(!list.length)ul.appendChild(el("li",null,"(none)"));
+    list.forEach(function(x){var li=el("li");if(other[normName(x)]){var m=el("mark",null,x);li.appendChild(m);li.appendChild(document.createTextNode(" (also on other side)"));}else li.textContent=x;ul.appendChild(li);});
+    d.appendChild(ul);
+    d.appendChild(el("div","lbl","ORCID"));
+    var ov=s==="a"?oa:ob;
+    d.appendChild(el("div","val",ov||"(none)"));
+    d.appendChild(el("div","lbl","Mention / source record"));
+    d.appendChild(el("div","mono",g("mention_id_"+s)));
+    d.appendChild(el("div","mono",g("source_record_"+s)));
+    d.appendChild(el("div","lbl","Look up (opens a new tab)"));
+    var lk=el("div","val"),rec=dblpRec(g("source_record_"+s));
+    if(rec){lk.appendChild(link(rec,"DBLP record"));lk.appendChild(document.createTextNode(" | "));}
+    lk.appendChild(link("https://dblp.org/search?q="+encodeURIComponent(g("raw_name_"+s).replace(/\s+\d{4}$/,"")),"DBLP name search"));
+    if(ov){lk.appendChild(document.createTextNode(" | "));lk.appendChild(link("https://orcid.org/"+encodeURIComponent(ov),"ORCID "+ov));}
+    d.appendChild(lk);
+    sides.appendChild(d);
+  });
+  var oc=el("div","card");
+  var st=oa&&ob?(oa===ob?"BOTH ORCIDs present and EQUAL":"BOTH ORCIDs present and DIFFERENT"):(oa||ob?"Only one side has an ORCID":"No ORCID on either side");
+  oc.appendChild(el("span","flag","ORCID: "+st));
+  oc.appendChild(document.createTextNode("  (a matcher signal; not a label by itself)"));
+  sides.appendChild(oc);oc.style.gridColumn="1 / -1";
+  var gs=$("guess");gs.textContent="";
+  gs.appendChild(el("strong",null,"Matcher's guess, not ground truth. Do not treat as a recommendation."));
+  gs.appendChild(el("div","mono","score="+g("matcher_score")+"  decision="+g("matcher_decision")+"  path="+g("matcher_path")));
+  var lab=f.human_label.v;
+  LABELS.forEach(function(l){$("b"+l).setAttribute("aria-pressed",lab===l?"true":"false");});
+  $("notes").value=f.notes.v;
+  renderProgress();renderGrid();
+}
+
+function renderProgress(){
+  var tot=S.data.length,done=0,cnt={MATCH:0,NON_MATCH:0,UNSURE:0,other:0},sp={};
+  S.data.forEach(function(r){
+    var s=r.f.split.v,l=r.f.human_label.v;
+    sp[s]=sp[s]||{t:0,d:0};sp[s].t++;
+    if(l){done++;sp[s].d++;if(l in cnt)cnt[l]++;else cnt.other++;}
+  });
+  var p=$("progress");p.textContent="";
+  p.appendChild(el("div",null,done+" of "+tot+" labeled"));
+  p.appendChild(el("div",null,Object.keys(sp).sort().map(function(k){return k+": "+sp[k].d+"/"+sp[k].t;}).join("   |   ")));
+  p.appendChild(el("div",null,"MATCH "+cnt.MATCH+"   NON_MATCH "+cnt.NON_MATCH+"   UNSURE "+cnt.UNSURE+(cnt.other?"   unrecognized "+cnt.other:"")));
+}
+function renderGrid(){
+  var g=$("grid");g.textContent="";
+  S.data.forEach(function(r,i){
+    var l=r.f.human_label.v;
+    var b=el("button",(l||"todo")+(i===S.cur?" cur":""),String(i+1));
+    b.title=(l||"unlabeled")+" - "+r.f.pair_id.v;
+    b.setAttribute("aria-label","Row "+(i+1)+", "+(l||"unlabeled"));
+    b.addEventListener("click",function(){go(i);});
+    g.appendChild(b);
+  });
+}
+function go(i){if(!S.data.length)return;S.cur=Math.max(0,Math.min(S.data.length-1,i));render();save();}
+function setLabel(l){
+  var r=S.data[S.cur];
+  setField(r,"human_label",r.f.human_label.v===l?"":l);
+  save();render();
+}
+function nextTodo(){
+  var n=S.data.length;
+  for(var k=1;k<=n;k++){var i=(S.cur+k)%n;if(!S.data[i].f.human_label.v){go(i);return;}}
+  $("loadmsg").textContent="All rows are labeled.";
+}
+function download(){
+  var blob=new Blob([serialize(S.parsed)],{type:"text/csv;charset=utf-8"});
+  var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="gold-candidates-10k.labeled.csv";
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
+}
+
+function onFile(ev){
+  var file=ev.target.files[0];if(!file)return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    try{
+      load(String(rd.result).replace(/^﻿/,""),file.name);
+      $("app").classList.remove("hidden");
+      var sv=readSaved();
+      $("restore").classList.toggle("hidden",!(sv&&Object.keys(sv.m||{}).length));
+      $("loadmsg").textContent="Loaded "+S.data.length+" rows from "+file.name+(S.data.length!==170?" (expected 170 rows)":"")+".";
+      render();
+    }catch(e){$("loadmsg").textContent="Error: "+e.message;}
+  };
+  rd.onerror=function(){$("loadmsg").textContent="Could not read file.";};
+  rd.readAsText(file,"utf-8");
+}
+
+function selftest(){
+  var box=$("selftest");box.classList.remove("hidden");box.textContent="";
+  var res=[];
+  function t(name,ok){res.push((ok?"PASS ":"FAIL ")+name);}
+  var p=parseCsv('a,b,c\n1,"x,y","he said ""hi"""\n2,"line1\nline2",\n');
+  t("row count",p.rows.length===3);
+  t("embedded comma",p.rows[1][1].v==="x,y");
+  t("escaped quotes",p.rows[1][2].v==='he said "hi"');
+  t("embedded newline",p.rows[2][1].v==="line1\nline2");
+  t("trailing empty field",p.rows[2].length===3&&p.rows[2][2].v==="");
+  t("roundtrip LF",serialize(p)==='a,b,c\n1,"x,y","he said ""hi"""\n2,"line1\nline2",\n');
+  var q='a,b\r\n"1",2\r\n3,';
+  t("roundtrip CRLF/no trailing newline",serialize(parseCsv(q))===q);
+  t("quoteField",quoteField('a"b')==='"a""b"'&&quoteField("plain")==="plain"&&quoteField("a,b")==='"a,b"');
+  t("empty last field then EOF",parseCsv("a,b\n1,").rows[1].length===2);
+  t("normName strips suffix",normName("Jie Huang 0013")==="jie huang");
+  var ok=res.every(function(x){return x.indexOf("PASS")===0;});
+  box.appendChild(el("strong",null,"Self-test: "+(ok?"ALL PASS":"FAILURES")));
+  res.forEach(function(x){box.appendChild(el("div","mono",x));});
+}
+
+$("file").addEventListener("change",onFile);
+$("prev").addEventListener("click",function(){go(S.cur-1);});
+$("next").addEventListener("click",function(){go(S.cur+1);});
+$("nextTodo").addEventListener("click",nextTodo);
+$("dl").addEventListener("click",download);
+LABELS.forEach(function(l){$("b"+l).addEventListener("click",function(){setLabel(l);});});
+$("notes").addEventListener("input",function(){setField(S.data[S.cur],"notes",$("notes").value);save();});
+$("restore").addEventListener("click",function(){var sv=readSaved();if(sv){applySaved(sv);render();$("restore").classList.add("hidden");$("loadmsg").textContent="Restored saved work.";}});
+$("clear").addEventListener("click",function(){
+  try{var s=store();if(s){
+    if(S.storeKey)s.removeItem(S.storeKey);
+    else Object.keys(s).filter(function(k){return k.indexOf("scholarchain-gold-label:")===0;}).forEach(function(k){s.removeItem(k);});
+  }}catch(e){}
+  $("loadmsg").textContent="Saved progress cleared (labels currently on screen are kept until you reload).";
+  $("restore").classList.add("hidden");
+});
+document.addEventListener("keydown",function(e){
+  if(!S.data.length||e.ctrlKey||e.metaKey||e.altKey)return;
+  var t=e.target&&e.target.tagName;if(t==="TEXTAREA"||t==="INPUT"||t==="SELECT")return;
+  if(e.key==="1")setLabel("MATCH");else if(e.key==="2")setLabel("NON_MATCH");else if(e.key==="3")setLabel("UNSURE");
+  else if(e.key==="ArrowLeft"){go(S.cur-1);e.preventDefault();}
+  else if(e.key==="ArrowRight"){go(S.cur+1);e.preventDefault();}
+});
+if(/[?&]selftest=1(&|$)/.test(location.search))selftest();
+</script>
+</body>
+</html>
