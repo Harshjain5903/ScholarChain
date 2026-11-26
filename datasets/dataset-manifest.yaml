@@ -255,16 +255,32 @@ datasets:
     source_urls:
       api: "https://api.crossref.org/works/{doi}"
     documentation_url: "https://www.crossref.org/documentation/retrieve-metadata/rest-api/"
-    license: "Crossref metadata -- Crossref states bibliographic metadata are facts free to reuse without restriction; abstracts may be publisher copyright (NOT re-verified online in this offline work order)"
+    license: "Crossref metadata -- most Crossref metadata may be used for any purpose; some abstracts may be copyrighted (human-verified 2026-11-26, see license_evidence). Redistribution of abstracts and of raw verbatim API responses is PENDING (not cleared)."
+    license_evidence: >-
+      Human-verified on 2026-11-26 by the human architect, who personally
+      checked these two Crossref pages (recorded from the human's findings;
+      not fetched by dataset-engineer): (a) Crossref REST API page
+      https://www.crossref.org/documentation/retrieve-metadata/rest-api/ and
+      (b) Crossref Access and Authentication page
+      https://www.crossref.org/documentation/retrieve-metadata/rest-api/access-and-authentication/ .
+      Findings: (1) most Crossref metadata may be used for any purpose;
+      (2) some abstracts may be copyrighted; (3) Crossref recommends polite
+      API use, caching, and respecting rate limits. These findings do NOT
+      clear abstracts or raw verbatim API responses for redistribution.
     reuse_terms: >-
-      Committed extracts drop abstracts, reference lists, licence and link
-      blocks. The human must re-confirm the current Crossref metadata terms
-      and REST API etiquette (polite pool via a contact address in the
-      User-Agent) before redistribution beyond course use.
+      Most Crossref metadata may be used for any purpose (human-verified
+      2026-11-26). Some abstracts may be copyrighted, so committed extracts
+      drop abstracts, reference lists, licence and link blocks, and raw
+      verbatim API responses stay gitignored. Redistribution of abstracts and
+      of raw verbatim API responses remains PENDING a human decision. API use
+      follows Crossref's recommendation of polite use, caching, and respecting
+      rate limits (human-verified 2026-11-26); the fetch script sends a
+      contact address in the User-Agent and skips already-fetched records.
     spec_check: true
-    license_status: "NEEDS-HUMAN-CONFIRMATION (web check of current Crossref metadata terms; not done offline)"
+    license_status: "NEEDS-HUMAN-CONFIRMATION -- metadata reuse terms human-verified 2026-11-26 (most metadata usable for any purpose); redistribution of abstracts and raw verbatim API responses PENDING"
     human_confirmation_required:
-      - "Confirm current Crossref metadata reuse terms and REST API etiquette at https://www.crossref.org/documentation/retrieve-metadata/rest-api/ before any redistribution beyond course use."
+      - "PENDING: decide whether Crossref abstracts (some may be copyrighted) may be redistributed beyond course use; until then they are not cleared for redistribution and are excluded from committed extracts and samples."
+      - "PENDING: decide whether raw verbatim Crossref API responses (datasets/raw/crossref/, gitignored) may be redistributed beyond course use; until then they are not cleared for redistribution."
     format: "JSON, one verbatim API response envelope {status, message-type, message-version, message} per file (UTF-8, uncompressed), named <sha256(requested DOI)>.json"
     compression: "none (files stored uncompressed; S3 upload may add Content-Encoding gzip later)"
     schema_version: "Crossref REST API works message-version 1.0.0 (observed in every response envelope header)"
