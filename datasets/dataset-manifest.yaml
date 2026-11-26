@@ -569,7 +569,7 @@ datasets:
     owning_agent: "dataset-engineer"
 
   - name: orcid
-    status: "READY FOR HUMAN FETCH -- 2,000-iD bounded list selected 2026-11-24 (human decision); no ORCID record retrieved yet (datasets/raw/orcid/retrieved=2026-11-22/ is empty, verified)"
+    status: "FETCHED -- all 2,000 iDs of the bounded list (selected 2026-11-24, human decision) have a parseable record on disk under datasets/raw/orcid/retrieved=2026-11-26/ (recounted from disk 2026-11-26); 2 records carry an iD different from the requested one (see reconciliation)"
     purpose: >-
       Public ORCID records for iDs found in DOI-verified Crossref and OpenAlex
       records of the DBLP 50K development selection, linked back to the
@@ -577,12 +577,36 @@ datasets:
     source_urls:
       api: "https://pub.orcid.org/v3.0/{orcid}/record"
     documentation_url: "https://info.orcid.org/documentation/"
-    license: "PENDING confirmation -- ORCID public data; ORCID releases its annual Public Data File under CC0, and Public API use is subject to ORCID terms of use (NOT re-verified online in this offline work order)"
+    license: "ORCID Public API Terms -- records fetched through the Public API (the records in this entry) are under LIMITED, NON-COMMERCIAL-USE terms and are NOT unconditionally CC0 (human-verified 2026-11-26, see license_evidence). The CC0 1.0 of the separate ORCID Public Data File does not carry over to these API-fetched records. ORCID website text has its own separate licence: CC0 (version not stated; per ORCID Documentation page footer, human-verified 2026-11-26), covering ORCID's own website text only, NOT API-fetched records."
+    license_evidence: >-
+      Human-verified on 2026-11-26 by the human architect, who personally
+      checked the official ORCID Public API Terms page
+      https://info.orcid.org/public-client-terms-of-service/ and the ORCID
+      Public Data File policy page
+      https://info.orcid.org/public-data-file-use-policy/ (both URLs confirmed
+      by the human 2026-11-26); recorded from the human's findings, not
+      fetched by dataset-engineer. Findings: ORCID has three separate licensing regimes
+      that must be kept apart. (1) ORCID Public API Terms: records fetched
+      through the Public API are under limited, non-commercial-use terms; they
+      are NOT unconditionally CC0. (2) ORCID Public Data File: a separate bulk
+      file under CC0 1.0, governed by the Public Data File policy; that CC0
+      applies to the Public Data File only and does not carry over to
+      API-fetched records. (3) ORCID website text: has its own licence,
+      separate from the other two: CC0 (version not stated), per the footer of
+      the ORCID Documentation page https://info.orcid.org/documentation/
+      (human-verified 2026-11-26). This website-text CC0 covers ORCID's own
+      website text only, NOT API-fetched records, which stay under the
+      limited, non-commercial Public API Terms.
+      ScholarChain uses Public API records only (regime 1). Basis for relying
+      on the non-commercial API terms: the human architect confirmed on
+      2026-11-26 that ScholarChain is for course and research use only, with
+      no revenue-generating use. None of this settles the personal-data and
+      privacy considerations in personal_data_notes and privacy_notes, which
+      remain open.
     spec_check: true
-    license_status: "NEEDS-HUMAN-CONFIRMATION (web check of ORCID Public API terms of use and the CC0 statement for public record data)"
+    license_status: "NEEDS-HUMAN-CONFIRMATION -- ORCID Public API Terms (limited, non-commercial use; not CC0) human-verified 2026-11-26 and relied on via the human's 2026-11-26 confirmation of course/research-only, non-revenue use; personal-data/privacy review still open"
     human_confirmation_required:
-      - "Confirm ORCID Public API terms of use and the data licence at https://info.orcid.org/documentation/ before fetching."
-      - "Run the single-record test command (see api_access_note) before the 2,000-record run; the anonymous-read behaviour was not verified by this agent."
+      - "Personal-data/privacy review remains open: the API terms do not settle privacy or retention questions for names, biographies, employment/education history, external identifiers or public emails in the raw records (see personal_data_notes and privacy_notes) before the data leaves the local machine or is uploaded."
     api_access_note: >-
       The work order states no API key is needed. ORCID documents a
       token-based flow for the Public API; anonymous GET of
@@ -592,15 +616,18 @@ datasets:
       403, stop: a free public-API client credential and token would be
       needed, which is a human action. Rate limits were not verified; the
       script paces at 10 requests per second at most and stops on HTTP 429
-      (exit 75).
+      (exit 75). Observed on disk 2026-11-26 (read-only, no network by
+      dataset-engineer): datasets/raw/logs/orcid-2026-11-26.tsv records HTTP
+      200 for all 2,000 iDs; enrich_fetch.py sends no Authorization header, so
+      these reads were anonymous. Rate limits remain unverified.
     format: "JSON, one verbatim ORCID record per file (UTF-8, uncompressed), named <sha256(orcid iD)>.json under retrieved=<date>/"
     compression: "none"
     schema_version: "ORCID Public API v3.0 (version in the request URL); record shape in datasets/schemas/orcid-schema.md"
     expected_size: "2,000 records (orcid-fetch-2000.txt); expected bytes unknown before the fetch (to be recorded after the run)"
-    observed_size: "0 records, 0 bytes so far (raw directory empty)"
-    s3_raw_prefix: "s3://${RAW_BUCKET}/orcid/retrieved=<date>/"
-    s3_upload_status: "NOT YET UPLOADED -- nothing fetched and buckets are not deployed; intended prefix recorded"
-    planned_retrieval_date: "2026-11-24 (human fetch; --date 2026-11-24 pins the directory name)"
+    observed_size: "2,000 files, 575,006,144 bytes in datasets/raw/orcid/retrieved=2026-11-26/ (directory digest in files:); datasets/raw/orcid/retrieved=2026-11-22/ is empty (0 files)"
+    s3_raw_prefix: "s3://${RAW_BUCKET}/orcid/retrieved=2026-11-26/"
+    s3_upload_status: "NOT YET UPLOADED -- buckets are not deployed; upload also waits on the open personal-data/privacy review (privacy_notes); intended prefix recorded"
+    planned_retrieval_date: "2026-11-24 (planned; the actual run used --date 2026-11-26, see retrieval_date)"
     selected_subset_rule: >-
       Checksum-valid candidates attached to MORE THAN ONE DBLP work of the 50K
       selection (n_dblp_works >= 2; 15,473 of 107,438 qualify), ranked by
@@ -631,7 +658,29 @@ datasets:
       TSV only). Downstream extracts should drop emails and free-text biography
       unless needed. HUMAN review needed on ORCID terms of use and any personal-
       data retention rule before the data leaves the local machine or is uploaded.
-    retrieval_date_status: "PENDING -- set after the human fetch"
+    retrieval_date_status: "SET -- 2026-11-26, from the raw directory name and the fetch log timestamps"
+    retrieval_window_utc: "2026-11-26T14:37:47Z .. 2026-11-26T14:53:47Z (first/last orcid log row; last run-complete event 2026-11-26T16:32:09Z with 0 requests)"
+    retrieved_by: "human architect, with datasets/scripts/enrich_fetch.py orcid (log and run-event formats match that script)"
+    local_raw_path: "datasets/raw/orcid/retrieved=2026-11-26/<sha256(orcid iD)>.json (gitignored); log datasets/raw/logs/orcid-2026-11-26.tsv (orcid, http_status, utc, sha256(orcid), attempts, note); run events datasets/raw/logs/fetch-runs-2026-11-26.tsv"
+    reconciliation:
+      recounted_on: "2026-11-26 by dataset-engineer, read-only (no fetch run, no network)"
+      human_report_2026_11_26: "human architect reported that the latest fetch command showed 2,000 records already saved and 0 new requests"
+      human_report_consistent_with_disk: true
+      fetch_list_ids: 2000
+      raw_files_json: 2000
+      raw_files_unparseable: 0
+      raw_files_not_in_fetch_list: 0
+      fetch_list_ids_without_file: 0
+      record_id_differs_from_requested: 2
+      record_id_differs_detail: "0000-0001-6509-4173 -> record orcid-identifier.path 0000-0003-1808-1112; 0000-0002-7833-775X -> 0009-0007-9615-9006 (both logged HTTP 200 with attempts 2, consistent with one followed redirect hop); reported only, no match decision made here"
+      log_rows: 2002
+      log_distinct_ids: 2000
+      log_ids_equal_fetch_list: true
+      log_duplicate_rows: 2
+      log_duplicate_detail: "0000-0001-6640-8955 and 0000-0002-1680-5079 each logged twice with identical rows at 2026-11-26T14:43:12Z (HTTP 200, attempts 1); one file each"
+      http_status_counts: {"200": 2002}
+      run_events: "fetch-runs-2026-11-26.tsv has 2 rows, both orcid run-complete: 2026-11-26T14:53:47Z requests_sent 1306, max_requests 2500, max_records 2000, saved=1305; 2026-11-26T16:32:09Z requests_sent 0, saved=0"
+      note: "The run events account for 1,305 saved records; the other 695 files (2,000 - 1,305) are logged in orcid-2026-11-26.tsv but have no run-complete event, consistent with an earlier run on 2026-11-26 that ended without writing a run event. The 0-request run at 16:32:09Z matches the human's report of 2,000 already saved and 0 new requests. fetch-runs-2026-11-26.tsv is not pinned in files: because other sources may append to it on the same date."
     fetch_list:
       path: "datasets/derived/enrichment/orcid-fetch-2000.txt"
       seed: "scholarchain-orcid-2026-11-24"
@@ -640,10 +689,14 @@ datasets:
       lines: 2000
       eligible_pool: 15473
     reuse_terms: >-
-      The human must confirm ORCID Public API terms before fetching. Records
-      contain personal data that researchers chose to make public; only iDs
-      and names already present in Crossref/OpenAlex records are committed
-      (sample TSV).
+      Public API records are used under ORCID's limited, non-commercial-use
+      Public API Terms (human-verified 2026-11-26); they are not CC0, and the
+      CC0 1.0 of the separate Public Data File does not apply to them. The
+      human architect confirmed on 2026-11-26 that ScholarChain is course and
+      research use only with no revenue-generating use. Records contain
+      personal data that researchers chose to make public; only iDs and names
+      already present in Crossref/OpenAlex records are committed (sample TSV).
+      The personal-data/privacy review remains open.
     candidate_derivation:
       rule: "ORCID iDs from author[].ORCID of DOI-verified Crossref records and authorships[].author.orcid of DOI-verified OpenAlex works whose DOI is in selection-50k; normalised to dddd-dddd-dddd-dddX and checked with ISO 7064 MOD 11-2; each link records the DBLP key, 10K membership, whether DBLP itself asserts the same iD, and a surname heuristic (QA only, not an entity-match decision)"
       fetch_priority: "checksum-valid first; then linked to a 10K work; then any surname agreement; then iD ascending (orcid-candidates.txt order)"
@@ -675,18 +728,24 @@ datasets:
       SCHOLARCHAIN_CONTACT_EMAIL; dry run without --confirm-network):
       /usr/bin/python3 -I -B datasets/scripts/enrich_fetch.py orcid
       --input datasets/derived/enrichment/orcid-fetch-2000.txt
-      --date 2026-11-24 --max-records 2000 --max-requests 2500
+      --date 2026-11-26 --max-records 2000 --max-requests 2500
       --confirm-network
-    retrieval_date: null
+      (the 2026-11-26 runs used --date 2026-11-26, max_records 2000 and
+      max_requests 2500 per the run-event log; re-running skips the 2,000
+      saved iDs)
+    retrieval_date: "2026-11-26"
     known_limitations:
       - "Only 2,000 of 107,438 candidates (1.9 percent) are fetched by decision of 2026-11-24; the subset is biased to iDs on more than one DBLP work, i.e. more prolific authors."
       - "Self-reported, uneven completeness; many records are sparse (see schema note). Computer-science coverage is uneven."
-      - "Anonymous API access, rate limits and terms are unverified (see api_access_note)."
+      - "ORCID rate limits are unverified; anonymous access returned HTTP 200 for all 2,000 iDs per the fetch log (see api_access_note); API terms were human-verified 2026-11-26 (see license_evidence)."
+      - "2 of the 2,000 records carry an ORCID iD different from the requested one (see reconciliation); they are recorded as observed, with no match decision."
       - "Surname heuristic misses transliterations (e.g. Koenig vs König) and is QA only."
     sample:
       path: "datasets/samples/enrichment/orcid-candidate-links-sample.tsv"
       rule: "orcid-candidate-links.tsv rows whose DOI belongs to the 50 DBLP sample works (137 links, 114 distinct iDs)"
     files:
+      - {path: "datasets/raw/orcid/retrieved=2026-11-26", kind: dir, tracked: false, suffix: ".json", file_count: 2000, total_bytes: 575006144, tree_sha256: "e1376676b30c72e0054248d6baeb030240324fa7941cf3918ca8a00e95297080"}
+      - {path: "datasets/raw/logs/orcid-2026-11-26.tsv", kind: file, tracked: false, size_bytes: 226226, sha256: "137cd1400e128a1670d60e31a4aa1c14c446a891dad15cf11b68efa8285e498a", lines: 2002}
       - {path: "datasets/derived/enrichment/orcid-fetch-2000.txt", kind: file, tracked: false, size_bytes: 40000, sha256: "843fb8e43d8e8736f4a35ba4c8cd08e7f4b6de3ef49ef80e7d79cb5d3226adb0", lines: 2000}
       - {path: "datasets/derived/enrichment/orcid-fetch-2000.txt.provenance.json", kind: file, tracked: false}
       - {path: "datasets/derived/enrichment/orcid-candidate-links.tsv", kind: file, tracked: false, size_bytes: 40817814, sha256: "db26cfe3fdf79ba95f2ef412227cf8b2e9f902972e0c5c198de0e840aa7d5ca5", lines: 158264}
@@ -701,6 +760,6 @@ datasets:
           - {json_pointer: "/orcid_candidates/distinct_orcids_checksum_valid", expected: 107438}
           - {json_pointer: "/orcid_candidates/links_total", expected: 158263}
     validation_commands:
-      - "/usr/bin/python3 -I -B datasets/scripts/enrich_fetch.py orcid --input datasets/derived/enrichment/orcid-fetch-2000.txt --date 2026-11-24 --max-records 2000 --max-requests 2500   # dry run, no network"
+      - "/usr/bin/python3 -I -B datasets/scripts/enrich_fetch.py orcid --input datasets/derived/enrichment/orcid-fetch-2000.txt --date 2026-11-26 --max-records 2000 --max-requests 2500   # dry run, no network"
       - "/usr/bin/python3 -I -B datasets/scripts/validate_manifest.py"
     owning_agent: "dataset-engineer"
