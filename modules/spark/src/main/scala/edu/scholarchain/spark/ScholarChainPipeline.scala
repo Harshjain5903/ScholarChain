@@ -100,14 +100,39 @@ object ScholarChainPipeline:
     val t0        = System.nanoTime()
 
     logger.info(s"Loading data from Hadoop outputs: ${config.hadoopOutputPath}")
-    val pairCandidates =
+    val rawPairCandidates =
       DataLoader
         .loadCoauthorPairCandidates(spark, config.pairCandidatesPath, parts)
         .persist(StorageLevel.MEMORY_AND_DISK)
-    val teams =
+    val rawTeams =
       DataLoader
         .loadPublicationTeams(spark, config.teamsPath, parts)
         .persist(StorageLevel.MEMORY_AND_DISK)
+
+    // Work records are optional: when the Hadoop export has them they supply titles and venues
+    // and the DOIs used to drop cross-dataset duplicate works (WorkDeduplication).
+    val workRecordsRoot = new Path(config.workRecordsPath)
+    val workRecordsPresent =
+      workRecordsRoot.getFileSystem(sc.hadoopConfiguration).exists(workRecordsRoot)
+    val duplicateWorks: RDD[(String, String)] =
+      if workRecordsPresent then
+        WorkDeduplication
+          .duplicateWorks(DataLoader.loadWorkRecords(spark, config.workRecordsPath))
+          .persist(StorageLevel.MEMORY_AND_DISK)
+      else sc.emptyRDD
+    val duplicateWorkCount = duplicateWorks.count()
+    val pairCandidates =
+      WorkDeduplication
+        .keepPairs(rawPairCandidates, duplicateWorks)
+        .persist(StorageLevel.MEMORY_AND_DISK)
+    val teams =
+      WorkDeduplication.keepTeams(rawTeams, duplicateWorks).persist(StorageLevel.MEMORY_AND_DISK)
+    val rawPairCount = rawPairCandidates.count()
+    val rawTeamCount = rawTeams.count()
+    logger.info(
+      s"Work deduplication: $duplicateWorkCount duplicate works dropped " +
+        s"(teams $rawTeamCount -> ${teams.count()}, pairs $rawPairCount -> ${pairCandidates.count()})"
+    )
     val decisions = DataLoader.loadMatchDecisions(spark, config.matchDecisionsPath, parts)
     decisions.persist(StorageLevel.MEMORY_AND_DISK)
     val accepted = decisions.filter(_.decision == MatchOutcome.Accepted)
@@ -125,8 +150,9 @@ object ScholarChainPipeline:
     )
     val decisionsWithoutInputRun =
       decisions.filter(d => InputLineage.erInputRunIds(d.reasonCodes).isEmpty).count()
-    val pairRunIds = boundedDistinct(pairCandidates.map(_.provenance.pipelineRunId), "pair run IDs")
-    val teamRunIds = boundedDistinct(teams.map(_.provenance.pipelineRunId), "team run IDs")
+    val pairRunIds =
+      boundedDistinct(rawPairCandidates.map(_.provenance.pipelineRunId), "pair run IDs")
+    val teamRunIds = boundedDistinct(rawTeams.map(_.provenance.pipelineRunId), "team run IDs")
     val erLinkage = orFail(
       InputLineage.checkErLinkage(
         pairRunIds.toSet,
@@ -314,10 +340,6 @@ object ScholarChainPipeline:
     GraphExportWriter.writeCommunities(spark, communityResult.assignments, out)
     GraphExportWriter.writeTemporal(spark, temporalSnapshots, out)
 
-    // Work records are optional: when the Hadoop export has them they supply titles and venues.
-    val workRecordsRoot = new Path(config.workRecordsPath)
-    val workRecordsPresent =
-      workRecordsRoot.getFileSystem(sc.hadoopConfiguration).exists(workRecordsRoot)
     val neptuneCounts =
       if config.writeNeptuneCsv then
         val descriptive: RDD[(String, (String, Option[String]))] =
@@ -563,6 +585,12 @@ object ScholarChainPipeline:
         "teamsInWindow"          -> worksInWindow.toDouble,
         "authorMentionsInWindow" -> mentionsInWindow.toDouble,
         "workRecordsPresent"     -> workRecordsPresent,
+        "workDeduplication" -> ujson.Obj(
+          "rule"                 -> "group work records by normalized DOI; keep the DBLP work",
+          "duplicateWorks"       -> duplicateWorkCount.toDouble,
+          "teamsBefore"          -> rawTeamCount.toDouble,
+          "pairCandidatesBefore" -> rawPairCount.toDouble
+        ),
         "matchDecisions" -> ujson.Obj.from(decisionsByOutcome.toSeq.sorted.map { case (k, v) =>
           k -> ujson.Num(v.toDouble)
         }),

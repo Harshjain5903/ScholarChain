@@ -42,10 +42,28 @@ object CanonicalGraphBuilder:
   )
 
   /**
+   * Source preference for the canonical ID of a merged group: DBLP mentions first (DBLP is the seed
+   * dataset and the only source whose works and teams are kept when a DOI is duplicated, see
+   * [[WorkDeduplication]]), then ORCID, OpenAlex, Crossref, then any other ID.
+   */
+  def sourceRank(mentionId: String): Int =
+    if mentionId.startsWith("mention:dblp:") then 0
+    else if mentionId.startsWith("mention:orcid:") then 1
+    else if mentionId.startsWith("mention:openalex:") then 2
+    else if mentionId.startsWith("mention:crossref:") then 3
+    else 4
+
+  /** True when `a` is preferred over `b` as canonical ID: lower source rank, then smaller ID. */
+  def preferCanonical(a: String, b: String): Boolean =
+    val (ra, rb) = (sourceRank(a), sourceRank(b))
+    ra < rb || (ra == rb && a <= b)
+
+  /**
    * Derive the mention-to-canonical mapping for the mentions linked by accepted MatchDecisions.
-   * Mentions are grouped into connected components of the accepted-match graph; the
-   * lexicographically smallest mention ID in each component becomes the canonical ID. Only mentions
-   * that occur in an accepted decision appear in the result (every other mention maps to itself).
+   * Mentions are grouped into connected components of the accepted-match graph; the preferred
+   * mention of each component ([[preferCanonical]]: DBLP mentions first, then the lexicographically
+   * smallest ID) becomes the canonical ID. Only mentions that occur in an accepted decision appear
+   * in the result (every other mention maps to itself).
    */
   def matchedMentionMapping(acceptedMatches: RDD[MatchDecision]): RDD[(String, String)] =
     val links: RDD[(String, String)] = acceptedMatches
@@ -67,7 +85,7 @@ object CanonicalGraphBuilder:
       .innerJoin(graph.vertices)((_, comp, mention) => (comp, mention))
       .map(_._2)
     val canonicalByComponent: RDD[(VertexId, String)] =
-      components.reduceByKey((a, b) => if a <= b then a else b)
+      components.reduceByKey((a, b) => if preferCanonical(a, b) then a else b)
     components
       .join(canonicalByComponent)
       .map { case (_, (mention, canonical)) => (mention, canonical) }
