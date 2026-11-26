@@ -8,10 +8,10 @@ import org.apache.hadoop.mapreduce.lib.input.{CombineFileSplit, FileInputFormat}
 import scala.jdk.CollectionConverters.*
 
 /**
- * Whole-file input: every input file is one record (key = index of the file within its split,
- * value = the entire file content). Used for directories of many small JSON documents (one
- * Crossref work or ORCID record per file) and of multi-record API responses (OpenAlex chunk files),
- * where a "line" is not a record.
+ * Whole-file input: every input file is one record (key = index of the file within its split, value
+ * \= the entire file content). Used for directories of many small JSON documents (one Crossref work
+ * or ORCID record per file) and of multi-record API responses (OpenAlex chunk files), where a
+ * "line" is not a record.
  *
  * Splits are deterministic: visible files are sorted by path and packed in that order into splits
  * of at most [[MaxSplitBytesKey]] bytes (default 32 MiB) and [[MaxSplitFilesKey]] files (default
@@ -52,15 +52,16 @@ class WholeFileInputFormat extends FileInputFormat[LongWritable, Text]:
 object WholeFileInputFormat:
   val MaxSplitBytesKey = "scholarchain.input.whole-file.max-split-bytes"
   val MaxSplitFilesKey = "scholarchain.input.whole-file.max-split-files"
+
   /** Counter incremented once per file read. */
   val InputFilesCounter = "input_files"
 
 class WholeFileRecordReader extends RecordReader[LongWritable, Text]:
-  private var split: CombineFileSplit      = scala.compiletime.uninitialized
+  private var split: CombineFileSplit     = scala.compiletime.uninitialized
   private var context: TaskAttemptContext = scala.compiletime.uninitialized
-  private var index                        = -1
-  private val key                          = new LongWritable()
-  private val value                        = new Text()
+  private var index                       = -1
+  private val key                         = new LongWritable()
+  private val value                       = new Text()
 
   override def initialize(s: InputSplit, c: TaskAttemptContext): Unit =
     split = s.asInstanceOf[CombineFileSplit]
@@ -89,6 +90,7 @@ class WholeFileRecordReader extends RecordReader[LongWritable, Text]:
 
   override def getCurrentKey: LongWritable = key
   override def getCurrentValue: Text       = value
+
   override def getProgress: Float =
     if split == null || split.getNumPaths == 0 then 1.0f
     else math.min(1.0f, (index + 1).toFloat / split.getNumPaths)

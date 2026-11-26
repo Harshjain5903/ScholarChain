@@ -6,9 +6,9 @@ import org.apache.hadoop.mapreduce.Job
 
 /**
  * Input layout of a source-normalization job, chosen with `-D scholarchain.input.layout=...`:
- *   - `whole-file` (default): every file is one record ([[WholeFileInputFormat]]); the layout of the
- *     fetched Crossref (one work per file), OpenAlex (one API response of up to 50 works per file)
- *     and ORCID (one record per file) directories.
+ *   - `whole-file` (default): every file is one record ([[WholeFileInputFormat]]); the layout of
+ *     the fetched Crossref (one work per file), OpenAlex (one API response of up to 50 works per
+ *     file) and ORCID (one record per file) directories.
  *   - `json-lines`: one JSON object per line ([[JsonLineInputFormat]]), splittable.
  */
 object InputLayout:
@@ -30,13 +30,15 @@ object InputLayout:
       job.setInputFormatClass(classOf[JsonLineInputFormat])
     else job.setInputFormatClass(classOf[WholeFileInputFormat])
 
-  /** True when `input` (file, or directory searched recursively) holds at least one visible file. */
+  /**
+   * True when `input` (file, or directory searched recursively) holds at least one visible file.
+   */
   def hasInputFiles(conf: Configuration, input: String): Boolean =
     val p  = new Path(input)
     val fs = p.getFileSystem(conf)
     if !fs.exists(p) then false
     else
-      val it = fs.listFiles(p, true)
+      val it    = fs.listFiles(p, true)
       var found = false
       while !found && it.hasNext do
         val n = it.next().getPath.getName

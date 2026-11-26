@@ -204,7 +204,10 @@ class RealLayoutIntegrationSpec extends AnyFunSuite with Matchers:
     val in1 = Files.createDirectories(tmp.resolve("in1"))
     val in2 = Files.createDirectories(tmp.resolve("in2"))
     val (cr, _) =
-      CrossrefParser.parse(resource("crossref-work.json"), "r", "1.0.0", "2026-11-24T00:00:00Z").toOption.get
+      CrossrefParser
+        .parse(resource("crossref-work.json"), "r", "1.0.0", "2026-11-24T00:00:00Z")
+        .toOption
+        .get
     val oaRaw = OpenAlexParser.splitRecords(resource("openalex-chunk.json")).head
     val (oa0, _) =
       OpenAlexParser.parse(oaRaw, "r", "1.0.0", "2026-11-24T00:00:00Z").toOption.get
@@ -216,7 +219,7 @@ class RealLayoutIntegrationSpec extends AnyFunSuite with Matchers:
         sourceRecordId = s"dblp:$id",
         authors = w.authors.map(_.copy(orcid = None))
       )
-    val oa  = oa0.copy(authors = oa0.authors)
+    val oa   = oa0.copy(authors = oa0.authors)
     val lone = dblp("lone", cr).copy(doi = Some("10.9999/none"))
     Files.writeString(
       in1.resolve("d.jsonl"),
@@ -253,7 +256,10 @@ class RealLayoutIntegrationSpec extends AnyFunSuite with Matchers:
     run("orcid-normalization", orIn, tmp.resolve("orcid-out"), oc) shouldBe 0
     counter(oc, "ScholarChain", "accepted") shouldBe 1
     val (cr, _) =
-      CrossrefParser.parse(resource("crossref-work.json"), "r", "1.0.0", "2026-11-24T00:00:00Z").toOption.get
+      CrossrefParser
+        .parse(resource("crossref-work.json"), "r", "1.0.0", "2026-11-24T00:00:00Z")
+        .toOption
+        .get
     val wIn = Files.createDirectories(tmp.resolve("works"))
     Files.writeString(wIn.resolve("w.jsonl"), write(cr) + "\n")
     val c = tmp.resolve("c.json")

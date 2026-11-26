@@ -53,7 +53,7 @@ class RealShapeParsersSpec extends AnyFunSuite with Matchers:
   test("real OpenAlex chunk splits into its works and each parses") {
     val parts = OpenAlexParser.splitRecords(resource("openalex-chunk.json"))
     parts.size shouldBe 2
-    val parsed = parts.map(OpenAlexParser.parse(_, "r-oa", "1.0.0", ts).toOption.get)
+    val parsed   = parts.map(OpenAlexParser.parse(_, "r-oa", "1.0.0", ts).toOption.get)
     val (w1, m1) = parsed.head
     w1.source shouldBe SourceType.OpenAlex
     w1.workId shouldBe "work:openalex:W3157926221"
