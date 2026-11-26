@@ -415,11 +415,32 @@ datasets:
     source_urls:
       api: "https://api.openalex.org/works?filter=doi:<url1>|<url2>|...&per_page=50"
     documentation_url: "https://docs.openalex.org/"
-    license: "CC0 1.0 (OpenAlex data, https://openalex.org/about; not re-verified online in this offline work order)"
+    license: "CC0 -- all OpenAlex data is CC0 (human-verified 2026-11-26 at https://openalex.org/about, see license_evidence; the version number 1.0 recorded earlier was not part of the human's finding). CC0 covers copyright/database licensing only; it does not settle the personal-data and privacy considerations in personal_data_notes and privacy_notes, which remain in force."
+    license_evidence: >-
+      Human-verified on 2026-11-26 by the human architect, who personally
+      checked two OpenAlex pages (recorded from the human's findings; not
+      fetched by dataset-engineer): (a) OpenAlex About page
+      https://openalex.org/about (URL already recorded in this entry before
+      the check) and (b) OpenAlex API Authentication page
+      https://help.openalex.org/api/authentication/ . Findings: (1) all OpenAlex data is CC0;
+      (2) basic API use is free and needs no API key; (3) keyless requests
+      are limited to 10 per second; (4) a free API key raises the budget and
+      the request limit; (5) higher-volume plans are paid. CC0 covers
+      copyright/database licensing only and does not resolve personal-data,
+      privacy or GDPR questions about author names, ORCID iDs or
+      affiliations; the considerations in privacy_notes remain in force.
+    reuse_terms: >-
+      OpenAlex data is CC0 (human-verified 2026-11-26), which covers
+      copyright/database licensing only; personal-data and privacy
+      considerations in privacy_notes still apply to any reuse or
+      redistribution. API terms (human-verified 2026-11-26): basic use is free
+      and needs no API key; keyless requests are limited to 10 per second; a
+      free API key raises the budget and the request limit; higher-volume plans
+      are paid.
     spec_check: true
-    license_status: "NEEDS-HUMAN-CONFIRMATION (web check that OpenAlex data is still CC0 1.0 and of the current API usage terms; not done offline)"
+    license_status: "NEEDS-HUMAN-CONFIRMATION -- CC0 licence and API terms human-verified 2026-11-26; personal-data/privacy review (privacy_notes) still open, not settled by CC0"
     human_confirmation_required:
-      - "Confirm CC0 1.0 status at https://openalex.org/about and current API limits/terms at https://docs.openalex.org/ before redistribution."
+      - "Personal-data/privacy review remains open: CC0 does not settle privacy or GDPR questions for author names, raw author-name strings, ORCID iDs, OpenAlex author IDs or affiliations (see personal_data_notes and privacy_notes) before any redistribution beyond course use."
     format: "JSON, one verbatim API response per file ({meta, results[], group_by}; UTF-8, uncompressed), named oa-chunk-<4 letters>.json (chunk order = selection-50k.dois.txt order, 50 DOIs each)"
     compression: "none (files stored uncompressed)"
     schema_version: "OpenAlex Works entity as returned by api.openalex.org on 2026-11-22; the API carries no schema version string (none observed in responses)"
@@ -451,7 +472,7 @@ datasets:
       ORCID iDs (130,040 author mentions carry one) and institutions. Raw files
       also hold raw_affiliation_strings. No emails.
     privacy_notes: >-
-      Public scholarly metadata (CC0 per OpenAlex, to be re-confirmed). OpenAlex
+      Public scholarly metadata (CC0 per OpenAlex, confirmed 2026-11-26, human-verified; this does not settle the personal-data/privacy review, which is still open). OpenAlex
       author clusters are algorithmic and can merge or split real people; ORCID
       assignments on a work come from OpenAlex's own matching. Raw files are
       gitignored; only trimmed 45-line sample is committed. Contact address is
