@@ -5,7 +5,8 @@ import edu.scholarchain.spark.TestFixtures.{lineage, mkProv}
 
 /**
  * Cross-dataset duplicate works (enriched 10K run: one DBLP paper and its Crossref and OpenAlex
- * copies gave jointPublicationCount = 3 for a single shared paper) and DBLP-preferred canonical IDs.
+ * copies gave jointPublicationCount = 3 for a single shared paper) and DBLP-preferred canonical
+ * IDs.
  */
 class WorkDeduplicationSpec extends SparkTestBase:
 
@@ -58,9 +59,9 @@ class WorkDeduplicationSpec extends SparkTestBase:
 
   test("copies of one DOI map to the DBLP work; without DBLP the smallest ID is kept") {
     WorkDeduplication.duplicateWorks(sc.parallelize(works)).collect().toMap shouldBe Map(
-      crW                     -> dblpW,
-      oaW                     -> dblpW,
-      "work:openalex:W9"      -> "work:crossref:10.2/zz"
+      crW                -> dblpW,
+      oaW                -> dblpW,
+      "work:openalex:W9" -> "work:crossref:10.2/zz"
     )
   }
 
@@ -70,19 +71,19 @@ class WorkDeduplicationSpec extends SparkTestBase:
   }
 
   test("one paper in three datasets yields one shared publication, not three") {
-    val dA = "mention:dblp:conf/x/A20:0"
-    val dB = "mention:dblp:conf/x/A20:1"
-    val cA = "mention:crossref:10.1/abc:0"
-    val cB = "mention:crossref:10.1/abc:1"
-    val oA = "mention:openalex:W1:0"
-    val oB = "mention:openalex:W1:1"
+    val dA    = "mention:dblp:conf/x/A20:0"
+    val dB    = "mention:dblp:conf/x/A20:1"
+    val cA    = "mention:crossref:10.1/abc:0"
+    val cB    = "mention:crossref:10.1/abc:1"
+    val oA    = "mention:openalex:W1:0"
+    val oB    = "mention:openalex:W1:1"
     val pairs = sc.parallelize(Seq(pair(dblpW, dA, dB), pair(crW, cA, cB), pair(oaW, oA, oB)))
     val teams = sc.parallelize(Seq(team(dblpW, dA, dB), team(crW, cA, cB), team(oaW, oA, oB)))
     val accepted =
       sc.parallelize(Seq(accept(cA, dA), accept(oA, dA), accept(cB, dB), accept(oB, dB)))
     val dups = WorkDeduplication.duplicateWorks(sc.parallelize(works))
 
-    val mapping = CanonicalGraphBuilder.matchedMentionMapping(accepted)
+    val mapping   = CanonicalGraphBuilder.matchedMentionMapping(accepted)
     val keptPairs = WorkDeduplication.keepPairs(pairs, dups)
     val edges = CanonicalGraphBuilder
       .aggregatePairs(

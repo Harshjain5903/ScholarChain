@@ -498,6 +498,34 @@ object ScholarChainPipeline:
       "largestSize"      -> largestCommunity.map(_._2.toDouble).getOrElse(0.0)
     )
 
+    // ORCID (third enrichment dataset): link canonical researchers to fetched ORCID records by the
+    // ORCID iD on their author mentions (exact iD equality), written to <output>/orcid-links.
+    val orcidJson: ujson.Value = config.orcidProfilesPath.fold[ujson.Value](ujson.Null) { path =>
+      logger.info(s"Linking researchers to ORCID records from $path")
+      val profiles =
+        OrcidEnrichment.profiles(sc.textFile(path)).persist(StorageLevel.MEMORY_AND_DISK)
+      val rOrcids = OrcidEnrichment
+        .researcherOrcids(teams.filter(t => t.year >= ws && t.year <= we), mentionMapping)
+        .persist(StorageLevel.MEMORY_AND_DISK)
+      val links = OrcidEnrichment.link(rOrcids, profiles).persist(StorageLevel.MEMORY_AND_DISK)
+      links.map(l => upickle.default.write(l)).saveAsTextFile(s"$out/orcid-links")
+      val stats = OrcidEnrichment.Stats(
+        profilesLoaded = profiles.count(),
+        researchersWithOrcid = rOrcids.count(),
+        researchersLinked = links.count(),
+        researchersWithConflictingOrcid = rOrcids.filter(_._2._2).count()
+      )
+      ujson.Obj(
+        "rule"                 -> "researcher mention ORCID iD == ORCID record iD (exact)",
+        "profilesPath"         -> path,
+        "profilesLoaded"       -> stats.profilesLoaded.toDouble,
+        "researchersWithOrcid" -> stats.researchersWithOrcid.toDouble,
+        "researchersLinked"    -> stats.researchersLinked.toDouble,
+        "researchersWithConflictingOrcid" -> stats.researchersWithConflictingOrcid.toDouble,
+        "output"                          -> s"$out/orcid-links"
+      )
+    }
+
     val neptuneJson = neptuneCounts.fold[ujson.Value](ujson.Null) { c =>
       ujson.Obj(
         "researcherNodes"       -> c.researcherNodes.toDouble,
@@ -653,6 +681,7 @@ object ScholarChainPipeline:
         k -> ujson.Num(v.toDouble)
       }),
       "neptune"         -> neptuneJson,
+      "orcidEnrichment" -> orcidJson,
       "outputCounts"    -> outputCounts,
       "pipelineSeconds" -> (System.nanoTime() - t0).toDouble / 1e9
     )

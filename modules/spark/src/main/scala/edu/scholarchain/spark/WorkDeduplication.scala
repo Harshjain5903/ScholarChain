@@ -14,8 +14,8 @@ import org.apache.spark.rdd.RDD
  *
  * Rule: work records are grouped by normalized DOI. In a group with more than one work ID, exactly
  * one work is kept: the DBLP work when present (DBLP is the seed dataset), otherwise the
- * lexicographically smallest work ID. The publication teams and pair candidates of every other
- * work in the group are dropped. The dropped copies still contribute to entity resolution (their
+ * lexicographically smallest work ID. The publication teams and pair candidates of every other work
+ * in the group are dropped. The dropped copies still contribute to entity resolution (their
  * mentions are in the match decisions) and their records stay in the Hadoop export; they only stop
  * creating additional works, authorships and coauthor pairs. Works without a DOI are never merged.
  *
@@ -27,7 +27,13 @@ object WorkDeduplication:
   def normalizeDoi(doi: String): String =
     val d = doi.trim.toLowerCase
     val stripped =
-      Seq("https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "http://dx.doi.org/", "doi:")
+      Seq(
+        "https://doi.org/",
+        "http://doi.org/",
+        "https://dx.doi.org/",
+        "http://dx.doi.org/",
+        "doi:"
+      )
         .find(d.startsWith)
         .map(p => d.substring(p.length))
         .getOrElse(d)

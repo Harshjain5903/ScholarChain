@@ -92,7 +92,8 @@ case class PipelineConfig(
   allowUnlinkedErInput: Boolean = false,
   gitSha: Option[String] = None,
   gitDirty: Option[Boolean] = None,
-  inputChecksums: Boolean = true
+  inputChecksums: Boolean = true,
+  orcidProfilesPath: Option[String] = None
 ):
   require(hadoopOutputPath.nonEmpty, "hadoop-output must not be empty")
   require(matchDecisionsPath.nonEmpty, "match-decisions must not be empty")
@@ -180,7 +181,8 @@ object PipelineConfig:
     "allow-unlinked-er-input",
     "git-sha",
     "git-dirty",
-    "input-checksums"
+    "input-checksums",
+    "orcid-profiles"
   )
 
   val RequiredFlags: Vector[String] = Vector("hadoop-output", "match-decisions", "output")
@@ -195,7 +197,7 @@ object PipelineConfig:
       "[--neptune-csv true|false] [--schema-version V] [--policy-version V] " +
       "[--betweenness-seed N] [--kcore-max-iterations N] [--kcore-checkpoint-interval N] " +
       "[--lpa-max-iterations N] [--allow-unlinked-er-input true|false] [--git-sha SHA] " +
-      "[--git-dirty true|false] [--input-checksums true|false]"
+      "[--git-dirty true|false] [--input-checksums true|false] [--orcid-profiles URI]"
 
   /**
    * Parse `--flag value` arguments strictly: an unknown flag, a flag without a value, a repeated
@@ -285,7 +287,8 @@ object PipelineConfig:
               allowUnlinkedErInput = unlinked,
               gitSha = m.get("git-sha"),
               gitDirty = gitDirty,
-              inputChecksums = checksums
+              inputChecksums = checksums,
+              orcidProfilesPath = m.get("orcid-profiles")
             )
           )
         catch
