@@ -9,6 +9,17 @@ set -euo pipefail
 #
 # Records dataset snapshot, run IDs, config, and output locations.
 #
+# Enrichment (A19): with ENRICHMENT=subset (the default) the run also normalizes
+# the three enrichment datasets with Hadoop (J02c Crossref, J02a OpenAlex,
+# J02b ORCID, JSON Lines layout) from
+#   s3://<prefix>-raw/enrichment/{crossref,openalex,orcid}.jsonl
+# (built per DBLP selection by datasets/scripts/enrich_subset.py and uploaded
+# next to dblp/dblp.xml). Crossref and OpenAlex works join DBLP in identifier
+# extraction, blocking, team extraction and graph export; Spark drops their
+# duplicate works by DOI and links researchers to the ORCID records
+# (--orcid-profiles). Their VersionIds/ETags are recorded and re-checked like
+# the DBLP input. ENRICHMENT=none runs DBLP only (e.g. a scale run).
+#
 # Principal (N80): run this script as the HUMAN OPERATOR (an AWS CLI profile
 # with the account's admin SSO role), not as the deploy role. The deploy role
 # has only a minimal batch statement set and no read access to the Terraform
@@ -233,12 +244,13 @@ write_record() {
     --arg input "${DBLP_XML}" --arg hadoop_out "${HADOOP_OUT}" --arg er_out "${ER_OUT}" --arg spark_out "${SPARK_OUT}" \
     --arg timeout "${TIMEOUT_MINUTES}" --arg capacity "${CAPACITY_STRATEGY:-}" \
     --argjson stages "${STAGES_JSON}" --argjson jars "${JARS_JSON}" --argjson dataset "${DATASET_JSON}" \
+    --argjson enrichment "${ENRICH_JSON:-[]}" --arg enrichment_mode "${ENRICHMENT:-}" \
     --arg rid_h "${RUN_ID_HADOOP}" --arg rid_e "${RUN_ID_ER}" --arg rid_s "${RUN_ID_SPARK}" \
     '{run_id:$run_id,mode:$mode,environment:$env,account:$account,region:$region,commit:$commit,
       git_dirty:($dirty=="true"),run_timestamp:$run_ts,status:$status,timeout_minutes_per_stage:($timeout|tonumber),
       capacity_strategy:$capacity,
       stage_run_ids:{hadoop:$rid_h,er:$rid_e,spark:$rid_s},cluster:$cluster,image:$image,log_group:$log_group,
-      input:$input,dataset_snapshot:$dataset,jars:$jars,
+      input:$input,dataset_snapshot:$dataset,enrichment_mode:$enrichment_mode,enrichment_snapshots:$enrichment,jars:$jars,
       outputs:{hadoop:$hadoop_out,er:$er_out,spark:$spark_out},stages:$stages}' >"${RECORD_FILE}.tmp"
   mv "${RECORD_FILE}.tmp" "${RECORD_FILE}"
 }
@@ -346,7 +358,18 @@ verify_inputs_unchanged() {
   if [[ "${ver}" != "$(printf '%s' "${DATASET_JSON}" | jq -r '.version_id')" || "${etag}" != "$(printf '%s' "${DATASET_JSON}" | jq -r '.etag')" ]]; then
     fail "input changed during run" "${DBLP_XML} changed during the run (VersionId/ETag differ from the recorded snapshot)."
   fi
-  echo "  Recorded jars and dataset snapshot are unchanged."
+  local n j e_uri e_ver e_etag
+  n="$(printf '%s' "${ENRICH_JSON:-[]}" | jq 'length')"
+  for ((j = 0; j < n; j++)); do
+    e_uri="$(printf '%s' "${ENRICH_JSON}" | jq -r ".[${j}].uri")"
+    head="$(head_json "${RAW_BUCKET}" "${e_uri#s3://${RAW_BUCKET}/}")"
+    e_ver="$(printf '%s' "${head}" | jq -r '.VersionId // ""')"
+    e_etag="$(printf '%s' "${head}" | jq -r '.ETag // "" | gsub("\""; "")')"
+    if [[ "${e_ver}" != "$(printf '%s' "${ENRICH_JSON}" | jq -r ".[${j}].version_id")" || "${e_etag}" != "$(printf '%s' "${ENRICH_JSON}" | jq -r ".[${j}].etag")" ]]; then
+      fail "input changed during run" "${e_uri} changed during the run (VersionId/ETag differ from the recorded snapshot)."
+    fi
+  done
+  echo "  Recorded jars, dataset and enrichment snapshots are unchanged."
 }
 
 echo "=== STEP: Verify target ==="
@@ -428,6 +451,34 @@ if [[ "$(printf '%s' "${DATASET_JSON}" | jq -r '.size_bytes')" -le 0 || -z "$(pr
 fi
 echo "  ${DATASET_JSON}"
 
+ENRICHMENT="${ENRICHMENT:-subset}"
+ENRICH_JSON="[]"
+CR_IN="s3://${RAW_BUCKET}/enrichment/crossref.jsonl"
+OA_IN="s3://${RAW_BUCKET}/enrichment/openalex.jsonl"
+OR_IN="s3://${RAW_BUCKET}/enrichment/orcid.jsonl"
+case "${ENRICHMENT}" in
+  subset)
+    echo "=== STEP: Record enrichment snapshots (Crossref, OpenAlex, ORCID) ==="
+    for KEY in enrichment/crossref.jsonl enrichment/openalex.jsonl enrichment/orcid.jsonl; do
+      E_HEAD="$(head_json "${RAW_BUCKET}" "${KEY}")"
+      E_JSON="$(printf '%s' "${E_HEAD}" | jq -c --arg u "s3://${RAW_BUCKET}/${KEY}" \
+        '{uri:$u,version_id:(.VersionId // ""),etag:((.ETag // "")|gsub("\"";"")),size_bytes:(.ContentLength // 0),last_modified:(.LastModified // "")}')"
+      if [[ "$(printf '%s' "${E_JSON}" | jq -r '.size_bytes')" -le 0 || -z "$(printf '%s' "${E_JSON}" | jq -r '.version_id')" ]]; then
+        echo "ERROR: enrichment input s3://${RAW_BUCKET}/${KEY} is missing, empty or has no VersionId: ${E_JSON}" >&2
+        echo "  Build it with datasets/scripts/enrich_subset.py and upload it, or set ENRICHMENT=none." >&2
+        exit 3
+      fi
+      ENRICH_JSON="$(printf '%s' "${ENRICH_JSON}" | jq -c --argjson e "${E_JSON}" '. + [$e]')"
+      echo "  ${E_JSON}"
+    done
+    ;;
+  none) echo "  ENRICHMENT=none: DBLP-only run." ;;
+  *)
+    echo "ERROR: ENRICHMENT must be subset or none, got '${ENRICHMENT}'." >&2
+    exit 2
+    ;;
+esac
+
 echo "=== STEP: Record job jars: S3 VersionId, ETag, sha256 (N68) ==="
 JAR_TMP_DIR="$(umask 077 && mktemp -d "${TMPDIR:-/tmp}/scholarchain-jars.XXXXXX")"
 RECORDED_SPEC=""
@@ -460,6 +511,16 @@ J07="${HADOOP_OUT}/stages/j07-pair_candidates"
 J03="${HADOOP_OUT}/stages/j03-identifiers"
 J04="${HADOOP_OUT}/stages/j04-blocks"
 J05="${HADOOP_OUT}/stages/j05-features"
+J02C="${HADOOP_OUT}/stages/j02c-crossref"
+J02A="${HADOOP_OUT}/stages/j02a-openalex"
+J02B="${HADOOP_OUT}/stages/j02b-orcid"
+if [[ "${ENRICHMENT}" == "subset" ]]; then
+  WORKS_IN="${J01},${J02C},${J02A}"
+  ORCID_OUT="${J02B}"
+else
+  WORKS_IN="${J01}"
+  ORCID_OUT=""
+fi
 
 # jar_evidence: the jar lines of the evidence block.
 jar_evidence() {
@@ -624,14 +685,24 @@ if [[ "${MODE}" == "ecs" ]]; then
     write_record
   }
 
+  HADOOP_SPECS=("dblp-extraction|${DBLP_XML}|${J01}")
+  if [[ "${ENRICHMENT}" == "subset" ]]; then
+    HADOOP_SPECS+=(
+      "crossref-normalization|${CR_IN}|${J02C}|scholarchain.input.layout=json-lines"
+      "openalex-normalization|${OA_IN}|${J02A}|scholarchain.input.layout=json-lines"
+      "orcid-normalization|${OR_IN}|${J02B}|scholarchain.input.layout=json-lines"
+    )
+  fi
+  HADOOP_SPECS+=(
+    "team-extraction|${WORKS_IN}|${J06}"
+    "pair-expansion|${J06}|${J07}"
+    "graph-export|${WORKS_IN},${J06},${J07}|${EXPORT_DIR}"
+    "identifier-extraction|${WORKS_IN}|${J03}"
+    "blocking|${WORKS_IN}|${J04}"
+    "feature-construction|${J04}|${J05}"
+  )
   HADOOP_SCRIPT="$(pipeline_ecs_hadoop_script "${TIMEOUT_SECONDS}" "${HADOOP_SPEC}" "${RUN_ID_HADOOP}" "${RUN_TS}" "${TF_ENV_AWS_REGION}" "${EXPORT_DIR}" \
-    "dblp-extraction|${DBLP_XML}|${J01}" \
-    "team-extraction|${J01}|${J06}" \
-    "pair-expansion|${J06}|${J07}" \
-    "graph-export|${J01},${J06},${J07}|${EXPORT_DIR}" \
-    "identifier-extraction|${J01}|${J03}" \
-    "blocking|${J01}|${J04}" \
-    "feature-construction|${J04}|${J05}")"
+    "${HADOOP_SPECS[@]}")"
   run_ecs_stage hadoop "${FAM_HADOOP}" "${HADOOP_SCRIPT}"
   TASK_HADOOP="${LAST_TASK_ARN}"
 
@@ -640,7 +711,7 @@ if [[ "${MODE}" == "ecs" ]]; then
   TASK_ER="${LAST_TASK_ARN}"
 
   SPARK_SCRIPT="$(pipeline_ecs_spark_script "${TIMEOUT_SECONDS}" "${SPARK_SPEC}" "${EXPORT_DIR}" "${ER_OUT}/match-decisions" "${SPARK_OUT}" \
-    "${RUN_ID_SPARK}" "${RUN_TS}" "${COMMIT_SHA}" "${GIT_DIRTY_FLAG}" "${TF_ENV_AWS_REGION}")"
+    "${RUN_ID_SPARK}" "${RUN_TS}" "${COMMIT_SHA}" "${GIT_DIRTY_FLAG}" "${TF_ENV_AWS_REGION}" "${ORCID_OUT}")"
   run_ecs_stage spark "${FAM_SPARK}" "${SPARK_SCRIPT}"
   TASK_SPARK="${LAST_TASK_ARN}"
 
@@ -766,9 +837,9 @@ run_cmd_step() {
 }
 
 run_hadoop_job() {
-  local job="$1" in="$2" out="$3" args=() line
+  local job="$1" in="$2" out="$3" extra="${4:-}" args=() line
   while IFS= read -r line; do args+=("${line}"); done < <(
-    pipeline_hadoop_args "${HADOOP_JAR}" "${RUN_ID_HADOOP}" "${RUN_TS}" "${job}" "${in}" "${out}"
+    pipeline_hadoop_args "${HADOOP_JAR}" "${RUN_ID_HADOOP}" "${RUN_TS}" "${job}" "${in}" "${out}" "${extra}"
   )
   echo "=== STEP: Hadoop job ${job} ==="
   run_cmd_step "Hadoop-${job}" "${args[@]}"
@@ -777,11 +848,16 @@ run_hadoop_job() {
 
 HADOOP_STEP_IDS=""
 run_hadoop_job dblp-extraction "${DBLP_XML}" "${J01}"
-run_hadoop_job team-extraction "${J01}" "${J06}"
+if [[ "${ENRICHMENT}" == "subset" ]]; then
+  run_hadoop_job crossref-normalization "${CR_IN}" "${J02C}" scholarchain.input.layout=json-lines
+  run_hadoop_job openalex-normalization "${OA_IN}" "${J02A}" scholarchain.input.layout=json-lines
+  run_hadoop_job orcid-normalization "${OR_IN}" "${J02B}" scholarchain.input.layout=json-lines
+fi
+run_hadoop_job team-extraction "${WORKS_IN}" "${J06}"
 run_hadoop_job pair-expansion "${J06}" "${J07}"
-run_hadoop_job graph-export "${J01},${J06},${J07}" "${EXPORT_DIR}"
-run_hadoop_job identifier-extraction "${J01}" "${J03}"
-run_hadoop_job blocking "${J01}" "${J04}"
+run_hadoop_job graph-export "${WORKS_IN},${J06},${J07}" "${EXPORT_DIR}"
+run_hadoop_job identifier-extraction "${WORKS_IN}" "${J03}"
+run_hadoop_job blocking "${WORKS_IN}" "${J04}"
 run_hadoop_job feature-construction "${J04}" "${J05}"
 
 echo "=== STEP: Verify Hadoop export (ExportVerifier, exit 0 = ok) ==="
@@ -799,7 +875,7 @@ echo "=== STEP: Spark pipeline ==="
 SPARK_ARGS=()
 while IFS= read -r LINE; do SPARK_ARGS+=("${LINE}"); done < <(
   pipeline_spark_args "${SPARK_JAR}" "${EXPORT_DIR}" "${ER_OUT}/match-decisions" "${SPARK_OUT}" \
-    "${RUN_ID_SPARK}" "${RUN_TS}" "${COMMIT_SHA}" "${GIT_DIRTY_FLAG}" "${SPARK_CKPT}"
+    "${RUN_ID_SPARK}" "${RUN_TS}" "${COMMIT_SHA}" "${GIT_DIRTY_FLAG}" "${SPARK_CKPT}" "${ORCID_OUT}"
 )
 run_cmd_step "Spark" "${SPARK_ARGS[@]}"
 SPARK_STEP_ID="${LAST_STEP_ID}"

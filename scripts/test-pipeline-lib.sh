@@ -141,6 +141,21 @@ case "${SS}" in *"--output s3a://g/${R}/spark"*"--run-id ${R}-spark"*"--git-sha 
 case "${SS}" in *'aws-java-sdk-bundle-*.jar'*) ok ecs-spark-preflight ;; *) bad ecs-spark-preflight ;; esac
 expect_rc ecs-spark-bad-dirty 2 pipeline_ecs_spark_script 3600 "${SPEC_S}" h d o r t s maybe us-east-2
 
+# A19: enrichment normalizers get their -D layout; a malformed extra property is refused.
+HE="$(pipeline_ecs_hadoop_script 3600 "${SPEC_H}" ${R}-hadoop 2026-11-24T10:15:00Z us-east-2 "${H}/export" \
+  "crossref-normalization|s3://scholarchain-dev-raw/enrichment/crossref.jsonl|${H}/stages/j02c|scholarchain.input.layout=json-lines" \
+  "team-extraction|${H}/j01,${H}/j02c|${H}/j06")"
+bash -n <<<"${HE}" && ok ecs-hadoop-extra-syntax || bad ecs-hadoop-extra-syntax
+case "${HE}" in *"HadoopJobDriver crossref-normalization -Dmapreduce.framework.name=local -Dscholarchain.input.layout=json-lines"*"s3a://scholarchain-dev-raw/enrichment/crossref.jsonl"*) ok ecs-hadoop-extra-d ;; *) bad "ecs-hadoop-extra-d: ${HE}" ;; esac
+case "${HE}" in *"HadoopJobDriver team-extraction -Dmapreduce.framework.name=local -Dscholarchain.pipeline"*) ok ecs-hadoop-no-extra-d ;; *) bad ecs-hadoop-no-extra-d ;; esac
+expect_rc ecs-hadoop-bad-extra 2 pipeline_ecs_hadoop_script 3600 "${SPEC_H}" r t us-east-2 e 'j|i|o|not a property'
+HAE="$(pipeline_hadoop_args s3://a/j.jar rid 2026-11-24T10:15:00Z openalex-normalization s3://r/oa.jsonl s3://c/out scholarchain.input.layout=json-lines | tr '\n' ' ')"
+case "${HAE}" in *"-Dscholarchain.run.timestamp=2026-11-24T10:15:00Z -Dscholarchain.input.layout=json-lines s3://r/oa.jsonl s3://c/out"*) ok emr-hadoop-extra-d ;; *) bad "emr-hadoop-extra-d: ${HAE}" ;; esac
+expect_rc emr-hadoop-bad-extra 2 pipeline_hadoop_args j r t job i o 'bad value'
+SO="$(pipeline_ecs_spark_script 5400 "${SPEC_S}" "${H}/export" "s3://c/${R}/er/match-decisions" "s3://g/${R}/spark" ${R}-spark 2026-11-24T10:15:00Z abc123 false us-east-2 "${H}/stages/j02b")"
+case "${SO}" in *"--orcid-profiles s3a://scholarchain-dev-curated/${R}/hadoop/stages/j02b"*) ok ecs-spark-orcid ;; *) bad "ecs-spark-orcid: ${SO}" ;; esac
+case "${SS}" in *"--orcid-profiles"*) bad ecs-spark-no-orcid-by-default ;; *) ok ecs-spark-no-orcid-by-default ;; esac
+
 # Fail closed: a task image without the tools stops with 97 before any work.
 got=0
 env -i PATH=/nonexistent /bin/bash -c "${HS}" >/dev/null 2>&1 || got=$?

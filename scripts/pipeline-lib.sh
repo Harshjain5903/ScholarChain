@@ -54,20 +54,25 @@ pipeline_step_json() {
 }
 
 # Hadoop job step: command-runner.jar -> hadoop jar <jar> <driver class> <job> -D... <in> <out>
-# pipeline_hadoop_args <jar-s3-uri> <run-id> <timestamp> <job> <in> <out>
+# pipeline_hadoop_args <jar-s3-uri> <run-id> <timestamp> <job> <in> <out> [<key>=<value>]
 pipeline_hadoop_args() {
-  local jar="$1" rid="$2" ts="$3" job="$4" in="$5" out="$6"
+  local jar="$1" rid="$2" ts="$3" job="$4" in="$5" out="$6" extra="${7:-}"
+  if [[ -n "${extra}" && ! "${extra}" =~ ^[A-Za-z0-9._-]+=[A-Za-z0-9._-]+$ ]]; then
+    echo "ERROR: extra -D property must be key=value, got '${extra}'." >&2
+    return 2
+  fi
   printf '%s\n' hadoop jar "${jar}" edu.scholarchain.hadoop.driver.HadoopJobDriver "${job}" \
     "-Dscholarchain.pipeline.run-id=${rid}" \
     "-Dscholarchain.pipeline.schema-version=1.0.0" \
-    "-Dscholarchain.run.timestamp=${ts}" \
-    "${in}" "${out}"
+    "-Dscholarchain.run.timestamp=${ts}"
+  if [[ -n "${extra}" ]]; then printf '%s\n' "-D${extra}"; fi
+  printf '%s\n' "${in}" "${out}"
 }
 
-# pipeline_spark_args <jar> <hadoop-out> <decisions> <out> <run-id> <ts> <sha> <dirty> <ckpt>
+# pipeline_spark_args <jar> <hadoop-out> <decisions> <out> <run-id> <ts> <sha> <dirty> <ckpt> [orcid-profiles]
 # No --policy-version: it is derived from the ER decisions.
 pipeline_spark_args() {
-  local jar="$1" hout="$2" dec="$3" out="$4" rid="$5" ts="$6" sha="$7" dirty="$8" ckpt="$9"
+  local jar="$1" hout="$2" dec="$3" out="$4" rid="$5" ts="$6" sha="$7" dirty="$8" ckpt="$9" orcid="${10:-}"
   if [[ "${dirty}" != "true" && "${dirty}" != "false" ]]; then
     echo "ERROR: git-dirty must be true or false, got '${dirty}'." >&2
     return 2
@@ -79,6 +84,7 @@ pipeline_spark_args() {
     --partitions 16 --betweenness-samples 32 --betweenness-seed 42 \
     --run-timestamp "${ts}" --git-sha "${sha}" --git-dirty "${dirty}" \
     --checkpoint-dir "${ckpt}"
+  if [[ -n "${orcid}" ]]; then printf '%s\n' --orcid-profiles "${orcid}"; fi
 }
 
 # ER step body. EntityResolutionRunner reads/writes java.nio local paths only,
@@ -277,9 +283,11 @@ pipeline_ecs_stage_jar() {
 
 # Hadoop stage: every job, then ExportVerifier, in one task, JVM local mode.
 # pipeline_ecs_hadoop_script <timeout-s> <jar-spec> <run-id> <timestamp> <region> <export-dir-s3> <spec>...
-# <spec> = "<job>|<input-s3-csv>|<output-s3>"
+# <spec> = "<job>|<input-s3-csv>|<output-s3>[|<key>=<value>]"; the optional
+# fourth field is one extra -D property for that job (e.g. the J02 normalizers'
+# scholarchain.input.layout=json-lines).
 pipeline_ecs_hadoop_script() {
-  local tmo="$1" jar="$2" rid="$3" ts="$4" region="$5" export="$6" spec job in out a
+  local tmo="$1" jar="$2" rid="$3" ts="$4" region="$5" export="$6" spec job in out extra a
   shift 6
   for a in "${rid}" "${ts}" "${region}" "${export}" "$@"; do
     pipeline_check_arg "${a}" || return 2
@@ -293,9 +301,15 @@ pipeline_ecs_hadoop_script() {
   printf "printf '%%s' '<configuration><property><name>fs.s3a.endpoint.region</name><value>%s</value></property><property><name>hadoop.tmp.dir</name><value>/work/%s/tmp</value></property><property><name>mapreduce.framework.name</name><value>local</value></property></configuration>' > \"\$W/conf/core-site.xml\"; export HADOOP_CONF_DIR=\"\$W/conf\"; " "${region}" "${rid}"
   printf '%s' 'export HADOOP_CLASSPATH="$(ls $T/hadoop-aws-*.jar | head -n 1):$(ls $T/aws-java-sdk-bundle-*.jar | head -n 1)"; export HADOOP_HEAPSIZE_MAX="${HEAP}m"; '
   for spec in "$@"; do
-    IFS='|' read -r job in out <<<"${spec}"
+    extra=""
+    IFS='|' read -r job in out extra <<<"${spec}"
+    if [[ -n "${extra}" && ! "${extra}" =~ ^[A-Za-z0-9._-]+=[A-Za-z0-9._-]+$ ]]; then
+      echo "ERROR: extra -D property must be key=value (letters, digits, . _ -), got '${extra}'." >&2
+      return 2
+    fi
     printf 'bound hadoop jar "$W/hadoop.jar" edu.scholarchain.hadoop.driver.HadoopJobDriver %q ' "${job}"
     printf -- '-Dmapreduce.framework.name=local '
+    if [[ -n "${extra}" ]]; then printf -- '-D%q ' "${extra}"; fi
     printf -- '-Dscholarchain.pipeline.run-id=%q -Dscholarchain.pipeline.schema-version=1.0.0 -Dscholarchain.run.timestamp=%q ' "${rid}" "${ts}"
     printf '%q %q; ' "$(pipeline_s3a "${in}")" "$(pipeline_s3a "${out}")"
   done
@@ -324,14 +338,15 @@ pipeline_ecs_er_script() {
 
 # Spark stage: --master local[*], checkpoints on the task's local disk, S3 via
 # s3a. No --policy-version (derived from the ER decisions).
-# pipeline_ecs_spark_script <timeout-s> <jar-spec> <hadoop-out-s3> <decisions-s3> <out-s3> <run-id> <ts> <sha> <dirty> <region>
+# pipeline_ecs_spark_script <timeout-s> <jar-spec> <hadoop-out-s3> <decisions-s3> <out-s3> <run-id> <ts> <sha> <dirty> <region> [orcid-profiles-s3]
+# The optional last argument passes the J02b ORCID output as --orcid-profiles.
 pipeline_ecs_spark_script() {
-  local tmo="$1" jar="$2" hout="$3" dec="$4" out="$5" rid="$6" ts="$7" sha="$8" dirty="$9" region="${10}" a
+  local tmo="$1" jar="$2" hout="$3" dec="$4" out="$5" rid="$6" ts="$7" sha="$8" dirty="$9" region="${10}" orcid="${11:-}" a
   if [[ "${dirty}" != "true" && "${dirty}" != "false" ]]; then
     echo "ERROR: git-dirty must be true or false, got '${dirty}'." >&2
     return 2
   fi
-  for a in "${hout}" "${dec}" "${out}" "${rid}" "${ts}" "${sha}" "${region}"; do
+  for a in "${hout}" "${dec}" "${out}" "${rid}" "${ts}" "${sha}" "${region}" "${orcid}"; do
     pipeline_check_arg "${a}" || return 2
   done
   pipeline_jar_check "${jar}" || return 2
@@ -346,6 +361,7 @@ pipeline_ecs_spark_script() {
   printf -- '--window-start 1900 --window-end 2100 --run-id %q ' "${rid}"
   printf -- '--partitions 16 --betweenness-samples 32 --betweenness-seed 42 '
   printf -- '--run-timestamp %q --git-sha %q --git-dirty %q ' "${ts}" "${sha}" "${dirty}"
+  if [[ -n "${orcid}" ]]; then printf -- '--orcid-profiles %q ' "$(pipeline_s3a "${orcid}")"; fi
   printf '%s' '--checkpoint-dir "$W/ckpt"; rm -rf "$W"'
 }
 
