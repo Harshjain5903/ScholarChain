@@ -108,9 +108,11 @@ object OrcidEnrichment:
   ): RDD[(String, (String, Boolean))] =
     val mapping = mentionToCanonical.reduceByKey((a, b) => if a <= b then a else b)
     teams
-      .flatMap(_.authorMentions.iterator.flatMap(m =>
-        m.orcid.flatMap(normalizeOrcid).map(o => (m.mentionId, o))
-      ))
+      .flatMap(
+        _.authorMentions.iterator.flatMap(m =>
+          m.orcid.flatMap(normalizeOrcid).map(o => (m.mentionId, o))
+        )
+      )
       .leftOuterJoin(mapping)
       .map { case (mention, (orcid, canonical)) => ((canonical.getOrElse(mention), orcid), 1L) }
       .reduceByKey(_ + _)
