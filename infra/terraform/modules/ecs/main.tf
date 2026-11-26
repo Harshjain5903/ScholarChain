@@ -596,9 +596,10 @@ resource "aws_appautoscaling_policy" "cpu" {
 # work queue). The five query-path services above keep the read-only runtime
 # role.
 #
-# No load balancer, target group, port mapping or autoscaling: the worker
-# serves no HTTP traffic. desired_count is pinned to 0, so no Fargate task
-# runs and no compute is billed until a human changes this value and applies.
+# No load balancer, target group or port mapping: the worker serves no HTTP
+# traffic. It starts at 0 tasks and is scaled only by the SQS-backlog step
+# scaling defined after the service (0..embedding_worker_max_tasks), so no
+# Fargate task runs and no compute is billed while the queue is empty.
 # The ECR repository and log group are required for the task definition to be
 # runnable at all; both are free while empty.
 ################################################################################
@@ -696,8 +697,112 @@ resource "aws_ecs_service" "embedding_worker" {
     rollback = true
   }
 
+  # desired_count is owned by the SQS-backlog step scaling below after creation.
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
+
   tags = {
     Name    = "${local.prefix}-${local.embedding_worker}"
     Service = local.embedding_worker
   }
+}
+
+################################################################################
+# Embedding worker elasticity: step scaling on the SQS backlog (README scaling
+# table: "ECS target tracking or step scaling on SQS backlog per task").
+# Scale-out: +1 task at >= 1 visible message, +2 at >= 500, +3 at >= 2000,
+# bounded by var.embedding_worker_max_tasks. Scale-in: back to 0 tasks after
+# the queue has been empty for 5 consecutive minutes, so an idle worker costs
+# nothing.
+################################################################################
+
+locals {
+  embedding_queue_name = reverse(split("/", var.embedding_queue_url))[0]
+}
+
+resource "aws_appautoscaling_target" "embedding_worker" {
+  min_capacity       = 0
+  max_capacity       = var.embedding_worker_max_tasks
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.embedding_worker.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "embedding_worker_out" {
+  name               = "${local.prefix}-${local.embedding_worker}-backlog-out"
+  policy_type        = "StepScaling"
+  resource_id        = aws_appautoscaling_target.embedding_worker.resource_id
+  scalable_dimension = aws_appautoscaling_target.embedding_worker.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.embedding_worker.service_namespace
+
+  step_scaling_policy_configuration {
+    adjustment_type         = "ChangeInCapacity"
+    cooldown                = 60
+    metric_aggregation_type = "Maximum"
+
+    step_adjustment {
+      metric_interval_lower_bound = 0
+      metric_interval_upper_bound = 499
+      scaling_adjustment          = 1
+    }
+    step_adjustment {
+      metric_interval_lower_bound = 499
+      metric_interval_upper_bound = 1999
+      scaling_adjustment          = 2
+    }
+    step_adjustment {
+      metric_interval_lower_bound = 1999
+      scaling_adjustment          = 3
+    }
+  }
+}
+
+resource "aws_appautoscaling_policy" "embedding_worker_in" {
+  name               = "${local.prefix}-${local.embedding_worker}-backlog-in"
+  policy_type        = "StepScaling"
+  resource_id        = aws_appautoscaling_target.embedding_worker.resource_id
+  scalable_dimension = aws_appautoscaling_target.embedding_worker.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.embedding_worker.service_namespace
+
+  step_scaling_policy_configuration {
+    adjustment_type         = "ExactCapacity"
+    cooldown                = 60
+    metric_aggregation_type = "Maximum"
+
+    step_adjustment {
+      metric_interval_upper_bound = 0
+      scaling_adjustment          = 0
+    }
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "embedding_backlog_high" {
+  alarm_name          = "${local.prefix}-embedding-backlog-high"
+  alarm_description   = "Embedding queue has visible messages: scale the embedding worker out"
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  dimensions          = { QueueName = local.embedding_queue_name }
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_appautoscaling_policy.embedding_worker_out.arn]
+}
+
+resource "aws_cloudwatch_metric_alarm" "embedding_backlog_empty" {
+  alarm_name          = "${local.prefix}-embedding-backlog-empty"
+  alarm_description   = "Embedding queue empty for 5 minutes: scale the embedding worker in to 0"
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  dimensions          = { QueueName = local.embedding_queue_name }
+  statistic           = "Maximum"
+  period              = 60
+  evaluation_periods  = 5
+  threshold           = 0
+  comparison_operator = "LessThanOrEqualToThreshold"
+  treat_missing_data  = "breaching"
+  alarm_actions       = [aws_appautoscaling_policy.embedding_worker_in.arn]
 }

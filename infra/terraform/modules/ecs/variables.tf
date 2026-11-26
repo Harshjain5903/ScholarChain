@@ -159,3 +159,13 @@ variable "service_min_tasks" {
     error_message = "service_min_tasks keys must be query-api, graph-retriever, vector-retriever, synthesis-worker or verification-worker, with non-negative integer values."
   }
 }
+
+variable "embedding_worker_max_tasks" {
+  description = "Upper bound for the embedding worker's SQS-backlog step scaling (min is 0)"
+  type        = number
+  default     = 4
+  validation {
+    condition     = var.embedding_worker_max_tasks >= 1 && var.embedding_worker_max_tasks <= 10
+    error_message = "embedding_worker_max_tasks must be between 1 and 10."
+  }
+}
